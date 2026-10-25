@@ -1,0 +1,23 @@
+"use client";
+
+import { useCallback, useSyncExternalStore } from "react";
+
+/**
+ * Совпадает ли медиазапрос. На сервере и при гидрации — false (мобильная раскладка
+ * первой); внешний вид задаёт CSS, хук нужен только для ARIA-ролей и поведения.
+ */
+export function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const media = window.matchMedia(query);
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
