@@ -834,6 +834,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -880,6 +890,16 @@
               }
             },
             "description": "Календарь iCalendar"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1129,6 +1149,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1163,7 +1193,7 @@
     },
     "/api/events": {
       "get": {
-        "description": "Если задан `q`, ищет по смыслу и сортирует по релевантности.",
+        "description": "Период — полуинтервал `[from, to)` по началу записи. Если задан `q`, ищет по смыслу среди записей, подходящих под остальные фильтры, и сортирует по релевантности; иначе — по времени начала, записи без даты в конце.",
         "operationId": "list_events",
         "parameters": [
           {
@@ -1283,6 +1313,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1292,16 +1332,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -1315,6 +1345,7 @@
         ]
       },
       "post": {
+        "description": "У встречи и напоминания обязательны дата и время. Конец (`ends_at`) — только у встречи, по умолчанию начало + 60 минут. При `has_time: false` время начала становится 00:00 по Москве.",
         "operationId": "create_event",
         "requestBody": {
           "content": {
@@ -1347,6 +1378,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1356,16 +1397,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -1418,6 +1449,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1427,16 +1468,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -1450,7 +1481,7 @@
         ]
       },
       "patch": {
-        "description": "В том числе отметить выполненной: `status: \"done\"`.",
+        "description": "В том числе отметить выполненной: `status: \"done\"`. `null` у `starts_at` и `ends_at` стирает значение, у остальных полей — оставляет как есть. Перенос встречи без `ends_at` сохраняет её длительность.",
         "operationId": "update_event",
         "parameters": [
           {
@@ -1505,6 +1536,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1514,16 +1555,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -1612,6 +1643,16 @@
             },
             "description": "Successful Response"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1636,7 +1677,7 @@
     },
     "/api/profiles": {
       "post": {
-        "description": "Создаёт профиль и переключает на него cookie этого устройства.",
+        "description": "Создаёт профиль и переключает на него cookie этого устройства. Лимит — 20 новых профилей в час с одного IP (вместе с автосозданием).",
         "operationId": "create_profile",
         "responses": {
           "201": {
@@ -1648,6 +1689,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1782,6 +1833,16 @@
               }
             },
             "description": "`validation_error`"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
           },
           "500": {
             "content": {

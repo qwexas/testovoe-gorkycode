@@ -1,4 +1,7 @@
-"""Эндпоинты, которые на КТ1 объявлены, но ещё не реализованы, отвечают 501."""
+"""Эндпоинты, которые объявлены, но ещё не реализованы, отвечают 501.
+
+Проверка валидации входа здесь же: она срабатывает до бизнес-логики и базы.
+"""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -19,10 +22,6 @@ STUB_REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
     ("GET", "/api/dialog?limit=10", {}),
     ("POST", "/api/tts", {"json": {"text": "Привет", "voice": "baya"}}),
     ("POST", "/api/actions/abc/undo", {}),
-    ("GET", "/api/events?from=2026-10-26T00:00:00%2B03:00&type=meeting&q=отчёт", {}),
-    ("POST", "/api/events", {"json": {"type": "task", "title": "Купить билеты"}}),
-    ("PATCH", "/api/events/1", {"json": {"status": "done"}}),
-    ("DELETE", "/api/events/1", {}),
     ("GET", "/api/calendar.ics", {}),
     ("GET", "/api/calendar/secret-token.ics", {}),
 ]

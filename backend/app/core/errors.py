@@ -57,8 +57,31 @@ class TooManyAttemptsError(DomainError):
     """Превышен лимит попыток; повторить можно через `retry_after_seconds`."""
 
     code = ErrorCode.RATE_LIMITED
+    message_template: ClassVar[str] = "Слишком много попыток. Попробуйте снова через {minutes} мин."
 
     def __init__(self, retry_after_seconds: int) -> None:
         self.retry_after_seconds = retry_after_seconds
         minutes = max(1, math.ceil(retry_after_seconds / SECONDS_PER_MINUTE))
-        super().__init__(f"Слишком много попыток. Попробуйте снова через {minutes} мин.")
+        super().__init__(self.message_template.format(minutes=minutes))
+
+
+class TooManyProfilesError(TooManyAttemptsError):
+    """С одного адреса создано слишком много профилей."""
+
+    message_template = (
+        "С вашего адреса создано слишком много профилей. Попробуйте снова через {minutes} мин."
+    )
+
+
+class EventValidationError(DomainError):
+    """Поля записи противоречат правилам (например, встреча без времени)."""
+
+    code = ErrorCode.VALIDATION_ERROR
+    default_message = "Проверьте данные записи."
+
+
+class EventNotFoundError(DomainError):
+    """Записи нет в профиле — или она принадлежит другому профилю."""
+
+    code = ErrorCode.NOT_FOUND
+    default_message = "Запись не найдена."

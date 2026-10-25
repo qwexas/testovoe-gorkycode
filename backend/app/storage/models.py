@@ -6,9 +6,11 @@
 
 from datetime import datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Annotated, Any, ClassVar
 from uuid import UUID, uuid4
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     DateTime,
@@ -26,6 +28,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.core.enums import EventSource, EventStatus, EventType, MessageRole
+from app.search.interfaces import EMBEDDING_DIMENSION
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_N_label)s",
@@ -85,10 +88,20 @@ class ProfileSessionRecord(Base):
 
 
 class EventRecord(Base):
-    """Задача, напоминание или встреча."""
+    """Задача, напоминание или встреча.
+
+    `embedding` и `lemmas` — поисковый индекс названия; загружаются только по явному
+    запросу (`deferred`), списку записей они не нужны. Запись истории из CSV хранит
+    ссылку `seed_event_id`, а индекс берёт из `seed_events`, пока у неё нет своего
+    (`embedding IS NULL`); своё значение появляется, когда пользователь меняет название.
+    """
 
     __tablename__ = "events"
-    __table_args__ = (Index("ix_events_profile_id_starts_at", "profile_id", "starts_at"),)
+    __table_args__ = (
+        Index("ix_events_profile_id_starts_at", "profile_id", "starts_at"),
+        Index("ix_events_lemmas", "lemmas", postgresql_using="gin"),
+    )
+    __mapper_args__ = MappingProxyType({"eager_defaults": True})
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     profile_id: Mapped[ProfileId]
@@ -103,8 +116,34 @@ class EventRecord(Base):
     source: Mapped[EventSource] = mapped_column(
         _string_enum(EventSource, "event_source"), server_default=EventSource.USER.value
     )
+    seed_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seed_events.id", ondelete="SET NULL"), index=True
+    )
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIMENSION), deferred=True
+    )
+    lemmas: Mapped[list[str] | None] = mapped_column(ARRAY(Text), deferred=True)
     created_at: Mapped[CreatedAt]
     updated_at: Mapped[UpdatedAt]
+
+
+class SeedEventRecord(Base):
+    """Запись истории из CSV (Q22): общая заготовка, которую получает каждый новый профиль.
+
+    `id` — номер строки в CSV. Вектор и леммы считаются один раз при старте приложения
+    и общие для всех профилей: в записи профиля копируются только поля записи.
+    """
+
+    __tablename__ = "seed_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
+    type: Mapped[EventType] = mapped_column(_string_enum(EventType, "event_type"))
+    title: Mapped[str] = mapped_column(Text)
+    starts_at: Mapped[datetime]
+    has_time: Mapped[bool]
+    ends_at: Mapped[datetime | None]
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSION))
+    lemmas: Mapped[list[str]] = mapped_column(ARRAY(Text))
 
 
 class ChatMessageRecord(Base):

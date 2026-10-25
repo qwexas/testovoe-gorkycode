@@ -2,13 +2,21 @@
 
 from fastapi import APIRouter, Request, status
 
-from app.api.dependencies import AppSettings, ClientIp, CurrentProfile, Profiles, SessionToken
+from app.api.dependencies import (
+    CURRENT_PROFILE_RESPONSES,
+    AppSettings,
+    ClientIp,
+    CurrentProfile,
+    Profiles,
+    SessionToken,
+)
 from app.api.errors import error_responses
 from app.api.schemas.profiles import Profile, RestoreRequest
 from app.api.session_cookie import issue_session_cookie, revoke_session_cookie
 from app.config import Settings
 from app.core.errors import ErrorCode
-from app.core.profiles import PROFILE_TIMEZONE, ProfileCard
+from app.core.profiles import ProfileCard
+from app.core.schedule import PROFILE_TIMEZONE
 
 router = APIRouter(tags=["profile"])
 
@@ -19,6 +27,7 @@ router = APIRouter(tags=["profile"])
     summary="Текущий профиль",
     description="Если профиля нет, создаёт его — тогда `recovery_code` заполнен.",
     response_model=Profile,
+    responses=CURRENT_PROFILE_RESPONSES,
 )
 async def get_me(profile: CurrentProfile, settings: AppSettings) -> Profile:
     return _to_profile_schema(profile, settings)
@@ -28,14 +37,22 @@ async def get_me(profile: CurrentProfile, settings: AppSettings) -> Profile:
     "/profiles",
     name="create_profile",
     summary="Новый профиль",
-    description="Создаёт профиль и переключает на него cookie этого устройства.",
+    description=(
+        "Создаёт профиль и переключает на него cookie этого устройства. "
+        "Лимит — 20 новых профилей в час с одного IP (вместе с автосозданием)."
+    ),
     status_code=status.HTTP_201_CREATED,
     response_model=Profile,
+    responses=error_responses(ErrorCode.RATE_LIMITED),
 )
 async def create_profile(
-    request: Request, session_token: SessionToken, profiles: Profiles, settings: AppSettings
+    request: Request,
+    session_token: SessionToken,
+    client_ip: ClientIp,
+    profiles: Profiles,
+    settings: AppSettings,
 ) -> Profile:
-    grant = await profiles.create_profile(replaced_session=session_token)
+    grant = await profiles.create_profile(replaced_session=session_token, requester=client_ip)
     issue_session_cookie(request, grant.session_token)
     return _to_profile_schema(grant.profile, settings)
 

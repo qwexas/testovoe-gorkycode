@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.storage.repositories import EventRepository, ProfileRepository
+from app.storage.repositories import EventRepository, ProfileRepository, SeedEventRepository
 
 PING_TIMEOUT_SECONDS = 3.0
 
@@ -19,6 +19,7 @@ class UnitOfWork:
         self._session = session
         self.profiles = ProfileRepository(session)
         self.events = EventRepository(session)
+        self.seed_events = SeedEventRepository(session)
 
     async def commit(self) -> None:
         """Фиксирует транзакцию."""

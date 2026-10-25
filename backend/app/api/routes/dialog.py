@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Query, Response, UploadFile
 
-from app.api.dependencies import CurrentProfile
+from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile
 from app.api.errors import error_responses
 from app.api.schemas.dialog import AssistantReply, ChatRequest, DialogResponse, TtsRequest
 from app.core.errors import ErrorCode, FeatureNotImplementedError
@@ -15,7 +15,7 @@ from app.core.errors import ErrorCode, FeatureNotImplementedError
 DIALOG_PAGE_DEFAULT = 50
 DIALOG_PAGE_MAX = 200
 
-router = APIRouter(tags=["dialog"])
+router = APIRouter(tags=["dialog"], responses=CURRENT_PROFILE_RESPONSES)
 
 
 @router.post(

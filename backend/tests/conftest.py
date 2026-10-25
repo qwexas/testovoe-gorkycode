@@ -7,7 +7,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.config import Settings
+from app.config import SearchBackend, Settings
 from app.factory import create_app
 
 TEST_APP_SECRET = "test-app-secret-for-pytest-only-0123456789"
@@ -17,12 +17,13 @@ BASE_URL = "http://testserver"
 
 
 def make_settings(database_url: str, **overrides: Any) -> Settings:
-    """Настройки для тестов, независимые от `.env` разработчика."""
+    """Настройки для тестов, независимые от `.env` разработчика; поиск — на заглушках."""
     values: dict[str, Any] = {
         "database_url": database_url,
         "app_secret": TEST_APP_SECRET,
         "cookie_secure": False,
         "public_base_url": TEST_PUBLIC_BASE_URL,
+        "search_backend": SearchBackend.PLACEHOLDER,
     }
     return Settings(_env_file=None, **(values | overrides))
 
@@ -30,7 +31,7 @@ def make_settings(database_url: str, **overrides: Any) -> Settings:
 @pytest.fixture
 def offline_app() -> FastAPI:
     """Приложение, у которого база недоступна: для проверок без Postgres."""
-    return create_app(make_settings(UNREACHABLE_DATABASE_URL))
+    return create_app(make_settings(UNREACHABLE_DATABASE_URL, load_history_on_startup=False))
 
 
 @pytest.fixture

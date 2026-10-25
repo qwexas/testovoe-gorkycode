@@ -1,5 +1,6 @@
 """Настройки приложения из переменных окружения и корневого `.env`."""
 
+from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -11,6 +12,16 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = REPOSITORY_ROOT / ".env"
 
 MIN_APP_SECRET_LENGTH = 32
+DEFAULT_EMBEDDING_MODEL = "deepvk/USER-bge-m3"
+
+
+class SearchBackend(StrEnum):
+    """Чем считать векторы, леммы и ранжирование поиска."""
+
+    REAL = "real"
+    """Модель эмбеддингов, pymorphy3 и гибридное ранжирование из `app.search`."""
+    PLACEHOLDER = "placeholder"
+    """Быстрые заглушки без модели из `app.search.placeholders` — для тестов."""
 
 
 class Settings(BaseSettings):
@@ -31,6 +42,22 @@ class Settings(BaseSettings):
     public_base_url: HttpUrl = Field(
         default=HttpUrl("https://voice.wexasas.online"),
         description="Публичный адрес сервиса — из него строится ссылка подписки на календарь",
+    )
+    search_backend: SearchBackend = Field(
+        default=SearchBackend.REAL,
+        description="`real` — модель и морфология; `placeholder` — заглушки без модели",
+    )
+    embedding_model: str = Field(
+        default=DEFAULT_EMBEDDING_MODEL,
+        description="Модель sentence-transformers размерности 1024",
+    )
+    embedding_cache_dir: Path | None = Field(
+        default=None,
+        description="Каталог весов модели; пусто — стандартный кэш Hugging Face (`HF_HOME`)",
+    )
+    load_history_on_startup: bool = Field(
+        default=True,
+        description="Заполнять `seed_events` при старте; выключают только тесты без базы",
     )
 
     @property

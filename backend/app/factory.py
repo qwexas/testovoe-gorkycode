@@ -1,6 +1,7 @@
 """Сборка приложения FastAPI: настройки, сервисы, ошибки, cookie, маршруты."""
 
-from collections.abc import AsyncIterator
+import logging
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,15 +12,21 @@ from app.api.dependencies import AppServices
 from app.api.errors import install_error_handlers
 from app.api.router import api_router
 from app.api.session_cookie import SessionCookieMiddleware
-from app.config import Settings, get_settings
-from app.core.history import EmptyProfileHistory
+from app.config import SearchBackend, Settings, get_settings
+from app.core.history import CsvProfileHistory, SeedHistoryLoader
+from app.core.history_source import HistoryEntry, read_history_file
+from app.core.profiles import ProfileOnboarding
 from app.core.recovery import RecoveryCodes
+from app.core.search import SearchService
+from app.search.placeholders import HashingEmbedder, LowercaseLemmatizer, SimilarityRanker
 from app.storage.database import Database
 
 API_TITLE = "Горький API"
 API_DESCRIPTION = (
     "Голосовой ассистент задач и встреч. Человекочитаемый контракт — `docs/api-contract.md`."
 )
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,6 +35,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        if services.settings.load_history_on_startup:
+            async with services.database.unit_of_work() as storage:
+                await services.history_loader.ensure_loaded(storage)
         yield
         await services.database.dispose()
 
@@ -49,11 +59,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _build_services(settings: Settings) -> AppServices:
+    history = read_history_file()
+    search = _build_search(settings, history)
     return AppServices(
         settings=settings,
         database=Database(settings.database_url),
         recovery_codes=RecoveryCodes(settings.app_secret.get_secret_value().encode()),
-        profile_history=EmptyProfileHistory(),
+        profile_onboarding=ProfileOnboarding(CsvProfileHistory()),
+        search=search,
+        history_loader=SeedHistoryLoader(search, history),
+    )
+
+
+def _build_search(settings: Settings, history: Sequence[HistoryEntry]) -> SearchService:
+    """Единственное место, где выбираются реализации поиска (`SEARCH_BACKEND`)."""
+    if settings.search_backend is SearchBackend.REAL:
+        try:
+            return _model_search(settings, history)
+        except ImportError as error:
+            logger.warning(
+                "Поиск по модели недоступен (%s): работают заглушки app.search.placeholders",
+                error,
+            )
+    return SearchService(HashingEmbedder(), LowercaseLemmatizer(), SimilarityRanker())
+
+
+def _model_search(settings: Settings, history: Sequence[HistoryEntry]) -> SearchService:
+    """Модель эмбеддингов, pymorphy3 и гибридное ранжирование.
+
+    Импорт внутри функции: если модулей или их зависимостей нет, `_build_search`
+    переключается на заглушки, а не роняет приложение. Модель грузится лениво —
+    при заполнении `seed_events` на старте.
+    """
+    from app.search.embedder import SentenceTransformerEmbedder
+    from app.search.lemmas import MorphLemmatizer
+    from app.search.ranking import HybridRanker, LemmaStatistics
+
+    lemmatizer = MorphLemmatizer()
+    statistics = LemmaStatistics.from_documents(lemmatizer.lemmas(entry.title) for entry in history)
+    return SearchService(
+        SentenceTransformerEmbedder(settings.embedding_model, settings.embedding_cache_dir),
+        lemmatizer,
+        HybridRanker(statistics, names=lemmatizer),
     )
 
 

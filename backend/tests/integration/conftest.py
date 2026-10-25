@@ -7,6 +7,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
@@ -16,12 +17,13 @@ from alembic.config import Config
 from fastapi import FastAPI
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL, make_url, text
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import ENV_FILE, REPOSITORY_ROOT
 from app.factory import create_app
-from app.storage.models import Base
+from app.storage.database import Database, UnitOfWork
+from app.storage.models import Base, SeedEventRecord
 from tests.conftest import BASE_URL, make_settings
 
 BACKEND_DIR = REPOSITORY_ROOT / "backend"
@@ -82,18 +84,65 @@ def database_url() -> str:
     return raw_url
 
 
-async def _truncate_all_tables(database_url: str) -> None:
-    tables = ", ".join(table.name for table in Base.metadata.sorted_tables)
+async def _truncate(database_url: str, table_names: list[str]) -> None:
+    tables = ", ".join(table_names)
     engine = create_async_engine(database_url, poolclass=NullPool)
     async with engine.begin() as connection:
         await connection.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
     await engine.dispose()
 
 
+async def truncate_user_data(database_url: str) -> None:
+    """Очищает все таблицы, кроме общей заготовки истории `seed_events`.
+
+    Заготовка не зависит от теста и одинакова для всех: её заполняет первый старт
+    приложения, а следующие только проверяют. Так тесты не пересчитывают её каждый раз.
+    """
+    await _truncate(
+        database_url,
+        [
+            table.name
+            for table in Base.metadata.sorted_tables
+            if table.name != SeedEventRecord.__tablename__
+        ],
+    )
+
+
+async def truncate_seed_events(database_url: str) -> None:
+    """Очищает заготовку истории — для тестов её заполнения."""
+    await _truncate(database_url, [SeedEventRecord.__tablename__])
+
+
+@pytest.fixture
+async def db_engine(database_url: str) -> AsyncIterator[AsyncEngine]:
+    """Прямое подключение к тестовой базе — проверить то, чего не видно через API."""
+    engine = create_async_engine(database_url, poolclass=NullPool)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+async def storage(database_url: str) -> AsyncIterator[UnitOfWork]:
+    """Единица работы на чистой базе — для проверок бизнес-логики и репозиториев без HTTP."""
+    await truncate_user_data(database_url)
+    database = Database(database_url)
+    async with database.unit_of_work() as unit_of_work:
+        yield unit_of_work
+    await database.dispose()
+
+
+@pytest.fixture
+async def bare_profile_id(storage: UnitOfWork) -> UUID:
+    """Профиль без истории из CSV: в нём только записи, созданные тестом."""
+    profile = await storage.profiles.add(uuid4().hex, uuid4().hex)
+    await storage.commit()
+    return profile.id
+
+
 @pytest.fixture
 async def app(database_url: str) -> FastAPI:
-    """Приложение на чистой тестовой базе."""
-    await _truncate_all_tables(database_url)
+    """Приложение на чистой тестовой базе (заготовка истории сохраняется)."""
+    await truncate_user_data(database_url)
     return create_app(make_settings(database_url))
 
 

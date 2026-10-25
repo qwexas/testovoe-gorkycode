@@ -7,11 +7,15 @@ from typing import Annotated
 from fastapi import Depends, Request, Security
 from fastapi.security import APIKeyCookie
 
+from app.api.errors import error_responses
 from app.api.session_cookie import SESSION_COOKIE_NAME, issue_session_cookie
 from app.config import Settings
-from app.core.history import ProfileHistorySeeder
-from app.core.profiles import ProfileCard, ProfileService
+from app.core.errors import ErrorCode
+from app.core.events import EventService
+from app.core.history import SeedHistoryLoader
+from app.core.profiles import ProfileCard, ProfileOnboarding, ProfileService
 from app.core.recovery import RecoveryCodes
+from app.core.search import SearchService
 from app.storage.database import Database, UnitOfWork
 
 UNKNOWN_CLIENT = "unknown"
@@ -34,7 +38,9 @@ class AppServices:
     settings: Settings
     database: Database
     recovery_codes: RecoveryCodes
-    profile_history: ProfileHistorySeeder
+    profile_onboarding: ProfileOnboarding
+    search: SearchService
+    history_loader: SeedHistoryLoader
 
 
 def get_services(request: Request) -> AppServices:
@@ -65,26 +71,19 @@ Storage = Annotated[UnitOfWork, Depends(get_storage)]
 
 def get_profile_service(storage: Storage, services: Services) -> ProfileService:
     """Сервис профилей в транзакции текущего запроса."""
-    return ProfileService(storage, services.recovery_codes, services.profile_history)
+    return ProfileService(storage, services.recovery_codes, services.profile_onboarding)
 
 
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
+
+
+def get_event_service(storage: Storage, services: Services) -> EventService:
+    """Сервис записей в транзакции текущего запроса."""
+    return EventService(storage, services.search)
+
+
+Events = Annotated[EventService, Depends(get_event_service)]
 SessionToken = Annotated[str | None, Security(session_cookie_scheme)]
-
-
-async def get_current_profile(
-    request: Request, session_token: SessionToken, profiles: Profiles
-) -> ProfileCard:
-    """Профиль из cookie; если cookie нет или она недействительна — новый профиль."""
-    profile = await profiles.find_by_session(session_token)
-    if profile is not None:
-        return profile
-    grant = await profiles.create_profile(replaced_session=session_token)
-    issue_session_cookie(request, grant.session_token)
-    return grant.profile
-
-
-CurrentProfile = Annotated[ProfileCard, Depends(get_current_profile)]
 
 
 def get_client_ip(request: Request) -> str:
@@ -102,3 +101,23 @@ def get_client_ip(request: Request) -> str:
 
 
 ClientIp = Annotated[str, Depends(get_client_ip)]
+
+
+async def get_current_profile(
+    request: Request, session_token: SessionToken, profiles: Profiles, client_ip: ClientIp
+) -> ProfileCard:
+    """Профиль из cookie; если cookie нет или она недействительна — новый профиль.
+
+    Новые профили с одного адреса ограничены (`ProfileOnboarding`): сверх лимита — 429.
+    """
+    profile = await profiles.find_by_session(session_token)
+    if profile is not None:
+        return profile
+    grant = await profiles.create_profile(replaced_session=session_token, requester=client_ip)
+    issue_session_cookie(request, grant.session_token)
+    return grant.profile
+
+
+CurrentProfile = Annotated[ProfileCard, Depends(get_current_profile)]
+CURRENT_PROFILE_RESPONSES = error_responses(ErrorCode.RATE_LIMITED)
+"""Ответы маршрутов с `CurrentProfile`: автосоздание профиля может упереться в лимит."""

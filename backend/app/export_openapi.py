@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from app.config import REPOSITORY_ROOT, Settings
+from app.config import REPOSITORY_ROOT, SearchBackend, Settings
 from app.factory import create_app
 
 OPENAPI_PATH = REPOSITORY_ROOT / "contracts" / "openapi.json"
@@ -19,6 +19,8 @@ OPENAPI_PATH = REPOSITORY_ROOT / "contracts" / "openapi.json"
 _EXPORT_SETTINGS: dict[str, Any] = {
     "database_url": "postgresql+asyncpg://openapi:openapi@127.0.0.1:1/openapi",
     "app_secret": "openapi-export-placeholder-secret-0000",
+    "search_backend": SearchBackend.PLACEHOLDER,
+    "load_history_on_startup": False,
 }
 
 

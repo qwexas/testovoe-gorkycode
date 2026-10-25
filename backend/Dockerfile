@@ -35,7 +35,10 @@ COPY alembic.ini docker-entrypoint.sh ./
 COPY migrations ./migrations
 COPY app ./app
 
+# /models — точка монтирования тома с весами; владелец gorky, чтобы том был доступен на запись.
 RUN useradd --system --no-create-home gorky \
+    && mkdir -p /models \
+    && chown gorky /models \
     && chmod +x docker-entrypoint.sh
 USER gorky
 

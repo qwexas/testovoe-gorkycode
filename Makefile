@@ -56,6 +56,9 @@ contract: contract-backend ## OpenAPI → contracts/openapi.json → типы ф
 contract-backend: ## Только выгрузить contracts/openapi.json
 	$(UV_RUN) python -m app.export_openapi
 
+seed: ## Пересобрать backend/app/seed/events_seed.json из CSV организаторов
+	$(UV_RUN) python -m scripts.build_seed
+
 up: ## Собрать и запустить весь docker-compose
 	docker compose up -d --build
 

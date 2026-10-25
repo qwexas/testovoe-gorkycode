@@ -7,6 +7,8 @@ import pytest
 
 from app.api.session_cookie import SESSION_COOKIE_MAX_AGE_SECONDS, SESSION_COOKIE_NAME
 from app.core.errors import ErrorCode
+from app.core.history_source import read_history_file
+from app.core.profiles import PROFILE_CREATION_WINDOW_SECONDS, PROFILE_CREATIONS_PER_ADDRESS
 from app.core.recovery import RESTORE_ATTEMPTS_LIMIT
 from tests.conftest import TEST_PUBLIC_BASE_URL
 from tests.helpers import assert_error
@@ -16,6 +18,7 @@ pytestmark = pytest.mark.integration
 RECOVERY_CODE_FORMAT = re.compile(r"[а-я]+-[а-я]+-[а-я]+-[0-9]{4}")
 WRONG_CODE = "сирень-лиса-кедр-0000"
 COOKIE_DOMAIN = "testserver.local"
+HISTORY_SIZE = len(read_history_file())
 
 
 def session_cookie(client: httpx.AsyncClient) -> str | None:
@@ -43,7 +46,7 @@ class TestAutoCreatedProfile:
         profile = response.json()
         assert RECOVERY_CODE_FORMAT.fullmatch(profile["recovery_code"])
         assert profile["timezone"] == "Europe/Moscow"
-        assert profile["events_count"] == 0
+        assert profile["events_count"] == HISTORY_SIZE
         set_cookie = response.headers["set-cookie"]
         assert f"Max-Age={SESSION_COOKIE_MAX_AGE_SECONDS}" in set_cookie
         assert "HttpOnly" in set_cookie
@@ -212,3 +215,39 @@ class TestDeleteMe:
         response = await client.delete("/api/me")
 
         assert response.status_code == 204
+
+
+class TestCreationLimit:
+    """Не больше 20 новых профилей в час с одного IP — и «Новый профиль», и автосоздание."""
+
+    async def exhaust_limit(self, client: httpx.AsyncClient, ip: str) -> None:
+        for _ in range(PROFILE_CREATIONS_PER_ADDRESS):
+            response = await client.post("/api/profiles", headers={"CF-Connecting-IP": ip})
+            assert response.status_code == 201
+
+    async def test_new_profile_over_limit_is_rate_limited(self, client: httpx.AsyncClient) -> None:
+        await self.exhaust_limit(client, "198.51.100.7")
+        cookie_before = session_cookie(client)
+
+        response = await client.post("/api/profiles", headers={"CF-Connecting-IP": "198.51.100.7"})
+
+        assert_error(response, 429, ErrorCode.RATE_LIMITED)
+        assert "профилей" in response.json()["error"]["message"]
+        assert 0 < int(response.headers["retry-after"]) <= PROFILE_CREATION_WINDOW_SECONDS
+        assert session_cookie(client) == cookie_before
+        assert (await client.get("/api/me")).status_code == 200
+
+    async def test_auto_creation_shares_limit_and_address_is_per_ip(
+        self, client: httpx.AsyncClient, other_device: httpx.AsyncClient
+    ) -> None:
+        await self.exhaust_limit(client, "198.51.100.8")
+
+        blocked = await other_device.get(
+            "/api/events", headers={"X-Forwarded-For": "198.51.100.8, 10.0.0.1"}
+        )
+        allowed = await other_device.get("/api/me", headers={"CF-Connecting-IP": "198.51.100.9"})
+
+        assert_error(blocked, 429, ErrorCode.RATE_LIMITED)
+        assert "set-cookie" not in blocked.headers
+        assert allowed.status_code == 200
+        assert allowed.json()["recovery_code"] is not None

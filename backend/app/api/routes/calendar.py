@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Response
 
-from app.api.dependencies import CurrentProfile
+from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile
 from app.api.errors import error_responses
 from app.core.errors import ErrorCode, FeatureNotImplementedError
 
@@ -30,7 +30,7 @@ def _calendar_responses(*codes: ErrorCode) -> dict[int | str, dict[str, Any]]:
     summary="Скачать .ics",
     description="Все предстоящие записи профиля, файлом (attachment).",
     response_class=Response,
-    responses=_calendar_responses(ErrorCode.NOT_IMPLEMENTED),
+    responses=_calendar_responses(ErrorCode.NOT_IMPLEMENTED) | CURRENT_PROFILE_RESPONSES,
 )
 async def download_calendar(profile: CurrentProfile) -> Response:
     raise FeatureNotImplementedError()

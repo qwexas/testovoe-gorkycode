@@ -32,6 +32,13 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://gorky:${POSTGRES_PASSWORD:-gorky}@db:5432/gorky
+      # Веса моделей (эмбеддинги, позже Whisper и Silero) живут в томе, а не в образе:
+      # первая загрузка ~2–3 ГБ, дальше — из кэша.
+      EMBEDDING_CACHE_DIR: /models
+      HF_HOME: /models/hf
+      TORCH_HOME: /models/torch
+    volumes:
+      - models:/models
     depends_on:
       db:
         condition: service_healthy
@@ -46,7 +53,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-      start_period: 20s
+      # Первый старт скачивает модель и считает векторы истории — даём до 10 минут.
+      start_period: 600s
+      start_interval: 5s
 
   frontend:
     build:
@@ -63,3 +72,4 @@ services:
 
 volumes:
   pgdata:
+  models:
