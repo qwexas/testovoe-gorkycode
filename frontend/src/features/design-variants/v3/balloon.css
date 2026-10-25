@@ -1,0 +1,556 @@
+/*
+ * Вариант 3 «Шар». Пиксельное небо и воздушный шар из программы GORKYCODE; разговор —
+ * в окне диалога, как в пиксельной RPG: реплика, меню выбора с курсором ▶.
+ * Классы с префиксом v3- (CSS-модули конфликтуют с загрузчиком Tailwind в этом проекте).
+ */
+
+@layer components {
+  .v3-root {
+    --sky-1: #c8bcfb;
+    --sky-2: #d6cdfd;
+    --sky-3: #e4ddfe;
+    --sky-4: #f1ecff;
+    --sky-5: #fbe8dc;
+    --ink: #1e1650;
+    --muted: #4a427c;
+    --box: #ffffff;
+    --box-edge: #1e1650;
+    --box-inner: #8b5cf6;
+    --box-drop: rgb(30 22 80 / 0.28);
+    --chip: #efe9ff;
+    --chip-edge: #6b5fb0;
+    --accent: #5b21b6;
+    --fill: #6d28d9;
+    --fill-edge: #3b1a80;
+    --on-fill: #ffffff;
+    --danger: #b42318;
+    --danger-fill: #c0261b;
+    --danger-edge: #7a1a12;
+    --ok: #1d6a44;
+    --wait: #874400;
+    --wait-soft: #ffe7c2;
+    --cloud: #ffffff;
+    --cloud-shade: #ddd4fd;
+    --star: transparent;
+    --focus: #1e1650;
+    --b-a: #8b5cf6;
+    --b-b: #c4b5fd;
+    --b-hi: #f1edff;
+    --b-sh: #6d28d9;
+    --b-deep: #3b1a80;
+    --b-basket: #a0673f;
+    --b-basket-dark: #6b4226;
+    --b-rope: #3b2a6b;
+    --flame: #e8590c;
+    --flame-2: #ffb13b;
+
+    min-height: 100%;
+    /* У пиксельного шрифта одно начертание: синтетический полужирный размазал бы пиксели. */
+    font-synthesis-weight: none;
+    background-color: var(--sky-3);
+    color: var(--ink);
+    font-family: var(--font-v3-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  :root[data-theme="dark"] .v3-root {
+    --sky-1: #0e0a2c;
+    --sky-2: #150f3b;
+    --sky-3: #1d144b;
+    --sky-4: #27195d;
+    --sky-5: #372071;
+    --ink: #f4f1ff;
+    --muted: #c3b9ef;
+    --box: #120d33;
+    --box-edge: #ece6ff;
+    --box-inner: #8b5cf6;
+    --box-drop: rgb(0 0 0 / 0.45);
+    --chip: #221a55;
+    --chip-edge: #8f80d6;
+    --accent: #c6b2ff;
+    --fill: #7c3aed;
+    --fill-edge: #2e1065;
+    --danger: #ff8f86;
+    --danger-fill: #d42a20;
+    --danger-edge: #6e130d;
+    --ok: #86dcae;
+    --wait: #ffc067;
+    --wait-soft: #3b2a10;
+    --cloud: #2d2572;
+    --cloud-shade: #241d5f;
+    --star: #fff3c4;
+    --focus: #ffd166;
+    --b-a: #7c3aed;
+    --b-b: #b69cff;
+    --b-hi: #e4dcff;
+    --b-sh: #5b21b6;
+    --b-deep: #2e1065;
+    --b-basket: #8f5a37;
+    --b-basket-dark: #5a3720;
+    --b-rope: #c9bfee;
+    --flame: #ff8a3d;
+    --flame-2: #ffd166;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .v3-root {
+      --sky-1: #0e0a2c;
+      --sky-2: #150f3b;
+      --sky-3: #1d144b;
+      --sky-4: #27195d;
+      --sky-5: #372071;
+      --ink: #f4f1ff;
+      --muted: #c3b9ef;
+      --box: #120d33;
+      --box-edge: #ece6ff;
+      --box-drop: rgb(0 0 0 / 0.45);
+      --chip: #221a55;
+      --chip-edge: #8f80d6;
+      --accent: #c6b2ff;
+      --fill: #7c3aed;
+      --fill-edge: #2e1065;
+      --danger: #ff8f86;
+      --danger-fill: #d42a20;
+      --danger-edge: #6e130d;
+      --ok: #86dcae;
+      --wait: #ffc067;
+      --wait-soft: #3b2a10;
+      --cloud: #2d2572;
+      --cloud-shade: #241d5f;
+      --star: #fff3c4;
+      --focus: #ffd166;
+      --b-a: #7c3aed;
+      --b-b: #b69cff;
+      --b-hi: #e4dcff;
+      --b-sh: #5b21b6;
+      --b-deep: #2e1065;
+      --b-basket: #8f5a37;
+      --b-basket-dark: #5a3720;
+      --b-rope: #c9bfee;
+      --flame: #ff8a3d;
+      --flame-2: #ffd166;
+    }
+  }
+
+  .v3-root :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+  }
+
+  .v3-root ::selection {
+    background: var(--fill);
+    color: var(--on-fill);
+  }
+
+  /* Небо: жёсткие полосы, как в пиксель-арте, без плавного градиента. */
+  .v3-sky {
+    background: linear-gradient(
+      to bottom,
+      var(--sky-1) 0 18%,
+      var(--sky-2) 18% 36%,
+      var(--sky-3) 36% 56%,
+      var(--sky-4) 56% 78%,
+      var(--sky-5) 78%
+    );
+  }
+
+  .v3-pixel {
+    font-family: var(--font-v3-pixel), ui-monospace, monospace;
+  }
+
+  .v3-muted {
+    color: var(--muted);
+  }
+
+  .v3-accent {
+    color: var(--accent);
+  }
+
+  .v3-danger {
+    color: var(--danger);
+  }
+
+  .v3-ok {
+    color: var(--ok);
+  }
+
+  .v3-wait {
+    color: var(--wait);
+  }
+
+  /* Окно диалога: рамка с вырезанными углами, внутренняя линия и жёсткая тень. */
+  .v3-box {
+    position: relative;
+    background: var(--box);
+    outline: 2px solid transparent;
+    box-shadow:
+      0 -4px 0 0 var(--box-edge),
+      0 4px 0 0 var(--box-edge),
+      -4px 0 0 0 var(--box-edge),
+      4px 0 0 0 var(--box-edge),
+      8px 8px 0 0 var(--box-drop),
+      inset 0 0 0 3px var(--box),
+      inset 0 0 0 5px var(--box-inner);
+  }
+
+  .v3-boxTitle {
+    position: absolute;
+    top: -1.625rem;
+    left: 1.25rem;
+    padding: 0.125rem 0.625rem;
+    background: var(--box-edge);
+    color: var(--box);
+    font-family: var(--font-v3-pixel), ui-monospace, monospace;
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+
+  /* Внутренняя рамка: меню выбора, поле ввода, плашки. */
+  .v3-inset {
+    background: var(--chip);
+    box-shadow:
+      0 -2px 0 0 var(--chip-edge),
+      0 2px 0 0 var(--chip-edge),
+      -2px 0 0 0 var(--chip-edge),
+      2px 0 0 0 var(--chip-edge);
+  }
+
+  .v3-speaker {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .v3-say {
+    font-family: var(--font-v3-pixel), ui-monospace, monospace;
+    font-size: 1.25rem;
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .v3-userBubble {
+    background: var(--chip);
+    box-shadow:
+      0 -2px 0 0 var(--chip-edge),
+      0 2px 0 0 var(--chip-edge),
+      -2px 0 0 0 var(--chip-edge),
+      2px 0 0 0 var(--chip-edge);
+  }
+
+  /* Пункт меню RPG: курсор ▶ появляется у выделенного пункта. */
+  .v3-menuItem {
+    display: grid;
+    width: 100%;
+    min-height: 2.75rem;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    align-items: center;
+    padding: 0.375rem 0.75rem 0.375rem 0.5rem;
+    color: var(--ink);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .v3-menuItem::before {
+    content: "▶";
+    color: var(--accent);
+    font-size: 0.75rem;
+    opacity: 0;
+  }
+
+  .v3-menuItem:focus-visible {
+    outline-offset: -3px;
+  }
+
+  .v3-menuItem:focus-visible::before {
+    opacity: 1;
+  }
+
+  @media (hover: hover) {
+    .v3-menuItem:hover {
+      background: var(--box);
+    }
+
+    .v3-menuItem:hover::before {
+      opacity: 1;
+    }
+  }
+
+  .v3-menuDanger {
+    color: var(--danger);
+  }
+
+  .v3-menuDanger::before {
+    color: var(--danger);
+  }
+
+  /* Пиксельная кнопка: выпуклая, при нажатии опускается на тень. */
+  .v3-btn {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-inline: 0.875rem;
+    background: var(--chip);
+    color: var(--ink);
+    font-family: var(--font-v3-pixel), ui-monospace, monospace;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow:
+      0 -2px 0 0 var(--chip-edge),
+      -2px 0 0 0 var(--chip-edge),
+      2px 0 0 0 var(--chip-edge),
+      0 2px 0 0 var(--chip-edge),
+      0 5px 0 0 var(--chip-edge);
+    transition-property: translate, box-shadow;
+    transition-duration: 80ms;
+    transition-timing-function: steps(2, end);
+    touch-action: manipulation;
+  }
+
+  .v3-btnFill {
+    background: var(--fill);
+    color: var(--on-fill);
+    box-shadow:
+      0 -2px 0 0 var(--fill-edge),
+      -2px 0 0 0 var(--fill-edge),
+      2px 0 0 0 var(--fill-edge),
+      0 2px 0 0 var(--fill-edge),
+      0 5px 0 0 var(--fill-edge);
+  }
+
+  .v3-btn:not(:disabled):active {
+    box-shadow:
+      0 -2px 0 0 var(--chip-edge),
+      -2px 0 0 0 var(--chip-edge),
+      2px 0 0 0 var(--chip-edge),
+      0 2px 0 0 var(--chip-edge);
+  }
+
+  .v3-btnFill:not(:disabled):active {
+    box-shadow:
+      0 -2px 0 0 var(--fill-edge),
+      -2px 0 0 0 var(--fill-edge),
+      2px 0 0 0 var(--fill-edge),
+      0 2px 0 0 var(--fill-edge);
+  }
+
+  @media (hover: hover) {
+    .v3-btn:hover {
+      filter: brightness(1.06);
+    }
+  }
+
+  /* Микрофон: пиксельный круг. Обводка фокуса — на самой кнопке, круг — внутри. */
+  .v3-mic {
+    display: inline-grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .v3-micFace {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    background: var(--fill);
+    color: var(--on-fill);
+    clip-path: polygon(
+      25% 0,
+      75% 0,
+      75% 6.25%,
+      87.5% 6.25%,
+      87.5% 12.5%,
+      93.75% 12.5%,
+      93.75% 25%,
+      100% 25%,
+      100% 75%,
+      93.75% 75%,
+      93.75% 87.5%,
+      87.5% 87.5%,
+      87.5% 93.75%,
+      75% 93.75%,
+      75% 100%,
+      25% 100%,
+      25% 93.75%,
+      12.5% 93.75%,
+      12.5% 87.5%,
+      6.25% 87.5%,
+      6.25% 75%,
+      0 75%,
+      0 25%,
+      6.25% 25%,
+      6.25% 12.5%,
+      12.5% 12.5%,
+      12.5% 6.25%,
+      25% 6.25%
+    );
+    transition-property: translate;
+    transition-duration: 80ms;
+  }
+
+  .v3-mic[data-recording] .v3-micFace {
+    background: var(--danger-fill);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .v3-btn:not(:disabled):active {
+      translate: 0 3px;
+    }
+
+    .v3-mic:not([aria-disabled="true"]):active .v3-micFace {
+      translate: 0 2px;
+    }
+  }
+
+  .v3-mic:focus-visible {
+    outline-offset: 2px;
+  }
+
+  .v3-input {
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    color: var(--ink);
+    font-size: 1rem;
+    outline: none;
+  }
+
+  .v3-input::placeholder {
+    color: var(--muted);
+  }
+
+  .v3-field:has(.v3-input:focus-visible) {
+    outline: 3px solid var(--focus);
+    outline-offset: 4px;
+  }
+
+  /* Ярлык состояния у шара — пиксельная плашка-«облачко». */
+  .v3-tag {
+    background: var(--box);
+    color: var(--ink);
+    font-family: var(--font-v3-pixel), ui-monospace, monospace;
+    font-size: 1.25rem;
+    line-height: 1.5;
+    box-shadow:
+      0 -3px 0 0 var(--box-edge),
+      0 3px 0 0 var(--box-edge),
+      -3px 0 0 0 var(--box-edge),
+      3px 0 0 0 var(--box-edge),
+      6px 6px 0 0 var(--box-drop);
+  }
+
+  .v3-tag[data-tone="error"] {
+    color: var(--danger);
+  }
+
+  .v3-tag[data-tone="waiting"] {
+    color: var(--wait);
+  }
+
+  /* Сегменты: уровень голоса и окно отмены. */
+  .v3-seg {
+    width: 0.5rem;
+    background: var(--chip-edge);
+    opacity: 0.35;
+  }
+
+  .v3-seg[data-on] {
+    background: var(--accent);
+    opacity: 1;
+  }
+
+  .v3-cloud {
+    color: var(--cloud);
+  }
+
+  .v3-cloudShade {
+    color: var(--cloud-shade);
+  }
+
+  .v3-star {
+    color: var(--star);
+  }
+
+  @media (min-width: 64rem) {
+    .v3-tag,
+    .v3-sayLatest {
+      font-size: 1.875rem;
+      line-height: 1.4;
+    }
+  }
+
+  .v3-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  .v3-ruler {
+    border-top: 3px solid var(--ink);
+  }
+
+  .v3-chipRow {
+    background: color-mix(in oklab, var(--box) 82%, transparent);
+  }
+
+  .v3-fresh {
+    background: var(--wait-soft);
+  }
+
+  .v3-toggle {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    padding-inline: 0.625rem;
+    color: var(--ink);
+    font-family: var(--font-v3-pixel), ui-monospace, monospace;
+    font-size: 1.25rem;
+    cursor: pointer;
+  }
+
+  .v3-toggle[data-checked] {
+    background: var(--box-edge);
+    color: var(--box);
+  }
+
+  .v3-toggle:has(:focus-visible) {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .v3-dots span {
+    opacity: 0.25;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .v3-dots span {
+      animation: v3-blink 0.9s steps(1, end) infinite;
+    }
+
+    .v3-dots span:nth-child(2) {
+      animation-delay: 0.3s;
+    }
+
+    .v3-dots span:nth-child(3) {
+      animation-delay: 0.6s;
+    }
+  }
+
+  @keyframes v3-blink {
+    0% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.25;
+    }
+  }
+}

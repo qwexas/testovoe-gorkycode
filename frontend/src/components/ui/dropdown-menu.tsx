@@ -84,6 +84,21 @@ export function DropdownMenuRadioItem({
   );
 }
 
+export function DropdownMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof RadixMenu.CheckboxItem>) {
+  return (
+    <RadixMenu.CheckboxItem className={cn(ITEM_CLASSES, "pr-9", className)} {...props}>
+      {children}
+      <RadixMenu.ItemIndicator className="absolute right-3 inline-flex">
+        <CheckIcon size={16} />
+      </RadixMenu.ItemIndicator>
+    </RadixMenu.CheckboxItem>
+  );
+}
+
 export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof RadixMenu.Label>) {
   return <RadixMenu.Label className={cn("px-3 py-2 text-sm", className)} {...props} />;
 }
