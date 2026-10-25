@@ -1,0 +1,6 @@
+.next/
+node_modules/
+pnpm-lock.yaml
+next-env.d.ts
+# генерируется openapi-typescript (pnpm gen:api)
+src/lib/api/schema.d.ts

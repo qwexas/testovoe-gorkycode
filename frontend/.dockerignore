@@ -1,0 +1,18 @@
+# Всё, что не нужно для сборки образа
+node_modules
+.next
+out
+coverage
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.pnpm-debug.log*
+.env
+.env.*
+.DS_Store
+.git
+.gitignore
+.prettierignore
+.prettierrc.json
+Dockerfile
+.dockerignore

@@ -1,0 +1,74 @@
+"""Эндпоинты, которые на КТ1 объявлены, но ещё не реализованы, отвечают 501."""
+
+from datetime import UTC, datetime
+from typing import Any
+from uuid import uuid4
+
+import httpx
+import pytest
+from fastapi import FastAPI
+
+from app.api.dependencies import get_current_profile
+from app.core.errors import ErrorCode
+from app.core.profiles import ProfileCard
+from tests.helpers import assert_error
+
+STUB_REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
+    ("POST", "/api/chat", {"json": {"text": "Что у меня сегодня?"}}),
+    ("POST", "/api/voice", {"files": {"audio": ("voice.webm", b"\x1a\x45", "audio/webm")}}),
+    ("GET", "/api/dialog?limit=10", {}),
+    ("POST", "/api/tts", {"json": {"text": "Привет", "voice": "baya"}}),
+    ("POST", "/api/actions/abc/undo", {}),
+    ("GET", "/api/events?from=2026-10-26T00:00:00%2B03:00&type=meeting&q=отчёт", {}),
+    ("POST", "/api/events", {"json": {"type": "task", "title": "Купить билеты"}}),
+    ("PATCH", "/api/events/1", {"json": {"status": "done"}}),
+    ("DELETE", "/api/events/1", {}),
+    ("GET", "/api/calendar.ics", {}),
+    ("GET", "/api/calendar/secret-token.ics", {}),
+]
+
+
+@pytest.fixture
+def stub_app(offline_app: FastAPI) -> FastAPI:
+    profile = ProfileCard(
+        id=uuid4(), created_at=datetime.now(UTC), events_count=0, calendar_token="token"
+    )
+    offline_app.dependency_overrides[get_current_profile] = lambda: profile
+    return offline_app
+
+
+@pytest.mark.parametrize(("method", "url", "options"), STUB_REQUESTS)
+async def test_stub_answers_not_implemented(
+    stub_app: FastAPI,
+    offline_client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    options: dict[str, Any],
+) -> None:
+    response = await offline_client.request(method, url, **options)
+
+    assert_error(response, 501, ErrorCode.NOT_IMPLEMENTED)
+
+
+@pytest.mark.parametrize(
+    ("method", "url", "options"),
+    [
+        ("POST", "/api/chat", {"json": {"text": "   "}}),
+        ("POST", "/api/chat", {"json": {"text": "x" * 1001}}),
+        ("POST", "/api/chat", {"json": {"text": "привет", "extra": 1}}),
+        ("GET", "/api/dialog?limit=0", {}),
+        ("GET", "/api/events?from=2026-10-26T00:00:00", {}),
+        ("POST", "/api/events", {"json": {"type": "birthday", "title": "Праздник"}}),
+        ("PATCH", "/api/events/abc", {"json": {}}),
+    ],
+)
+async def test_invalid_input_is_validation_error(
+    stub_app: FastAPI,
+    offline_client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    options: dict[str, Any],
+) -> None:
+    response = await offline_client.request(method, url, **options)
+
+    assert_error(response, 422, ErrorCode.VALIDATION_ERROR)

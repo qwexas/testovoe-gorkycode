@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/*
+ * Дизайн-токены «Горького». Каркас КТ1: значения проверены на контраст WCAG AA
+ * (текст ≥ 4.5:1 на bg/surface/raised, границы полей и фокус ≥ 3:1) в обеих темах.
+ * Финальная палитра — после выбора варианта дизайна на КТ2.
+ *
+ * Тема задаётся атрибутом data-theme на <html> (инлайн-скрипт в layout.tsx до гидрации).
+ * Без JS работает фолбэк на prefers-color-scheme.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  color-scheme: light;
+  --bg: #f5f3fa;
+  --surface: #ffffff;
+  --surface-raised: #eeeaf6;
+  --border: #e1dceb;
+  --border-strong: #8a819d;
+  --fg: #17121f;
+  --fg-muted: #5a536a;
+  --accent: #7c3aed;
+  --accent-fill: #7c3aed;
+  --accent-fill-hover: #6d28d9;
+  --on-accent: #ffffff;
+  --accent-text: #6d28d9;
+  --focus: #7c3aed;
+  --success: #166534;
+  --warning: #854d0e;
+  --danger: #b91c1c;
+  --danger-fill: #dc2626;
+  --danger-fill-hover: #b91c1c;
+  --on-danger: #ffffff;
+  --overlay: rgb(23 18 31 / 0.45);
+  --sphere-core: #c4b5fd;
+  --sphere-edge: #5b21b6;
+  --sphere-glow: rgb(124 58 237 / 0.28);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #110d19;
+  --surface: #1a1526;
+  --surface-raised: #241e33;
+  --border: #2e2740;
+  --border-strong: #7a6f96;
+  --fg: #eeebf5;
+  --fg-muted: #a59db8;
+  --accent: #8b5cf6;
+  --accent-fill: #7c3aed;
+  --accent-fill-hover: #6d28d9;
+  --on-accent: #ffffff;
+  --accent-text: #b79ffb;
+  --focus: #a78bfa;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --danger-fill: #dc2626;
+  --danger-fill-hover: #b91c1c;
+  --on-danger: #ffffff;
+  --overlay: rgb(5 3 10 / 0.7);
+  --sphere-core: #ddd6fe;
+  --sphere-edge: #4c1d95;
+  --sphere-glow: rgb(139 92 246 / 0.35);
+}
+
+/* Фолбэк без JS: системная тема. Значения совпадают с [data-theme="dark"]. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #110d19;
+    --surface: #1a1526;
+    --surface-raised: #241e33;
+    --border: #2e2740;
+    --border-strong: #7a6f96;
+    --fg: #eeebf5;
+    --fg-muted: #a59db8;
+    --accent: #8b5cf6;
+    --accent-fill: #7c3aed;
+    --accent-fill-hover: #6d28d9;
+    --on-accent: #ffffff;
+    --accent-text: #b79ffb;
+    --focus: #a78bfa;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --danger-fill: #dc2626;
+    --danger-fill-hover: #b91c1c;
+    --on-danger: #ffffff;
+    --overlay: rgb(5 3 10 / 0.7);
+    --sphere-core: #ddd6fe;
+    --sphere-edge: #4c1d95;
+    --sphere-glow: rgb(139 92 246 / 0.35);
+  }
+}
+
+@theme inline {
+  /* Только токены проекта: стандартная палитра Tailwind отключена. */
+  --color-*: initial;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-accent: var(--accent);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-text: var(--accent-text);
+  --color-focus: var(--focus);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-fill: var(--danger-fill);
+  --color-danger-fill-hover: var(--danger-fill-hover);
+  --color-on-danger: var(--on-danger);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-onest), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --animate-overlay-in: overlay-in 160ms ease-out;
+  --animate-dialog-in: dialog-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-menu-in: menu-in 140ms ease-out;
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    /* Центрирование задаёт свойство translate (утилиты Tailwind), здесь — только сдвиг. */
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent-fill);
+    color: var(--on-accent);
+  }
+}
+
+@layer components {
+  /* Заглушка «сферы» голоса: живая версия появится вместе с записью голоса. */
+  .voice-sphere {
+    background:
+      radial-gradient(circle at 34% 28%, var(--sphere-core) 0%, transparent 42%),
+      radial-gradient(circle at 50% 50%, var(--accent) 0%, var(--sphere-edge) 78%);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent),
+      0 24px 80px -12px var(--sphere-glow);
+  }
+}
