@@ -1,0 +1,25 @@
+# секреты
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+
+# модели и кэш
+models/
+*.onnx
+*.pt
+
+# системное
+.DS_Store
