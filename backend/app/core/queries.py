@@ -24,3 +24,16 @@ class EventFilter:
     period_end: datetime | None = None
     event_type: EventType | None = None
     status: EventStatus | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MeetingSlot:
+    """Время встречи `[starts_at, ends_at)`, с которым не должны пересекаться другие встречи.
+
+    `ignored_event_id` — сама переносимая встреча: с собой она не конфликтует.
+    """
+
+    profile_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    ignored_event_id: int | None = None

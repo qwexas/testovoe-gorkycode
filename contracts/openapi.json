@@ -752,13 +752,15 @@
         "type": "object"
       },
       "Undo": {
-        "description": "Действие можно отменить до `expires_at` (окно 10 секунд).",
+        "description": "Действие можно отменить до `expires_at`.\n\nСервер принимает отмену 30 секунд; кнопку «Отменить» интерфейс показывает 10 секунд,\nоставшееся время — запас на сеть и на голосовую команду «отмени».",
         "properties": {
           "action_id": {
+            "description": "Для `POST /api/actions/{action_id}/undo`",
             "title": "Action Id",
             "type": "string"
           },
           "expires_at": {
+            "description": "Срок отмены на сервере: момент действия + 30 с",
             "format": "date-time",
             "title": "Expires At",
             "type": "string"
@@ -790,7 +792,7 @@
   "paths": {
     "/api/actions/{action_id}/undo": {
       "post": {
-        "description": "Работает 10 секунд после действия, потом — 404.",
+        "description": "Отменяет создание, перенос, переименование, отметку о выполнении или удаление. Сервер принимает отмену 30 секунд после действия (кнопку интерфейс показывает 10 секунд — запас на сеть). Позже, повторно или для чужого действия — 404.",
         "operationId": "undo_action",
         "parameters": [
           {
@@ -798,6 +800,8 @@
             "name": "action_id",
             "required": true,
             "schema": {
+              "maxLength": 64,
+              "minLength": 1,
               "title": "Action Id",
               "type": "string"
             }
@@ -853,16 +857,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -1008,7 +1002,7 @@
     },
     "/api/chat": {
       "post": {
-        "description": "Лимит — 20 запросов в минуту на профиль (вместе с `/api/voice`).",
+        "description": "Лимит — 20 запросов в минуту на профиль (вместе с `/api/voice`). Реплика пользователя сохраняется в историю до разбора: при 503 `llm_unavailable` она остаётся в истории, а ответа ассистента нет.",
         "operationId": "send_chat_message",
         "requestBody": {
           "content": {
@@ -1060,16 +1054,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           },
           "503": {
             "content": {
@@ -1168,16 +1152,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -1570,7 +1544,7 @@
     },
     "/api/health": {
       "get": {
-        "description": "Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`.",
+        "description": "Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`; `llm: unknown` — языковая модель не подключена.",
         "operationId": "get_health",
         "responses": {
           "200": {

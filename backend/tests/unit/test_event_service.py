@@ -76,6 +76,9 @@ class FakeStorage:
         self.events = FakeEventRepository()
         self.commits = 0
 
+    async def flush(self) -> None:
+        """В памяти отправлять нечего."""
+
     async def commit(self) -> None:
         self.commits += 1
 

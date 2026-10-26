@@ -1,10 +1,11 @@
-"""Гибридное ранжирование: близость по смыслу + совпадение лемм + имена людей.
+"""Гибридное ранжирование: близость по смыслу + совпадение лемм + имена людей + тип.
 
 Эмбеддинги хорошо ловят синонимы («созвон» ↔ «звонок», «ТЗ» ↔ «техническое
 задание»), но считают имена взаимозаменяемыми: «встреча с Иваном» для них почти
 то же, что «встреча с Сергеем». Леммы точны на совпадающих словах, но слепы к
 синонимам. Итоговая оценка складывает оба сигнала, поправку за имя человека
-и бонус, если запрос называет главное слово записи («встреча» в «Встреча с Иваном…»).
+бонус, если запрос называет главное слово записи («встреча» в «Встреча с Иваном…»),
+и мягкий бонус за тип записи, который назвал разбор запроса («встреча с Иваном» → встречи).
 """
 
 import math
@@ -45,23 +46,29 @@ class RankingParams:
     """Веса гибридной оценки и порог отсечения.
 
     `score = (1 - lexical_weight) * similarity + lexical_weight * coverage
-    ± name_weight + head_weight`, где:
+    ± name_weight + head_weight + type_weight`, где:
 
     - `coverage` — доля idf-веса лемм запроса, найденных в записи (0..1);
     - `name_weight` прибавляется, если имя человека из запроса есть в записи, и вычитается,
       если нет: эмбеддинги путают имена, а для пользователя это разные встречи;
     - `head_weight` прибавляется, если запрос называет главное (первое) слово записи:
       на «встреча с Иваном» «Встреча с Иваном по CRM» выше, чем «Отправить итоги встречи
-      Иваном». Леммы идут в порядке появления, первая — то, чем запись является.
+      Иваном». Леммы идут в порядке появления, первая — то, чем запись является;
+    - `type_weight` прибавляется записям типа `preferred_type` из разбора запроса. Это бонус,
+      а не фильтр: если LLM ошиблась с типом, нужная запись опустится, но не пропадёт.
+      Порог `threshold` сравнивается с оценкой без этого бонуса.
 
     Значения по умолчанию подобраны на `tests/fixtures/search_eval.json` для
     `deepvk/USER-bge-m3` (см. `docs/search.md`); для другой модели их нужно подобрать заново.
+    `type_weight` — наименьший вес с лучшим результатом на запросах с типом из разбора
+    (`eval_search --type-bonus --tune-type`).
     """
 
     lexical_weight: float = 0.1
     name_weight: float = 0.2
     head_weight: float = 0.05
     threshold: float = 0.52
+    type_weight: float = 0.075
 
 
 DEFAULT_RANKING_PARAMS = RankingParams()
@@ -106,20 +113,28 @@ class HybridRanker:
     ) -> list[RankedResult]:
         """Лучшие записи по убыванию `score`; пустой список — «ничего похожего нет».
 
+        Порог применяется к оценке без бонуса за тип: тип из разбора запроса меняет только
+        порядок, но не делает похожей запись, которая на запрос не похожа. Иначе на «встречу
+        с Петром», которой нет, нашлась бы любая встреча. Записи типа `preferred_type`
+        получают бонус `type_weight` к `score`, остальные не отсекаются.
         При равной оценке выше запись с большим `event_id` (созданная позже).
         """
         if limit <= 0 or not candidates:
             return []
         query = self._profile_query(query_lemmas, candidates)
-        best_by_event: dict[int, float] = {}
+        best_by_event: dict[int, SearchCandidate] = {}
+        base_scores: dict[int, float] = {}
         for candidate in candidates:
             score = self._score(query, candidate)
-            best_by_event[candidate.event_id] = max(
-                score, best_by_event.get(candidate.event_id, score)
-            )
+            if score >= base_scores.get(candidate.event_id, -math.inf):
+                base_scores[candidate.event_id] = score
+                best_by_event[candidate.event_id] = candidate
         relevant = [
-            RankedResult(event_id=event_id, score=score)
-            for event_id, score in best_by_event.items()
+            RankedResult(
+                event_id=event_id,
+                score=score + self._type_bonus(best_by_event[event_id], preferred_type),
+            )
+            for event_id, score in base_scores.items()
             if score >= self._params.threshold
         ]
         relevant.sort(key=lambda result: (result.score, result.event_id), reverse=True)
@@ -162,6 +177,11 @@ class HybridRanker:
         lexical = lexical_weight * _coverage(query, record_lemmas)
         head = self._params.head_weight if _names_head(query, candidate.lemmas) else 0.0
         return semantic + lexical + head + self._name_adjustment(query, record_lemmas)
+
+    def _type_bonus(self, candidate: SearchCandidate, preferred_type: EventType | None) -> float:
+        if preferred_type is None or candidate.event_type != preferred_type:
+            return 0.0
+        return self._params.type_weight
 
     def _name_adjustment(self, query: _QueryProfile, record_lemmas: set[str]) -> float:
         if not query.person_names:

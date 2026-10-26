@@ -151,6 +151,7 @@ class ChatMessageRecord(Base):
 
     __tablename__ = "chat_messages"
     __table_args__ = (Index("ix_chat_messages_profile_id_id", "profile_id", "id"),)
+    __mapper_args__ = MappingProxyType({"eager_defaults": True})
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     profile_id: Mapped[ProfileId]
@@ -161,7 +162,11 @@ class ChatMessageRecord(Base):
 
 
 class DialogStateRecord(Base):
-    """Состояние диалога: ожидаемое уточнение, последние записи и реплики (Q23)."""
+    """Состояние диалога (Q23): чего ждёт ассистент, записи в фокусе, последние реплики.
+
+    `pending` — отложенный шаг диалога, `last_event_ids` — записи в фокусе (последняя
+    упомянутая первой), `recent` — последние реплики; формат JSON задаёт `app.core.dialog.state`.
+    """
 
     __tablename__ = "dialog_state"
 

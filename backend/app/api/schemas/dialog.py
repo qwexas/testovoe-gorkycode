@@ -42,10 +42,14 @@ class Pending(ResponseModel):
 
 
 class Undo(ResponseModel):
-    """Действие можно отменить до `expires_at` (окно 10 секунд)."""
+    """Действие можно отменить до `expires_at`.
 
-    action_id: str
-    expires_at: datetime
+    Сервер принимает отмену 30 секунд; кнопку «Отменить» интерфейс показывает 10 секунд,
+    оставшееся время — запас на сеть и на голосовую команду «отмени».
+    """
+
+    action_id: str = Field(description="Для `POST /api/actions/{action_id}/undo`")
+    expires_at: datetime = Field(description="Срок отмены на сервере: момент действия + 30 с")
 
 
 class AssistantReply(ResponseModel):

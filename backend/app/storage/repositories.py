@@ -1,6 +1,7 @@
 """Репозитории: запросы к таблицам. Транзакцией управляет `UnitOfWork`."""
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -21,10 +22,19 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import EventSource, EventStatus
-from app.core.queries import EventFilter
+from app.core.enums import EventSource, EventStatus, EventType
+from app.core.queries import EventFilter, MeetingSlot
+from app.core.schedule import DEFAULT_MEETING_DURATION
 from app.search.interfaces import SearchCandidate
-from app.storage.models import EventRecord, ProfileRecord, ProfileSessionRecord, SeedEventRecord
+from app.storage.models import (
+    ChatMessageRecord,
+    DialogStateRecord,
+    EventRecord,
+    ProfileRecord,
+    ProfileSessionRecord,
+    SeedEventRecord,
+    UndoActionRecord,
+)
 
 NEAREST_CANDIDATES = 100
 """Сколько ближайших по вектору записей отдавать в ранжирование (плюс совпавшие по леммам)."""
@@ -167,6 +177,7 @@ class EventRepository:
         statement = _with_seed_index(
             select(
                 EventRecord.id,
+                EventRecord.type,
                 _INDEXED_LEMMAS.label("lemmas"),
                 (1 - distance).label("similarity"),
             )
@@ -174,10 +185,128 @@ class EventRepository:
         rows = await self._session.execute(statement)
         return [
             SearchCandidate(
-                event_id=row.id, lemmas=row.lemmas or [], similarity=row.similarity or 0.0
+                event_id=row.id,
+                lemmas=row.lemmas or [],
+                similarity=row.similarity or 0.0,
+                event_type=row.type,
             )
             for row in rows
         ]
+
+    async def find_overlapping_meetings(self, slot: MeetingSlot) -> list[EventRecord]:
+        """Открытые встречи профиля, пересекающиеся со `slot`, по времени начала.
+
+        Встреча без конца считается длящейся `DEFAULT_MEETING_DURATION`.
+        """
+        meeting_end = func.coalesce(
+            EventRecord.ends_at, EventRecord.starts_at + DEFAULT_MEETING_DURATION
+        )
+        conditions = [
+            EventRecord.profile_id == slot.profile_id,
+            EventRecord.type == EventType.MEETING,
+            EventRecord.status == EventStatus.OPEN,
+            EventRecord.starts_at < slot.ends_at,
+            meeting_end > slot.starts_at,
+        ]
+        if slot.ignored_event_id is not None:
+            conditions.append(EventRecord.id != slot.ignored_event_id)
+        statement = select(EventRecord).where(*conditions).order_by(EventRecord.starts_at)
+        return list(await self._session.scalars(statement))
+
+
+class ChatMessageRepository:
+    """История диалога профиля."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, message: ChatMessageRecord) -> None:
+        """Сохраняет реплику; `id` и `created_at` заполняются сразу."""
+        self._session.add(message)
+        await self._session.flush()
+
+    async def list_before(
+        self, profile_id: UUID, before_id: int | None, limit: int
+    ) -> list[ChatMessageRecord]:
+        """Последние `limit` реплик профиля (с `id < before_id`, если задан), старые первыми."""
+        statement = select(ChatMessageRecord).where(ChatMessageRecord.profile_id == profile_id)
+        if before_id is not None:
+            statement = statement.where(ChatMessageRecord.id < before_id)
+        newest_first = await self._session.scalars(
+            statement.order_by(ChatMessageRecord.id.desc()).limit(limit)
+        )
+        return list(reversed(newest_first.all()))
+
+
+class DialogStateRepository:
+    """Состояние диалога профиля: одна строка на профиль."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, profile_id: UUID) -> DialogStateRecord | None:
+        """Состояние диалога или `None`, если профиль ещё не разговаривал."""
+        return await self._session.get(DialogStateRecord, profile_id, populate_existing=True)
+
+    async def save(self, state: DialogStateRecord) -> None:
+        """Записывает состояние поверх прежнего (`INSERT … ON CONFLICT DO UPDATE`)."""
+        values = {
+            "pending": state.pending,
+            "last_event_ids": state.last_event_ids,
+            "recent": state.recent,
+        }
+        statement = upsert(DialogStateRecord).values(profile_id=state.profile_id, **values)
+        await self._session.execute(
+            statement.on_conflict_do_update(
+                index_elements=[DialogStateRecord.profile_id],
+                set_={**values, "updated_at": func.now()},
+            )
+        )
+
+
+class UndoActionRepository:
+    """Действия профиля, которые ещё можно отменить."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, action: UndoActionRecord) -> None:
+        """Сохраняет действие."""
+        self._session.add(action)
+        await self._session.flush()
+
+    async def get(self, profile_id: UUID, action_id: str) -> UndoActionRecord | None:
+        """Действие профиля; чужое — как отсутствующее."""
+        statement = select(UndoActionRecord).where(
+            UndoActionRecord.action_id == action_id, UndoActionRecord.profile_id == profile_id
+        )
+        return await self._session.scalar(statement)
+
+    async def latest(self, profile_id: UUID) -> UndoActionRecord | None:
+        """Последнее действие профиля (с самым поздним сроком отмены)."""
+        statement = (
+            select(UndoActionRecord)
+            .where(UndoActionRecord.profile_id == profile_id)
+            .order_by(UndoActionRecord.expires_at.desc())
+            .limit(1)
+        )
+        return await self._session.scalar(statement)
+
+    async def delete(self, profile_id: UUID, action_id: str) -> None:
+        """Удаляет действие: отменить его второй раз нельзя."""
+        await self._session.execute(
+            delete(UndoActionRecord).where(
+                UndoActionRecord.action_id == action_id, UndoActionRecord.profile_id == profile_id
+            )
+        )
+
+    async def delete_expired(self, profile_id: UUID, moment: datetime) -> None:
+        """Удаляет действия профиля, срок отмены которых прошёл к `moment`."""
+        await self._session.execute(
+            delete(UndoActionRecord).where(
+                UndoActionRecord.profile_id == profile_id, UndoActionRecord.expires_at <= moment
+            )
+        )
 
 
 class SeedEventRepository:

@@ -86,12 +86,66 @@ class EventChanges:
     status: EventStatus | None = None
 
 
-class EventService:
-    """Сценарии работы с записями профиля. Изменяющий сценарий — одна транзакция."""
+@dataclass(frozen=True, slots=True)
+class EventSnapshot:
+    """Запись целиком: из снимка её можно вернуть после удаления или изменения (отмена)."""
+
+    id: int
+    type: EventType
+    title: str
+    starts_at: datetime | None
+    has_time: bool
+    ends_at: datetime | None
+    status: EventStatus
+    source: EventSource
+    seed_event_id: int | None
+    created_at: datetime
+
+    @classmethod
+    def from_record(cls, record: EventRecord) -> Self:
+        """Снимок строки таблицы `events`; время — по Москве."""
+        return cls(
+            id=record.id,
+            type=record.type,
+            title=record.title,
+            starts_at=_in_moscow(record.starts_at),
+            has_time=record.has_time,
+            ends_at=_in_moscow(record.ends_at),
+            status=record.status,
+            source=record.source,
+            seed_event_id=record.seed_event_id,
+            created_at=record.created_at.astimezone(MOSCOW),
+        )
+
+    def as_changes(self) -> EventChanges:
+        """Изменения, которые возвращают записи поля этого снимка."""
+        return EventChanges(
+            title=self.title,
+            starts_at=self.starts_at,
+            has_time=self.has_time,
+            ends_at=self.ends_at,
+            status=self.status,
+        )
+
+
+class EventEditor:
+    """Изменения записей профиля внутри транзакции вызывающего сценария.
+
+    Ничего не фиксирует: так диалог сохраняет запись, её отмену и ответ ассистента
+    одной транзакцией. Название при создании и изменении сразу индексируется для поиска.
+    """
 
     def __init__(self, storage: UnitOfWork, search: SearchService) -> None:
         self._storage = storage
         self._search = search
+
+    async def get(self, profile_id: UUID, event_id: int) -> EventCard:
+        """Запись профиля.
+
+        Raises:
+            EventNotFoundError: У профиля нет такой записи.
+        """
+        return EventCard.from_record(await self._owned_event(profile_id, event_id))
 
     async def create(self, profile_id: UUID, draft: EventDraft) -> EventCard:
         """Создаёт запись.
@@ -114,7 +168,6 @@ class EventService:
             lemmas=index.lemmas,
         )
         await self._storage.events.add(record)
-        await self._storage.commit()
         return EventCard.from_record(record)
 
     async def update(self, profile_id: UUID, event_id: int, changes: EventChanges) -> EventCard:
@@ -135,42 +188,47 @@ class EventService:
             await self._rename(record, changes.title)
         if changes.status is not None:
             record.status = changes.status
-        await self._storage.commit()
+        await self._storage.flush()
         return EventCard.from_record(record)
 
-    async def delete(self, profile_id: UUID, event_id: int) -> None:
-        """Удаляет запись профиля.
+    async def snapshot(self, profile_id: UUID, event_id: int) -> EventSnapshot:
+        """Снимок записи профиля — перед изменением, чтобы его можно было отменить.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
         """
-        if not await self._storage.events.delete(profile_id, event_id):
-            raise EventNotFoundError()
-        await self._storage.commit()
+        return EventSnapshot.from_record(await self._owned_event(profile_id, event_id))
 
-    async def list_events(self, criteria: EventFilter, limit: int) -> list[EventCard]:
-        """Записи по критериям в порядке времени начала.
+    async def delete(self, profile_id: UUID, event_id: int) -> EventSnapshot:
+        """Удаляет запись профиля и возвращает её снимок.
 
         Raises:
-            EventValidationError: Начало периода не раньше его конца.
+            EventNotFoundError: У профиля нет такой записи.
         """
-        _check_period(criteria)
-        records = await self._storage.events.list_matching(criteria, limit)
-        return [EventCard.from_record(record) for record in records]
+        snapshot = await self.snapshot(profile_id, event_id)
+        await self._storage.events.delete(profile_id, event_id)
+        return snapshot
 
-    async def search_events(self, criteria: EventFilter, query: str, limit: int) -> list[EventCard]:
-        """Записи по критериям, похожие на запрос, по убыванию релевантности.
-
-        Raises:
-            EventValidationError: Начало периода не раньше его конца.
-        """
-        _check_period(criteria)
-        find_candidates = partial(self._storage.events.find_candidates, criteria)
-        ranked = await self._search.search(query, find_candidates, limit=limit)
-        records = await self._storage.events.get_many(
-            criteria.profile_id, [result.event_id for result in ranked]
+    async def restore(self, profile_id: UUID, snapshot: EventSnapshot) -> EventCard:
+        """Возвращает удалённую запись с прежним `id`, статусом и датой создания."""
+        index = await self._search.index_title(snapshot.title)
+        record = EventRecord(
+            id=snapshot.id,
+            profile_id=profile_id,
+            type=snapshot.type,
+            title=snapshot.title,
+            starts_at=snapshot.starts_at,
+            has_time=snapshot.has_time,
+            ends_at=snapshot.ends_at,
+            status=snapshot.status,
+            source=snapshot.source,
+            seed_event_id=snapshot.seed_event_id,
+            embedding=index.embedding,
+            lemmas=index.lemmas,
+            created_at=snapshot.created_at,
         )
-        return [EventCard.from_record(record) for record in records]
+        await self._storage.events.add(record)
+        return EventCard.from_record(record)
 
     async def _owned_event(self, profile_id: UUID, event_id: int) -> EventRecord:
         record = await self._storage.events.get(profile_id, event_id)
@@ -183,6 +241,100 @@ class EventService:
         record.title = title
         record.embedding = index.embedding
         record.lemmas = index.lemmas
+
+
+class EventService:
+    """Сценарии работы с записями профиля. Изменяющий сценарий — одна транзакция."""
+
+    def __init__(self, storage: UnitOfWork, search: SearchService) -> None:
+        self._storage = storage
+        self._search = search
+        self._editor = EventEditor(storage, search)
+
+    async def create(self, profile_id: UUID, draft: EventDraft) -> EventCard:
+        """Создаёт запись.
+
+        Raises:
+            EventValidationError: Время не подходит к типу записи (см. `settle_schedule`).
+        """
+        card = await self._editor.create(profile_id, draft)
+        await self._storage.commit()
+        return card
+
+    async def update(self, profile_id: UUID, event_id: int, changes: EventChanges) -> EventCard:
+        """Меняет запись профиля; новое название сразу индексируется для поиска.
+
+        Raises:
+            EventNotFoundError: У профиля нет такой записи.
+            EventValidationError: Новое время не подходит к типу записи.
+        """
+        card = await self._editor.update(profile_id, event_id, changes)
+        await self._storage.commit()
+        return card
+
+    async def delete(self, profile_id: UUID, event_id: int) -> None:
+        """Удаляет запись профиля.
+
+        Raises:
+            EventNotFoundError: У профиля нет такой записи.
+        """
+        await self._editor.delete(profile_id, event_id)
+        await self._storage.commit()
+
+    async def list_events(self, criteria: EventFilter, limit: int) -> list[EventCard]:
+        """Записи по критериям в порядке времени начала.
+
+        Raises:
+            EventValidationError: Начало периода не раньше его конца.
+        """
+        _check_period(criteria)
+        records = await self._storage.events.list_matching(criteria, limit)
+        return [EventCard.from_record(record) for record in records]
+
+    async def search_events(
+        self,
+        criteria: EventFilter,
+        query: str,
+        limit: int,
+        *,
+        preferred_type: EventType | None = None,
+    ) -> list[EventCard]:
+        """Записи по критериям, похожие на запрос, по убыванию релевантности.
+
+        `preferred_type` — тип из разбора запроса: такие записи чуть выше, другие не отсекаются.
+
+        Raises:
+            EventValidationError: Начало периода не раньше его конца.
+        """
+        scored = await self.search_scored(criteria, query, limit, preferred_type=preferred_type)
+        return [item.card for item in scored]
+
+    async def search_scored(
+        self,
+        criteria: EventFilter,
+        query: str,
+        limit: int,
+        *,
+        preferred_type: EventType | None = None,
+    ) -> list["ScoredCard"]:
+        """То же, что `search_events`, но с оценкой уместности каждой записи.
+
+        Оценка нужна, чтобы отличить явного лидера от равных кандидатов
+        (выбор записи для команды изменения).
+
+        Raises:
+            EventValidationError: Начало периода не раньше его конца.
+        """
+        _check_period(criteria)
+        find_candidates = partial(self._storage.events.find_candidates, criteria)
+        ranked = await self._search.search(
+            query, find_candidates, limit=limit, preferred_type=preferred_type
+        )
+        records = await self._storage.events.get_many(
+            criteria.profile_id, [result.event_id for result in ranked]
+        )
+        scores = {result.event_id: result.score for result in ranked}
+        return [ScoredCard(EventCard.from_record(record), scores[record.id]) for record in records]
 
 
 def _changed_schedule(record: EventRecord, changes: EventChanges) -> Schedule:
@@ -207,3 +359,11 @@ def _check_period(criteria: EventFilter) -> None:
 
 def _in_moscow(moment: datetime | None) -> datetime | None:
     return None if moment is None else moment.astimezone(MOSCOW)
+
+
+@dataclass(frozen=True, slots=True)
+class ScoredCard:
+    """Найденная запись и её оценка уместности (чем больше, тем ближе к запросу)."""
+
+    card: EventCard
+    score: float

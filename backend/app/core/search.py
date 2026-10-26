@@ -8,6 +8,7 @@
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
+from app.core.enums import EventType
 from app.search.interfaces import Embedder, Lemmatizer, RankedResult, Ranker, SearchCandidate
 
 CandidateFinder = Callable[[Sequence[float], Sequence[str]], Awaitable[list[SearchCandidate]]]
@@ -44,10 +45,20 @@ class SearchService:
         ]
 
     async def search(
-        self, query: str, find_candidates: CandidateFinder, *, limit: int
+        self,
+        query: str,
+        find_candidates: CandidateFinder,
+        *,
+        limit: int,
+        preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
-        """Лучшие записи по запросу, по убыванию релевантности; пусто — ничего похожего."""
+        """Лучшие записи по запросу, по убыванию релевантности; пусто — ничего похожего.
+
+        `preferred_type` — тип записи из разбора запроса: мягкий бонус в ранжировании.
+        """
         query_vector = await self._embedder.embed_query(query)
         query_lemmas = self._lemmatizer.lemmas(query)
         candidates = await find_candidates(query_vector, query_lemmas)
-        return self._ranker.rank(query_lemmas, candidates, limit=limit)
+        return self._ranker.rank(
+            query_lemmas, candidates, limit=limit, preferred_type=preferred_type
+        )

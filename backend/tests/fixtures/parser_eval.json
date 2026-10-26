@@ -1,0 +1,293 @@
+{
+  "description": "Eval разбора реплик (решение Q37). Сейчас — вторник 27.10.2026 12:00 по Москве. В expected только значимые поля: поле, которого нет, не сравнивается; null — должно быть пустым. title и query сравниваются мягко: по леммам, с любым из вариантов. holdout — отложенная проверка: по этим случаям промпт не подгонялся.",
+  "now": "2026-10-27T12:00:00+03:00",
+  "contexts": {
+    "pending_time": {
+      "pending": "time",
+      "pending_question": "На какое время поставить встречу?",
+      "recent": [
+        {"role": "user", "text": "Поставь встречу с Иваном завтра"},
+        {"role": "assistant", "text": "На какое время поставить встречу?"}
+      ]
+    },
+    "pending_date": {
+      "pending": "date",
+      "pending_question": "На какой день поставить встречу?",
+      "recent": [
+        {"role": "user", "text": "Добавь встречу с Сергеем в 11"},
+        {"role": "assistant", "text": "На какой день поставить встречу?"}
+      ]
+    },
+    "pending_datetime": {
+      "pending": "datetime",
+      "pending_question": "Когда напомнить?",
+      "recent": [
+        {"role": "user", "text": "Напомни купить хлеб"},
+        {"role": "assistant", "text": "Когда напомнить?"}
+      ]
+    },
+    "pending_title": {
+      "pending": "title",
+      "pending_question": "Как назвать встречу?",
+      "recent": [
+        {"role": "user", "text": "Поставь встречу на завтра в 12"},
+        {"role": "assistant", "text": "Как назвать встречу?"}
+      ]
+    },
+    "pending_choice": {
+      "pending": "choice",
+      "pending_question": "Нашёл три встречи. Какую перенести?",
+      "recent": [
+        {"role": "user", "text": "Перенеси встречу на пятницу"},
+        {"role": "assistant", "text": "Нашёл три встречи. Какую перенести? 1 — «Встреча с Иваном по CRM», 2 — «Встреча с Ольгой», 3 — «Встреча с командой»"}
+      ],
+      "focus": [
+        {"id": 101, "type": "meeting", "title": "Встреча с Иваном по CRM", "starts_at": "2026-10-28T10:00:00+03:00"},
+        {"id": 102, "type": "meeting", "title": "Встреча с Ольгой", "starts_at": "2026-10-29T14:00:00+03:00"},
+        {"id": 103, "type": "meeting", "title": "Встреча с командой", "starts_at": "2026-10-30T16:00:00+03:00"}
+      ]
+    },
+    "pending_delete_confirm": {
+      "pending": "confirm",
+      "pending_question": "Удалить встречу «Встреча с Иваном» в среду в 15:00?",
+      "recent": [
+        {"role": "user", "text": "Удали встречу с Иваном"},
+        {"role": "assistant", "text": "Удалить встречу «Встреча с Иваном» в среду в 15:00?"}
+      ],
+      "focus": [
+        {"id": 201, "type": "meeting", "title": "Встреча с Иваном", "starts_at": "2026-10-28T15:00:00+03:00"}
+      ]
+    },
+    "pending_conflict_confirm": {
+      "pending": "confirm",
+      "pending_question": "В это время уже стоит «Встреча с командой». Всё равно добавить?",
+      "recent": [
+        {"role": "user", "text": "Добавь созвон с подрядчиком завтра в 15:00"},
+        {"role": "assistant", "text": "В это время уже стоит «Встреча с командой». Всё равно добавить?"}
+      ],
+      "focus": [
+        {"id": 301, "type": "meeting", "title": "Встреча с командой", "starts_at": "2026-10-28T15:00:00+03:00"}
+      ]
+    },
+    "created_meeting": {
+      "recent": [
+        {"role": "user", "text": "Добавь встречу с Иваном сегодня в 15:00"},
+        {"role": "assistant", "text": "Добавил встречу «Встреча с Иваном» на сегодня, 15:00."}
+      ],
+      "focus": [
+        {"id": 401, "type": "meeting", "title": "Встреча с Иваном", "starts_at": "2026-10-27T15:00:00+03:00"}
+      ]
+    },
+    "created_task": {
+      "recent": [
+        {"role": "user", "text": "В пятницу нужно отправить отчёт"},
+        {"role": "assistant", "text": "Записал задачу «Отправить отчёт» на пятницу, 30 октября."}
+      ],
+      "focus": [
+        {"id": 501, "type": "task", "title": "Отправить отчёт", "starts_at": "2026-10-30T00:00:00+03:00"}
+      ]
+    }
+  },
+  "cases": [
+    {"id": "tz-01", "group": "tz", "text": "Напомни мне завтра в 10 утра позвонить Ивану",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Позвонить Ивану"], "when": {"date": "2026-10-28", "time": "10:00"}}},
+    {"id": "tz-02", "group": "tz", "text": "В пятницу нужно отправить отчет",
+     "expected": {"action": "create", "event_type": "task", "title": ["Отправить отчет"], "when": {"date": "2026-10-30", "time": null}}},
+    {"id": "tz-03", "group": "tz", "text": "Поставь задачу купить билеты до конца недели",
+     "expected": {"action": "create", "event_type": "task", "title": ["Купить билеты"], "when": {"date": "2026-11-01", "time": "23:59"}}},
+    {"id": "tz-04", "group": "tz", "text": "Добавь встречу с командой завтра в 15:00",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с командой"], "when": {"date": "2026-10-28", "time": "15:00"}}},
+    {"id": "tz-05", "group": "tz", "text": "В четверг в 11 у меня встреча с дизайнером",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с дизайнером"], "when": {"date": "2026-10-29", "time": "11:00"}}},
+    {"id": "tz-06", "group": "tz", "text": "Что у меня сегодня?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "tz-07", "group": "tz", "text": "Есть ли у меня встречи сегодня?",
+     "expected": {"action": "list", "event_type": "meeting", "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "tz-08", "group": "tz", "text": "Какие задачи у меня на завтра?",
+     "expected": {"action": "list", "event_type": "task", "period": {"start": "2026-10-28T00:00", "end": "2026-10-29T00:00"}}},
+    {"id": "tz-09", "group": "tz", "text": "Что запланировано на эту неделю?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-26T00:00", "end": "2026-11-02T00:00"}}},
+    {"id": "tz-10", "group": "tz", "text": "Найди задачу про презентацию",
+     "expected": {"action": "search", "event_type": "task", "query": ["презентация"]}},
+    {"id": "tz-11", "group": "tz", "text": "Когда у меня была встреча с Иваном?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["встреча с Иваном"], "time_scope": "past"}},
+    {"id": "tz-12", "group": "tz", "text": "Я когда-то ставил задачу по договору, найди ее",
+     "expected": {"action": "search", "event_type": "task", "query": ["договор"]}},
+    {"id": "tz-13", "group": "tz", "text": "Какие планы на сегодня?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "tz-14", "group": "tz", "text": "Покажи мои встречи на сегодня",
+     "expected": {"action": "list", "event_type": "meeting", "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "tz-15", "group": "tz", "text": "Поставь встречу с Иваном завтра",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с Иваном"], "when": {"date": "2026-10-28", "time": null}}},
+
+    {"id": "rel-01", "group": "relative", "text": "Напомни сегодня в 18:00 забрать посылку",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Забрать посылку"], "when": {"date": "2026-10-27", "time": "18:00"}}},
+    {"id": "rel-02", "group": "relative", "text": "Послезавтра встреча с бухгалтером в 12:30",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с бухгалтером"], "when": {"date": "2026-10-29", "time": "12:30"}}},
+    {"id": "rel-03", "group": "relative", "text": "Напомни через два часа проверить почту",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Проверить почту"], "when": {"date": "2026-10-27", "time": "14:00"}}},
+    {"id": "rel-04", "group": "relative", "text": "На следующей неделе нужно подготовить квартальный отчёт",
+     "expected": {"action": "create", "event_type": "task", "title": ["Подготовить квартальный отчёт"], "when": {"date": null, "time": null, "week_of": "2026-11-02"}}},
+    {"id": "rel-05", "group": "relative", "holdout": true, "text": "Созвон с партнёрами на следующей неделе",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Созвон с партнёрами"], "when": {"date": null, "time": null, "week_of": "2026-11-02"}}},
+    {"id": "rel-06", "group": "relative", "text": "Что у меня на следующей неделе?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-11-02T00:00", "end": "2026-11-09T00:00"}}},
+    {"id": "rel-07", "group": "relative", "holdout": true, "text": "Что у меня послезавтра?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-29T00:00", "end": "2026-10-30T00:00"}}},
+    {"id": "rel-08", "group": "relative", "text": "Какие встречи в пятницу?",
+     "expected": {"action": "list", "event_type": "meeting", "period": {"start": "2026-10-30T00:00", "end": "2026-10-31T00:00"}}},
+    {"id": "rel-09", "group": "relative", "text": "Через неделю сдать отчёт по проекту",
+     "expected": {"action": "create", "event_type": "task", "title": ["Сдать отчёт по проекту"], "when": {"date": "2026-11-03", "time": null}}},
+    {"id": "rel-10", "group": "relative", "holdout": true, "text": "В следующую пятницу встреча с командой в 16:00",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с командой"], "when": {"date": "2026-11-06", "time": "16:00"}}},
+    {"id": "rel-11", "group": "relative", "text": "26 ноября в 14:00 встреча с инвестором",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с инвестором"], "when": {"date": "2026-11-26", "time": "14:00"}}},
+    {"id": "rel-12", "group": "relative", "holdout": true, "text": "Что у меня 30 октября?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-30T00:00", "end": "2026-10-31T00:00"}}},
+    {"id": "rel-13", "group": "relative", "text": "Напомни 5 ноября в 10 утра оплатить интернет",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Оплатить интернет"], "when": {"date": "2026-11-05", "time": "10:00"}}},
+
+    {"id": "q31-01", "group": "q31", "text": "Напомни утром выпить витамины",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Выпить витамины"], "when": {"date": null, "time": "09:00"}}},
+    {"id": "q31-02", "group": "q31", "text": "Завтра вечером позвонить маме",
+     "expected": {"action": "create", "event_type": "task", "title": ["Позвонить маме"], "when": {"date": "2026-10-28", "time": "19:00"}}},
+    {"id": "q31-03", "group": "q31", "text": "Встреча с юристом завтра в обед",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с юристом"], "when": {"date": "2026-10-28", "time": "13:00"}}},
+    {"id": "q31-04", "group": "q31", "text": "Завтра в 3 созвон с клиентом",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Созвон с клиентом"], "when": {"date": "2026-10-28", "time": "15:00"}}},
+    {"id": "q31-05", "group": "q31", "holdout": true, "text": "Напомни в пятницу в 9 вечера полить цветы",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Полить цветы"], "when": {"date": "2026-10-30", "time": "21:00"}}},
+    {"id": "q31-06", "group": "q31", "text": "Через 15 минут напомни выключить духовку",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Выключить духовку"], "when": {"date": "2026-10-27", "time": "12:15"}}},
+    {"id": "q31-07", "group": "q31", "holdout": true, "text": "Напомни через полчаса позвонить в банк",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Позвонить в банк"], "when": {"date": "2026-10-27", "time": "12:30"}}},
+    {"id": "q31-08", "group": "q31", "text": "Днём в субботу съездить в автосервис",
+     "expected": {"action": "create", "event_type": "task", "title": ["Съездить в автосервис"], "when": {"date": "2026-10-31", "time": "13:00"}}},
+    {"id": "q31-09", "group": "q31", "holdout": true, "text": "Встреча с арендодателем в среду в полдень",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с арендодателем"], "when": {"date": "2026-10-28", "time": "12:00"}}},
+
+    {"id": "same-01", "group": "same_meaning", "text": "Что у меня на сегодня запланировано?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "same-02", "group": "same_meaning", "holdout": true, "text": "Какие дела на сегодня",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "same-03", "group": "same_meaning", "text": "Расскажи, чем я сегодня занят",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-27T00:00", "end": "2026-10-28T00:00"}}},
+    {"id": "same-04", "group": "same_meaning", "holdout": true, "text": "Покажи расписание на завтра",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-28T00:00", "end": "2026-10-29T00:00"}}},
+    {"id": "same-05", "group": "same_meaning", "text": "Есть что-нибудь на выходных?",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-31T00:00", "end": "2026-11-02T00:00"}}},
+    {"id": "same-06", "group": "same_meaning", "text": "Какие у меня невыполненные задачи?",
+     "expected": {"action": "list", "event_type": "task", "status": "open", "period": null}},
+    {"id": "same-07", "group": "same_meaning", "holdout": true, "text": "Что я уже сделал на этой неделе?",
+     "expected": {"action": "list", "status": "done", "period": {"start": "2026-10-26T00:00", "end": "2026-11-02T00:00"}}},
+    {"id": "same-08", "group": "same_meaning", "text": "Покажи задачи на этот месяц",
+     "expected": {"action": "list", "event_type": "task", "period": {"start": "2026-10-01T00:00", "end": "2026-11-01T00:00"}}},
+
+    {"id": "search-01", "group": "search", "text": "Найди встречу про бюджет",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["бюджет", "встреча про бюджет"]}},
+    {"id": "search-02", "group": "search", "holdout": true, "text": "Где задача про отчёт для Ольги?",
+     "expected": {"action": "search", "event_type": "task", "query": ["отчёт для Ольги"]}},
+    {"id": "search-03", "group": "search", "text": "Когда была планёрка по интеграции?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["планёрка по интеграции"], "time_scope": "past"}},
+    {"id": "search-04", "group": "search", "text": "Была ли у меня встреча с Натальей в прошлом месяце?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["встреча с Натальей"], "time_scope": "past", "period": {"start": "2026-09-01T00:00", "end": "2026-10-01T00:00"}}},
+    {"id": "search-05", "group": "search", "holdout": true, "text": "Когда у меня будет созвон с Орбитой?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["созвон с Орбитой"], "time_scope": "future"}},
+    {"id": "search-06", "group": "search", "text": "Покажи всё про договор с Марией",
+     "expected": {"action": "search", "query": ["договор с Марией"]}},
+
+    {"id": "ctx-01", "group": "clarification", "context": "pending_time", "text": "в 15:00",
+     "expected": {"action": "answer", "when": {"date": null, "time": "15:00"}}},
+    {"id": "ctx-02", "group": "clarification", "holdout": true, "context": "pending_time", "text": "давай в три",
+     "expected": {"action": "answer", "when": {"date": null, "time": "15:00"}}},
+    {"id": "ctx-03", "group": "clarification", "context": "pending_date", "text": "на пятницу",
+     "expected": {"action": "answer", "when": {"date": "2026-10-30", "time": null}}},
+    {"id": "ctx-04", "group": "clarification", "context": "pending_datetime", "text": "завтра в девять утра",
+     "expected": {"action": "answer", "when": {"date": "2026-10-28", "time": "09:00"}}},
+    {"id": "ctx-05", "group": "clarification", "context": "pending_title", "text": "Созвон с отделом продаж",
+     "expected": {"action": "answer", "title": ["Созвон с отделом продаж"]}},
+    {"id": "ctx-06", "group": "clarification", "context": "pending_choice", "text": "вторую",
+     "expected": {"action": "choose", "choice_index": 2}},
+    {"id": "ctx-07", "group": "clarification", "holdout": true, "context": "pending_choice", "text": "ту, что с Ольгой",
+     "expected": {"action": "choose", "choice_index": 2}},
+    {"id": "ctx-08", "group": "clarification", "context": "pending_choice", "text": "последнюю",
+     "expected": {"action": "choose", "choice_index": 3}},
+    {"id": "ctx-09", "group": "clarification", "context": "pending_delete_confirm", "text": "да",
+     "expected": {"action": "confirm"}},
+    {"id": "ctx-10", "group": "clarification", "context": "pending_delete_confirm", "text": "нет, не надо",
+     "expected": {"action": "deny"}},
+    {"id": "ctx-11", "group": "clarification", "holdout": true, "context": "pending_delete_confirm", "text": "удаляй",
+     "expected": {"action": "confirm"}},
+    {"id": "ctx-12", "group": "clarification", "context": "pending_conflict_confirm", "text": "всё равно добавь",
+     "expected": {"action": "confirm"}},
+
+    {"id": "ctx-13", "group": "context", "context": "created_meeting", "text": "А перенеси её на завтра",
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-10-28", "time": null}}},
+    {"id": "ctx-14", "group": "context", "holdout": true, "context": "created_meeting", "text": "Перенеси её на пятницу в 10",
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-10-30", "time": "10:00"}}},
+    {"id": "ctx-15", "group": "context", "context": "created_meeting", "text": "Удали её",
+     "expected": {"action": "delete", "target": {"last": true}}},
+    {"id": "ctx-16", "group": "context", "holdout": true, "context": "created_task", "text": "Отметь её выполненной",
+     "expected": {"action": "complete", "target": {"last": true}}},
+    {"id": "ctx-17", "group": "context", "context": "created_meeting", "text": "Переименуй её в созвон с партнёрами",
+     "expected": {"action": "rename", "target": {"last": true}, "title": ["Созвон с партнёрами"]}},
+
+    {"id": "mod-01", "group": "modify", "text": "Удали встречу с Иваном",
+     "expected": {"action": "delete", "target": {"last": false, "query": ["встреча с Иваном"], "event_type": "meeting"}}},
+    {"id": "mod-02", "group": "modify", "holdout": true, "text": "Отметь задачу про отчёт как выполненную",
+     "expected": {"action": "complete", "target": {"last": false, "query": ["отчёт"]}}},
+    {"id": "mod-03", "group": "modify", "text": "Я уже позвонил Ивану",
+     "expected": {"action": "complete", "target": {"last": false, "query": ["позвонить Ивану", "звонок Ивану"]}}},
+    {"id": "mod-04", "group": "modify", "text": "Перенеси встречу с дизайнером на понедельник",
+     "expected": {"action": "reschedule", "target": {"last": false, "query": ["встреча с дизайнером"]}, "when": {"date": "2026-11-02", "time": null}}},
+    {"id": "mod-05", "group": "modify", "holdout": true, "text": "Перенеси завтрашний созвон на 16:00",
+     "expected": {"action": "reschedule", "target": {"last": false, "query": ["созвон"], "when": {"date": "2026-10-28"}}, "when": {"date": null, "time": "16:00"}}},
+    {"id": "mod-06", "group": "modify", "text": "Переименуй задачу купить билеты в купить билеты в Казань",
+     "expected": {"action": "rename", "target": {"last": false, "query": ["купить билеты"]}, "title": ["Купить билеты в Казань"]}},
+    {"id": "mod-07", "group": "modify", "text": "Отмени встречу с Сергеем в четверг",
+     "expected": {"action": "delete", "target": {"last": false, "query": ["встреча с Сергеем"], "when": {"date": "2026-10-29"}}}},
+
+    {"id": "undo-01", "group": "undo", "text": "Отмени",
+     "expected": {"action": "undo"}},
+    {"id": "undo-02", "group": "undo", "holdout": true, "text": "Верни как было",
+     "expected": {"action": "undo"}},
+
+    {"id": "talk-01", "group": "smalltalk", "text": "Привет!",
+     "expected": {"action": "smalltalk"}},
+    {"id": "talk-02", "group": "smalltalk", "holdout": true, "text": "Спасибо, Горький",
+     "expected": {"action": "smalltalk"}},
+    {"id": "talk-03", "group": "smalltalk", "text": "Что ты умеешь?",
+     "expected": {"action": "smalltalk"}},
+    {"id": "off-01", "group": "off_topic", "text": "Какая завтра погода в Москве?",
+     "expected": {"action": "unknown"}},
+    {"id": "off-02", "group": "off_topic", "holdout": true, "text": "Расскажи анекдот",
+     "expected": {"action": "unknown"}},
+    {"id": "off-03", "group": "off_topic", "text": "Сколько будет семью восемь",
+     "expected": {"action": "unknown"}},
+
+    {"id": "voice-01", "group": "voice", "text": "напомни завтра в восемь утра отправить документы",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Отправить документы"], "when": {"date": "2026-10-28", "time": "08:00"}}},
+    {"id": "voice-02", "group": "voice", "text": "встреча с максимом в пятницу в пятнадцать тридцать",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с Максимом"], "when": {"date": "2026-10-30", "time": "15:30"}}},
+    {"id": "voice-03", "group": "voice", "holdout": true, "text": "в три часа дня созвон с поставщиком послезавтра",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Созвон с поставщиком"], "when": {"date": "2026-10-29", "time": "15:00"}}},
+    {"id": "voice-04", "group": "voice", "text": "поставь задачу купить подарок маме до пятницы",
+     "expected": {"action": "create", "event_type": "task", "title": ["Купить подарок маме"], "when": {"date": "2026-10-30", "time": null}}},
+    {"id": "voice-05", "group": "voice", "text": "что у меня на завтра",
+     "expected": {"action": "list", "event_type": null, "period": {"start": "2026-10-28T00:00", "end": "2026-10-29T00:00"}}},
+    {"id": "voice-06", "group": "voice", "holdout": true, "text": "горький напомни в половине седьмого вечера забрать сына из школы",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Забрать сына из школы"], "when": {"date": null, "time": "18:30"}}},
+    {"id": "voice-07", "group": "voice", "text": "найди задачу про договор с мариной",
+     "expected": {"action": "search", "event_type": "task", "query": ["договор с Мариной"]}},
+    {"id": "voice-08", "group": "voice", "text": "добавь задачу купить молоко",
+     "expected": {"action": "create", "event_type": "task", "title": ["Купить молоко"], "when": null}},
+    {"id": "voice-09", "group": "voice", "holdout": true, "text": "напомни позвонить в налоговую",
+     "expected": {"action": "create", "event_type": "reminder", "title": ["Позвонить в налоговую"], "when": null}},
+    {"id": "voice-10", "group": "voice", "text": "встреча с командой завтра с пятнадцати до семнадцати",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с командой"], "when": {"date": "2026-10-28", "time": "15:00"}, "duration_minutes": 120}},
+    {"id": "voice-11", "group": "voice", "holdout": true, "text": "созвон с вероникой в пятницу в одиннадцать на полчаса",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Созвон с Вероникой"], "when": {"date": "2026-10-30", "time": "11:00"}, "duration_minutes": 30}},
+    {"id": "voice-12", "group": "voice", "text": "мне нужно в среду к 10 сдать документы в бухгалтерию",
+     "expected": {"action": "create", "event_type": "task", "title": ["Сдать документы в бухгалтерию"], "when": {"date": "2026-10-28", "time": "10:00"}}}
+  ]
+}

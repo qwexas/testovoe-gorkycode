@@ -9,6 +9,7 @@
     uv run python -m scripts.eval_search                         # модель и веса по умолчанию
     uv run python -m scripts.eval_search --model BAAI/bge-m3 --tune
     uv run python -m scripts.eval_search --prefer-meetings --show-failures
+    uv run python -m scripts.eval_search --type-bonus --tune-type    # вес бонуса за тип
 """
 
 import argparse
@@ -23,6 +24,7 @@ import time
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
@@ -56,6 +58,7 @@ HEAD_WEIGHT_GRID = (0.0, 0.025, 0.05, 0.1, 0.15)
 THRESHOLD_GRID = tuple(round(0.20 + 0.01 * step, 2) for step in range(76))
 PLATEAU_TOLERANCE = 0.005
 """Пороги, у которых цель хуже максимума не больше чем на четверть запроса, считаем равными."""
+TYPE_WEIGHT_GRID = (0.0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2)
 CROSS_VALIDATION_FOLDS = 4
 FAILURE_TEXTS_SHOWN = 3
 
@@ -63,6 +66,17 @@ UNTUNED = -math.inf
 SECONDS_TO_MS = 1000.0
 BYTES_IN_MIB = 1024 * 1024
 KIB_IN_MIB = 1024
+
+
+class TypeMode(StrEnum):
+    """Как учитывать тип записи из разбора запроса (`intent_type` в eval-наборе)."""
+
+    IGNORE = "ignore"
+    """Тип не учитывается."""
+    FILTER = "filter"
+    """Сначала только записи этого типа, при пустой выдаче — все (жёсткий фильтр бэкенда)."""
+    BONUS = "bonus"
+    """`HybridRanker.rank(..., preferred_type=...)`: мягкий бонус `type_weight`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +90,10 @@ class EvalQuery:
     def expects_answer(self) -> bool:
         return bool(self.relevant_ids)
 
+    @property
+    def preferred_type(self) -> EventType | None:
+        return EventType(self.intent_type) if self.intent_type else None
+
 
 @dataclass(frozen=True, slots=True)
 class Corpus:
@@ -83,15 +101,34 @@ class Corpus:
     texts: list[str]
     lemmas: list[list[str]]
     embeddings: NDArray[np.float32]
+    event_types: list[EventType]
 
-    def only(self, keep: Sequence[bool]) -> "Corpus":
-        """Подмножество записей — как хранилище с фильтром по типу."""
-        indexes = [i for i, kept in enumerate(keep) if kept]
+    @classmethod
+    def from_records(
+        cls,
+        records: dict[int, str],
+        lemmatizer: MorphLemmatizer,
+        vectors: Sequence[Sequence[float]],
+    ) -> "Corpus":
+        """Записи CSV с леммами, векторами и типом по правилу бэкенда (`classify_event_type`)."""
+        texts = list(records.values())
+        return cls(
+            event_ids=list(records),
+            texts=texts,
+            lemmas=[lemmatizer.lemmas(text) for text in texts],
+            embeddings=np.asarray(vectors, dtype=np.float32),
+            event_types=[classify_event_type(text) for text in texts],
+        )
+
+    def only(self, event_type: EventType) -> "Corpus":
+        """Подмножество записей одного типа — как хранилище с фильтром по типу."""
+        indexes = [i for i, kind in enumerate(self.event_types) if kind is event_type]
         return Corpus(
             event_ids=[self.event_ids[i] for i in indexes],
             texts=[self.texts[i] for i in indexes],
             lemmas=[self.lemmas[i] for i in indexes],
             embeddings=self.embeddings[indexes],
+            event_types=[self.event_types[i] for i in indexes],
         )
 
 
@@ -138,10 +175,19 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, default=MODELS_DIR, help="каталог весов")
     parser.add_argument("--device", default="cpu", help="cpu (как на сервере) или mps/cuda")
     parser.add_argument("--tune", action="store_true", help="подобрать веса и порог по сетке")
-    parser.add_argument(
+    type_mode = parser.add_mutually_exclusive_group()
+    type_mode.add_argument(
         "--prefer-meetings",
         action="store_true",
         help="для запросов с типом «встреча» сначала искать среди встреч, потом среди всех",
+    )
+    type_mode.add_argument(
+        "--type-bonus",
+        action="store_true",
+        help="тип из запроса — мягкий бонус ранжирования (preferred_type)",
+    )
+    parser.add_argument(
+        "--tune-type", action="store_true", help="подобрать вес бонуса за тип и порог"
     )
     parser.add_argument("--show-failures", action="store_true", help="разбор ошибок по запросам")
     return parser.parse_args()
@@ -170,12 +216,26 @@ async def _run(args: argparse.Namespace) -> None:
         peak_rss_after_corpus_mib=rss_after_corpus - rss_before,
     )
 
-    context = RankingContext(prepared, LemmaStatistics.from_documents(corpus.lemmas), lemmatizer)
-    mode = "встречи сначала" if args.prefer_meetings else "только ранжирование"
-    print(f"Модель: {args.model} ({args.device}); запросов: {len(queries)}; режим: {mode}")
-    params = _tune_and_report(context) if args.tune else DEFAULT_RANKING_PARAMS
+    type_mode = _type_mode(args)
+    context = RankingContext(
+        prepared, LemmaStatistics.from_documents(corpus.lemmas), lemmatizer, type_mode
+    )
+    print(f"Модель: {args.model} ({args.device}); запросов: {len(queries)}; тип: {type_mode}")
+    params = DEFAULT_RANKING_PARAMS
+    if args.tune:
+        params = _tune_and_report(context)
+    if args.tune_type:
+        params = _tune_type_and_report(context, params)
     _report(context, params, corpus, args)
     _print_timings(timings)
+
+
+def _type_mode(args: argparse.Namespace) -> TypeMode:
+    if args.prefer_meetings:
+        return TypeMode.FILTER
+    if args.type_bonus:
+        return TypeMode.BONUS
+    return TypeMode.IGNORE
 
 
 def load_records(path: Path) -> dict[int, str]:
@@ -202,18 +262,10 @@ def load_queries(path: Path, records: dict[int, str]) -> list[EvalQuery]:
 async def _embed_corpus(
     records: dict[int, str], embedder: SentenceTransformerEmbedder, lemmatizer: MorphLemmatizer
 ) -> tuple[Corpus, float]:
-    event_ids = list(records)
-    texts = [records[event_id] for event_id in event_ids]
     started = time.perf_counter()
-    vectors = await embedder.embed_documents(texts)
+    vectors = await embedder.embed_documents(list(records.values()))
     elapsed = time.perf_counter() - started
-    corpus = Corpus(
-        event_ids=event_ids,
-        texts=texts,
-        lemmas=[lemmatizer.lemmas(text) for text in texts],
-        embeddings=np.asarray(vectors, dtype=np.float32),
-    )
-    return corpus, elapsed
+    return Corpus.from_records(records, lemmatizer, vectors), elapsed
 
 
 async def _prepare_queries(
@@ -222,8 +274,7 @@ async def _prepare_queries(
     embedder: SentenceTransformerEmbedder,
     lemmatizer: MorphLemmatizer,
 ) -> tuple[list[PreparedQuery], list[float]]:
-    is_meeting = [classify_event_type(text) is EventType.MEETING for text in corpus.texts]
-    meetings = corpus.only(is_meeting)
+    meetings = corpus.only(EventType.MEETING)
     await embedder.embed_query("прогрев")
     prepared, latencies = [], []
     for query in queries:
@@ -256,6 +307,7 @@ def build_candidates(
             event_id=corpus.event_ids[i],
             lemmas=corpus.lemmas[i],
             similarity=float(similarities[i]),
+            event_type=corpus.event_types[i],
         )
         for i in indexes
     ]
@@ -268,31 +320,39 @@ class RankingContext:
     prepared: Sequence[PreparedQuery]
     statistics: LemmaStatistics
     lemmatizer: MorphLemmatizer
+    type_mode: TypeMode = TypeMode.IGNORE
 
     def rank_untuned(self, params: RankingParams) -> list[Ranking]:
-        """Выдача без порога: порог применяется при подсчёте метрик, перебор порогов дёшев."""
+        """Выдача без порога и без типа: порог применяется при подсчёте метрик.
+
+        Тип записи не учитывается: порог `HybridRanker` сравнивает с оценкой без бонуса
+        за тип, поэтому и подбор порога идёт по ней. Перебор порогов так дёшев.
+        """
         ranker = HybridRanker(self.statistics, self.lemmatizer, replace(params, threshold=UNTUNED))
         return [
             _as_ranking(ranker.rank(item.lemmas, item.candidates, limit=RESULT_LIMIT))
             for item in self.prepared
         ]
 
-    def rank(self, params: RankingParams, *, limit: int, prefer_meetings: bool) -> list[Ranking]:
-        """Выдача с порогом, как в приложении.
+    def rank(self, params: RankingParams, *, limit: int) -> list[Ranking]:
+        """Выдача с порогом, как в приложении; тип записи — по `type_mode`.
 
-        С `prefer_meetings` запрос с типом «встреча» ищется среди встреч, а если там
-        ничего не нашлось — среди всех записей (так может делать бэкенд по разбору LLM).
+        `FILTER`: запрос с типом «встреча» ищется среди встреч, а если там ничего не нашлось —
+        среди всех записей. `BONUS`: тип передаётся ранжированию как `preferred_type`.
         """
         ranker = HybridRanker(self.statistics, self.lemmatizer, params)
-        rankings = []
-        for item in self.prepared:
-            ranked: list[RankedResult] = []
-            if prefer_meetings and item.meeting_candidates is not None:
-                ranked = ranker.rank(item.lemmas, item.meeting_candidates, limit=limit)
-            if not ranked:
-                ranked = ranker.rank(item.lemmas, item.candidates, limit=limit)
-            rankings.append(_as_ranking(ranked))
-        return rankings
+        return [_as_ranking(self._rank_one(ranker, item, limit)) for item in self.prepared]
+
+    def _rank_one(
+        self, ranker: HybridRanker, item: PreparedQuery, limit: int
+    ) -> list[RankedResult]:
+        if self.type_mode is TypeMode.BONUS:
+            preferred = item.query.preferred_type
+            return ranker.rank(item.lemmas, item.candidates, limit=limit, preferred_type=preferred)
+        ranked: list[RankedResult] = []
+        if self.type_mode is TypeMode.FILTER and item.meeting_candidates is not None:
+            ranked = ranker.rank(item.lemmas, item.meeting_candidates, limit=limit)
+        return ranked or ranker.rank(item.lemmas, item.candidates, limit=limit)
 
 
 def _as_ranking(results: Sequence[RankedResult]) -> Ranking:
@@ -437,7 +497,7 @@ def _tune_and_report(context: RankingContext) -> RankingParams:
             for head in HEAD_WEIGHT_GRID
         )
     }
-    cosine_params = RankingParams(0.0, 0.0, 0.0, UNTUNED)
+    cosine_params = RankingParams(0.0, 0.0, 0.0, UNTUNED, type_weight=0.0)
     cosine_only = tune(prepared, {cosine_params: scored[cosine_params]})
     _print_metrics(
         f"Только косинус, {_describe(cosine_only.params)}",
@@ -476,9 +536,9 @@ def _report(
     context: RankingContext, params: RankingParams, corpus: Corpus, args: argparse.Namespace
 ) -> None:
     prepared, threshold = context.prepared, params.threshold
-    rankings = context.rank(params, limit=RESULT_LIMIT, prefer_meetings=args.prefer_meetings)
+    rankings = context.rank(params, limit=RESULT_LIMIT)
     _print_metrics(f"Итог при {_describe(params)}", evaluate(prepared, rankings, threshold))
-    wide = context.rank(params, limit=GROUPING_LIMIT, prefer_meetings=args.prefer_meetings)
+    wide = context.rank(params, limit=GROUPING_LIMIT)
     grouped_prepared, grouped_rankings = group_by_title(prepared, wide, corpus)
     _print_metrics(
         f"  По уникальным названиям (top-{GROUPING_LIMIT} записей, сгруппированных по названию)",
@@ -490,6 +550,31 @@ def _report(
         _print_failures(prepared, rankings, corpus)
 
 
+def _tune_type_and_report(context: RankingContext, base: RankingParams) -> RankingParams:
+    """Вес бонуса за тип при остальных весах и пороге из `base`.
+
+    Порог от типа не зависит (он сравнивается с оценкой без бонуса), поэтому перебирается
+    только вес. При равной цели выигрывает меньший вес — он меньше вредит, если LLM
+    ошибётся с типом.
+    """
+    prepared = context.prepared
+    best: tuple[float, RankingParams] | None = None
+    for weight in TYPE_WEIGHT_GRID:
+        params = replace(base, type_weight=weight)
+        metrics = evaluate(prepared, context.rank(params, limit=RESULT_LIMIT), UNTUNED)
+        print(
+            f"  type_weight={weight}: Recall@1 {metrics.recall_at_1:.3f}, "
+            f"Recall@5 {metrics.recall_at_5:.3f}, MRR {metrics.mrr:.3f}, "
+            f"«нет результата» {metrics.no_answer_accuracy:.3f}, цель {metrics.objective:.3f}"
+        )
+        if best is None or metrics.objective > best[0] + PLATEAU_TOLERANCE:
+            best = (metrics.objective, params)
+    if best is None:
+        raise ValueError("Пустая сетка весов типа")
+    print(f"Подбор типа: {_describe(best[1])}")
+    return best[1]
+
+
 def _pick[T](items: Sequence[T], indexes: Sequence[int]) -> list[T]:
     return [items[i] for i in indexes]
 
@@ -497,7 +582,8 @@ def _pick[T](items: Sequence[T], indexes: Sequence[int]) -> list[T]:
 def _describe(params: RankingParams) -> str:
     return (
         f"lexical_weight={params.lexical_weight}, name_weight={params.name_weight}, "
-        f"head_weight={params.head_weight}, threshold={params.threshold}"
+        f"head_weight={params.head_weight}, type_weight={params.type_weight}, "
+        f"threshold={params.threshold}"
     )
 
 

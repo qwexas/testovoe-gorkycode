@@ -4,6 +4,7 @@ import math
 
 import pytest
 
+from app.core.enums import EventType
 from app.search.interfaces import RankedResult, SearchCandidate
 from app.search.ranking import HybridRanker, LemmaStatistics, RankingParams
 
@@ -24,6 +25,12 @@ def candidate(event_id: int, similarity: float, *lemmas: str) -> SearchCandidate
     return SearchCandidate(event_id=event_id, lemmas=lemmas, similarity=similarity)
 
 
+def typed(event_id: int, similarity: float, event_type: EventType | None) -> SearchCandidate:
+    return SearchCandidate(
+        event_id=event_id, lemmas=(), similarity=similarity, event_type=event_type
+    )
+
+
 def make_ranker(
     *,
     documents: list[list[str]] | None = None,
@@ -32,11 +39,12 @@ def make_ranker(
     name_weight: float = 0.0,
     head_weight: float = 0.0,
     threshold: float = NO_THRESHOLD,
+    type_weight: float = 0.0,
 ) -> HybridRanker:
     return HybridRanker(
         LemmaStatistics.from_documents(documents or []),
         names or NamesFromSet(),
-        RankingParams(lexical_weight, name_weight, head_weight, threshold),
+        RankingParams(lexical_weight, name_weight, head_weight, threshold, type_weight),
     )
 
 
@@ -186,7 +194,53 @@ def test_duplicate_candidate_is_returned_once_with_best_score() -> None:
     assert result.score == pytest.approx(0.6)
 
 
+def test_preferred_type_lifts_records_of_that_type() -> None:
+    ranker = make_ranker(type_weight=0.1)
+    candidates = [typed(1, 0.9, EventType.TASK), typed(2, 0.85, EventType.MEETING)]
+
+    results = ranker.rank([], candidates, limit=5, preferred_type=EventType.MEETING)
+
+    assert ids(results) == [2, 1]
+    assert results[0].score == pytest.approx(0.95)
+
+
+def test_preferred_type_does_not_drop_other_types() -> None:
+    ranker = make_ranker(type_weight=0.1, threshold=0.5)
+    candidates = [typed(1, 0.9, EventType.TASK), typed(2, 0.6, EventType.MEETING)]
+
+    results = ranker.rank([], candidates, limit=5, preferred_type=EventType.MEETING)
+
+    assert ids(results) == [1, 2]
+
+
+def test_type_bonus_does_not_lift_record_over_threshold() -> None:
+    """«Встреча с Петром», которой нет: бонус за тип не делает похожей чужую встречу."""
+    ranker = make_ranker(type_weight=0.1, threshold=0.5)
+
+    results = ranker.rank(
+        [], [typed(1, 0.45, EventType.MEETING)], limit=5, preferred_type=EventType.MEETING
+    )
+
+    assert results == []
+
+
+def test_without_preferred_type_there_is_no_bonus() -> None:
+    ranker = make_ranker(type_weight=0.1)
+
+    [result] = ranker.rank([], [typed(1, 0.7, EventType.MEETING)], limit=5)
+
+    assert result.score == pytest.approx(0.7)
+
+
+def test_candidate_without_type_gets_no_bonus() -> None:
+    ranker = make_ranker(type_weight=0.1)
+
+    [result] = ranker.rank([], [typed(1, 0.7, None)], limit=5, preferred_type=EventType.MEETING)
+
+    assert result.score == pytest.approx(0.7)
+
+
 def test_default_params_are_the_tuned_ones() -> None:
     assert RankingParams() == RankingParams(
-        lexical_weight=0.1, name_weight=0.2, head_weight=0.05, threshold=0.52
+        lexical_weight=0.1, name_weight=0.2, head_weight=0.05, threshold=0.52, type_weight=0.075
     )

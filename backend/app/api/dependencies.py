@@ -10,12 +10,15 @@ from fastapi.security import APIKeyCookie
 from app.api.errors import error_responses
 from app.api.session_cookie import SESSION_COOKIE_NAME, issue_session_cookie
 from app.config import Settings
+from app.core.dialog.service import DialogDependencies, DialogService, MessageThrottle
 from app.core.errors import ErrorCode
 from app.core.events import EventService
+from app.core.health import StatusProbe
 from app.core.history import SeedHistoryLoader
 from app.core.profiles import ProfileCard, ProfileOnboarding, ProfileService
 from app.core.recovery import RecoveryCodes
 from app.core.search import SearchService
+from app.nlu.interfaces import IntentParser
 from app.storage.database import Database, UnitOfWork
 
 UNKNOWN_CLIENT = "unknown"
@@ -41,6 +44,9 @@ class AppServices:
     profile_onboarding: ProfileOnboarding
     search: SearchService
     history_loader: SeedHistoryLoader
+    intent_parser: IntentParser
+    message_throttle: MessageThrottle
+    llm_probe: StatusProbe | None
 
 
 def get_services(request: Request) -> AppServices:
@@ -83,6 +89,19 @@ def get_event_service(storage: Storage, services: Services) -> EventService:
 
 
 Events = Annotated[EventService, Depends(get_event_service)]
+
+
+def get_dialog_service(storage: Storage, services: Services) -> DialogService:
+    """Сервис диалога в транзакции текущего запроса."""
+    dependencies = DialogDependencies(
+        parser=services.intent_parser,
+        search=services.search,
+        throttle=services.message_throttle,
+    )
+    return DialogService(storage, dependencies)
+
+
+Dialog = Annotated[DialogService, Depends(get_dialog_service)]
 SessionToken = Annotated[str | None, Security(session_cookie_scheme)]
 
 

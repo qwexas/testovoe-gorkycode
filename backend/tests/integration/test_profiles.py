@@ -85,7 +85,7 @@ class TestAutoCreatedProfile:
         self, client: httpx.AsyncClient
     ) -> None:
         response = await client.post("/api/chat", json={"text": "Что у меня сегодня?"})
-        assert_error(response, 501, ErrorCode.NOT_IMPLEMENTED)
+        assert_error(response, 503, ErrorCode.LLM_UNAVAILABLE)
         created_by_chat = session_cookie(client)
 
         me = await client.get("/api/me")

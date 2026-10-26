@@ -24,6 +24,15 @@ class SearchBackend(StrEnum):
     """Быстрые заглушки без модели из `app.search.placeholders` — для тестов."""
 
 
+class LLMBackend(StrEnum):
+    """Чем разбирать реплики пользователя."""
+
+    GIGACHAT = "gigachat"
+    """GigaChat API; ключ и модель — в переменных `GIGACHAT_*` (`app.llm.settings`)."""
+    DISABLED = "disabled"
+    """Без языковой модели: `/api/chat` отвечает 503 `llm_unavailable` — для тестов."""
+
+
 class Settings(BaseSettings):
     """Конфигурация бэкенда.
 
@@ -54,6 +63,10 @@ class Settings(BaseSettings):
     embedding_cache_dir: Path | None = Field(
         default=None,
         description="Каталог весов модели; пусто — стандартный кэш Hugging Face (`HF_HOME`)",
+    )
+    llm_backend: LLMBackend = Field(
+        default=LLMBackend.GIGACHAT,
+        description="`gigachat` — разбор реплик GigaChat; `disabled` — без LLM (тесты)",
     )
     load_history_on_startup: bool = Field(
         default=True,

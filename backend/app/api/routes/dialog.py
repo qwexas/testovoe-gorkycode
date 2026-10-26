@@ -1,38 +1,54 @@
-"""Диалог с ассистентом: текст, голос, история, озвучка, отмена действия.
+"""Диалог с ассистентом: текст, история, отмена действия; голос и озвучка — позже.
 
-На контрольной точке 1 маршруты объявлены по контракту и отвечают 501.
+`/api/voice` и `/api/tts` объявлены по контракту и пока отвечают 501 (контрольная точка 4).
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Query, Response, UploadFile
+from fastapi import APIRouter, File, Path, Query, Response, UploadFile
 
-from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile
+from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile, Dialog
 from app.api.errors import error_responses
-from app.api.schemas.dialog import AssistantReply, ChatRequest, DialogResponse, TtsRequest
+from app.api.schemas.dialog import (
+    AssistantReply,
+    ChatMessage,
+    ChatRequest,
+    DialogResponse,
+    TtsRequest,
+)
+from app.core.dialog.models import AssistantAnswer, DialogEntry
+from app.core.dialog.payloads import answer_payload
+from app.core.enums import MessageSource
 from app.core.errors import ErrorCode, FeatureNotImplementedError
+from app.storage.models import TOKEN_LENGTH
 
 DIALOG_PAGE_DEFAULT = 50
 DIALOG_PAGE_MAX = 200
 
 router = APIRouter(tags=["dialog"], responses=CURRENT_PROFILE_RESPONSES)
 
+ActionId = Annotated[str, Path(min_length=1, max_length=TOKEN_LENGTH)]
+
 
 @router.post(
     "/chat",
     name="send_chat_message",
     summary="Текстовая реплика",
-    description="Лимит — 20 запросов в минуту на профиль (вместе с `/api/voice`).",
+    description=(
+        "Лимит — 20 запросов в минуту на профиль (вместе с `/api/voice`). Реплика "
+        "пользователя сохраняется в историю до разбора: при 503 `llm_unavailable` она "
+        "остаётся в истории, а ответа ассистента нет."
+    ),
     response_model=AssistantReply,
     responses=error_responses(
-        ErrorCode.VALIDATION_ERROR,
-        ErrorCode.RATE_LIMITED,
-        ErrorCode.LLM_UNAVAILABLE,
-        ErrorCode.NOT_IMPLEMENTED,
+        ErrorCode.VALIDATION_ERROR, ErrorCode.RATE_LIMITED, ErrorCode.LLM_UNAVAILABLE
     ),
 )
-async def send_chat_message(body: ChatRequest, profile: CurrentProfile) -> AssistantReply:
-    raise FeatureNotImplementedError()
+async def send_chat_message(
+    body: ChatRequest, profile: CurrentProfile, dialog: Dialog
+) -> AssistantReply:
+    answer = await dialog.handle(profile.id, body.text, MessageSource.TEXT)
+    return _to_reply_schema(answer)
 
 
 @router.post(
@@ -68,14 +84,16 @@ async def send_voice_message(
     summary="История диалога",
     description="Новые реплики в конце. `before_id` — для подгрузки более старых.",
     response_model=DialogResponse,
-    responses=error_responses(ErrorCode.VALIDATION_ERROR, ErrorCode.NOT_IMPLEMENTED),
+    responses=error_responses(ErrorCode.VALIDATION_ERROR),
 )
 async def get_dialog(
     profile: CurrentProfile,
+    dialog: Dialog,
     limit: Annotated[int, Query(ge=1, le=DIALOG_PAGE_MAX)] = DIALOG_PAGE_DEFAULT,
     before_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> DialogResponse:
-    raise FeatureNotImplementedError()
+    entries = await dialog.history(profile.id, limit, before_id)
+    return DialogResponse(messages=[_to_message_schema(entry) for entry in entries])
 
 
 @router.post(
@@ -101,11 +119,29 @@ async def synthesize_speech(body: TtsRequest, profile: CurrentProfile) -> Respon
     "/actions/{action_id}/undo",
     name="undo_action",
     summary="Отменить действие",
-    description="Работает 10 секунд после действия, потом — 404.",
-    response_model=AssistantReply,
-    responses=error_responses(
-        ErrorCode.VALIDATION_ERROR, ErrorCode.NOT_FOUND, ErrorCode.NOT_IMPLEMENTED
+    description=(
+        "Отменяет создание, перенос, переименование, отметку о выполнении или удаление. "
+        "Сервер принимает отмену 30 секунд после действия (кнопку интерфейс показывает "
+        "10 секунд — запас на сеть). Позже, повторно или для чужого действия — 404."
     ),
+    response_model=AssistantReply,
+    responses=error_responses(ErrorCode.VALIDATION_ERROR, ErrorCode.NOT_FOUND),
 )
-async def undo_action(action_id: str, profile: CurrentProfile) -> AssistantReply:
-    raise FeatureNotImplementedError()
+async def undo_action(
+    action_id: ActionId, profile: CurrentProfile, dialog: Dialog
+) -> AssistantReply:
+    return _to_reply_schema(await dialog.undo_action(profile.id, action_id))
+
+
+def _to_reply_schema(answer: AssistantAnswer) -> AssistantReply:
+    return AssistantReply.model_validate(answer_payload(answer))
+
+
+def _to_message_schema(entry: DialogEntry) -> ChatMessage:
+    return ChatMessage(
+        id=entry.id,
+        role=entry.role,
+        text=entry.text,
+        created_at=entry.created_at,
+        reply=None if entry.reply is None else AssistantReply.model_validate(entry.reply),
+    )

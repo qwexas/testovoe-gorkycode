@@ -13,6 +13,7 @@ from app.core.enums import EventType
 from app.core.events import EventDraft, EventService
 from app.core.history_source import read_history_file
 from app.core.queries import EventFilter
+from app.core.schedule import MOSCOW
 from app.core.search import SearchService
 from app.search.interfaces import RankedResult, SearchCandidate
 from app.search.placeholders import HashingEmbedder
@@ -109,9 +110,20 @@ class StemLemmatizer:
 class LemmaOverlapRanker:
     """Ранжирует только по числу общих лемм с запросом."""
 
+    def __init__(self) -> None:
+        self.seen_candidates: list[SearchCandidate] = []
+        self.preferred_types: list[EventType | None] = []
+
     def rank(
-        self, query_lemmas: Sequence[str], candidates: Sequence[SearchCandidate], *, limit: int
+        self,
+        query_lemmas: Sequence[str],
+        candidates: Sequence[SearchCandidate],
+        *,
+        limit: int,
+        preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
+        self.seen_candidates.extend(candidates)
+        self.preferred_types.append(preferred_type)
         scored = [
             RankedResult(candidate.event_id, float(len(set(query_lemmas) & set(candidate.lemmas))))
             for candidate in candidates
@@ -172,6 +184,30 @@ class TestLemmaChannel:
         lemma_only = {c.event_id: c for c in both if FILLER_LEMMA not in c.lemmas}
         assert set(lemma_only) == {other_form, plural}
         assert all(candidate.similarity < 0.2 for candidate in lemma_only.values())
+
+    async def test_candidates_carry_type_and_ranker_gets_preferred_type(
+        self, storage: UnitOfWork, bare_profile_id: UUID
+    ) -> None:
+        ranker = LemmaOverlapRanker()
+        typed_events = EventService(
+            storage, SearchService(HashingEmbedder(), StemLemmatizer(), ranker)
+        )
+        meeting = await self.create(
+            typed_events,
+            bare_profile_id,
+            "Встреча с Иваном",
+            type=EventType.MEETING,
+            starts_at=datetime(2026, 10, 27, 15, 0, tzinfo=MOSCOW),
+        )
+        task = await self.create(typed_events, bare_profile_id, "Итоги встречи с Иваном")
+
+        await typed_events.search_events(
+            EventFilter(bare_profile_id), "встреча Иван", 10, preferred_type=EventType.MEETING
+        )
+
+        assert ranker.preferred_types == [EventType.MEETING]
+        types = {c.event_id: c.event_type for c in ranker.seen_candidates}
+        assert types == {meeting: EventType.MEETING, task: EventType.TASK}
 
     async def test_any_word_form_is_found(
         self, storage: UnitOfWork, events: EventService, bare_profile_id: UUID

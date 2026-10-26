@@ -7,7 +7,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.config import SearchBackend, Settings
+from app.config import LLMBackend, SearchBackend, Settings
 from app.factory import create_app
 
 TEST_APP_SECRET = "test-app-secret-for-pytest-only-0123456789"
@@ -17,13 +17,17 @@ BASE_URL = "http://testserver"
 
 
 def make_settings(database_url: str, **overrides: Any) -> Settings:
-    """Настройки для тестов, независимые от `.env` разработчика; поиск — на заглушках."""
+    """Настройки для тестов, независимые от `.env` разработчика.
+
+    Поиск — на заглушках, языковая модель отключена: тесты диалога подменяют парсер.
+    """
     values: dict[str, Any] = {
         "database_url": database_url,
         "app_secret": TEST_APP_SECRET,
         "cookie_secure": False,
         "public_base_url": TEST_PUBLIC_BASE_URL,
         "search_backend": SearchBackend.PLACEHOLDER,
+        "llm_backend": LLMBackend.DISABLED,
     }
     return Settings(_env_file=None, **(values | overrides))
 

@@ -7,7 +7,14 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.storage.repositories import EventRepository, ProfileRepository, SeedEventRepository
+from app.storage.repositories import (
+    ChatMessageRepository,
+    DialogStateRepository,
+    EventRepository,
+    ProfileRepository,
+    SeedEventRepository,
+    UndoActionRepository,
+)
 
 PING_TIMEOUT_SECONDS = 3.0
 
@@ -20,6 +27,13 @@ class UnitOfWork:
         self.profiles = ProfileRepository(session)
         self.events = EventRepository(session)
         self.seed_events = SeedEventRepository(session)
+        self.messages = ChatMessageRepository(session)
+        self.dialog_states = DialogStateRepository(session)
+        self.undo_actions = UndoActionRepository(session)
+
+    async def flush(self) -> None:
+        """Отправляет изменения в базу, не фиксируя транзакцию (серверные поля заполняются)."""
+        await self._session.flush()
 
     async def commit(self) -> None:
         """Фиксирует транзакцию."""

@@ -73,6 +73,19 @@ class TooManyProfilesError(TooManyAttemptsError):
     )
 
 
+class TooManyMessagesError(TooManyAttemptsError):
+    """Профиль отправил слишком много реплик за минуту (`/api/chat` и `/api/voice` вместе)."""
+
+    message_template = "Слишком много запросов. Попробуйте снова через {minutes} мин."
+
+
+class UndoUnavailableError(DomainError):
+    """Действие нельзя отменить: окно отмены прошло, действие уже отменено или чужое."""
+
+    code = ErrorCode.NOT_FOUND
+    default_message = "Отменить уже нельзя."
+
+
 class EventValidationError(DomainError):
     """Поля записи противоречат правилам (например, встреча без времени)."""
 

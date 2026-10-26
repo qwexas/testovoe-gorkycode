@@ -35,6 +35,13 @@ class MessageRole(StrEnum):
     ASSISTANT = "assistant"
 
 
+class MessageSource(StrEnum):
+    """Как пришла реплика пользователя: текстом или голосом (тогда показываем распознанное)."""
+
+    TEXT = "text"
+    VOICE = "voice"
+
+
 class ReplyKind(StrEnum):
     """Как фронту показать ответ ассистента."""
 

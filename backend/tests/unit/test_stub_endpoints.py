@@ -17,11 +17,8 @@ from app.core.profiles import ProfileCard
 from tests.helpers import assert_error
 
 STUB_REQUESTS: list[tuple[str, str, dict[str, Any]]] = [
-    ("POST", "/api/chat", {"json": {"text": "Что у меня сегодня?"}}),
     ("POST", "/api/voice", {"files": {"audio": ("voice.webm", b"\x1a\x45", "audio/webm")}}),
-    ("GET", "/api/dialog?limit=10", {}),
     ("POST", "/api/tts", {"json": {"text": "Привет", "voice": "baya"}}),
-    ("POST", "/api/actions/abc/undo", {}),
     ("GET", "/api/calendar.ics", {}),
     ("GET", "/api/calendar/secret-token.ics", {}),
 ]
@@ -56,6 +53,7 @@ async def test_stub_answers_not_implemented(
         ("POST", "/api/chat", {"json": {"text": "x" * 1001}}),
         ("POST", "/api/chat", {"json": {"text": "привет", "extra": 1}}),
         ("GET", "/api/dialog?limit=0", {}),
+        ("POST", "/api/actions/" + "x" * 65 + "/undo", {}),
         ("GET", "/api/events?from=2026-10-26T00:00:00", {}),
         ("POST", "/api/events", {"json": {"type": "birthday", "title": "Праздник"}}),
         ("PATCH", "/api/events/abc", {"json": {}}),
