@@ -11,9 +11,17 @@ from typing import Any
 
 from app.core.enums import EventStatus, EventType
 from app.nlu.expressions import TimeExpression
+from app.nlu.grounding import (
+    names_event_type,
+    names_moment,
+    names_record_by_pronoun,
+    same_record,
+    user_description,
+)
 from app.nlu.interfaces import Action, DialogContext, Intent, TargetRef, TimeScope, When
 from app.nlu.schema import EventTypeName, Extraction, StatusName
 from app.nlu.time_resolution import resolve_period, resolve_when
+from app.nlu.time_scope import search_time_scope
 
 TRIMMED_PUNCTUATION = " \t\n.,!?;:«»\"'"
 
@@ -63,9 +71,13 @@ def _list_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _search_fields(utterance: _Utterance) -> IntentFields:
-    """Поиск без названного предмета ищет по всей реплике: лишние слова отсечёт поиск."""
+    """Поиск без названного предмета ищет по всей реплике: лишние слова отсечёт поиск.
+
+    Время поиска («была» / «будет») сверяется со словами реплики (`search_time_scope`):
+    в длинном контексте модель иногда его теряет.
+    """
     extraction = utterance.extraction
-    scope = extraction.time_scope
+    scope = search_time_scope(extraction.time_scope, utterance.text)
     return {
         "event_type": _event_type(extraction),
         "query": _clean(extraction.query) or utterance.text.strip(),
@@ -88,10 +100,8 @@ def _reschedule_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _rename_fields(utterance: _Utterance) -> IntentFields:
-    return {
-        "target": _target(utterance, _record_when(utterance)),
-        "title": _title(utterance.extraction.renamed_to),
-    }
+    title = _title(utterance.extraction.renamed_to)
+    return {"target": _target(utterance, _record_when(utterance), title), "title": title}
 
 
 def _change_fields(utterance: _Utterance) -> IntentFields:
@@ -148,25 +158,33 @@ def _record_when(utterance: _Utterance) -> When | None:
     )
 
 
-def _target(utterance: _Utterance, when: When | None) -> TargetRef:
-    """Ссылка на изменяемую запись.
+def _target(utterance: _Utterance, when: When | None, new_title: str | None = None) -> TargetRef:
+    """Ссылка на изменяемую запись, сверенная со словами реплики (`app.nlu.grounding`).
 
-    Запись из контекста (`last=True`), если она названа местоимением, не описана вовсе
-    («перенеси на завтра») или модель описала её названием записи в фокусе — так модель
-    иногда «разворачивает» местоимение «её».
+    Описание, день и тип записи берутся из ответа модели, только если они есть в самой
+    реплике: модель иногда подставляет название, тип и дату записи из фокуса.
+    Запись из контекста (`last=True`), если она названа местоимением («перенеси её»), не
+    описана вовсе («перенеси на завтра») или описание совпадает с первой записью в фокусе.
+    При переименовании новое название — не описание записи («переименуй её в …»).
     """
     extraction = utterance.extraction
-    query = _clean(extraction.query)
-    last = extraction.about_last or query is None or _names_focus(query, utterance.context)
-    return TargetRef(last=last, query=query, event_type=_event_type(extraction), when=when)
+    text = utterance.text
+    query = None
+    if not (extraction.about_last or names_record_by_pronoun(text)):
+        query = user_description(_clean(extraction.query), text)
+    if query is not None and new_title is not None and same_record(query, new_title):
+        query = None
+    last = query is None or _names_focus(query, utterance.context)
+    return TargetRef(
+        last=last,
+        query=query,
+        event_type=_event_type(extraction) if names_event_type(text) else None,
+        when=when if names_moment(text) else None,
+    )
 
 
 def _names_focus(query: str, context: DialogContext) -> bool:
-    return bool(context.focus) and _normalized(query) == _normalized(context.focus[0].title)
-
-
-def _normalized(text: str) -> str:
-    return " ".join(text.lower().replace("ё", "е").split()).strip(TRIMMED_PUNCTUATION)
+    return bool(context.focus) and same_record(query, context.focus[0].title)
 
 
 def _event_type(extraction: Extraction) -> EventType | None:

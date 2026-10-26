@@ -1,0 +1,136 @@
+"""Сверка ссылки на запись со словами реплики."""
+
+import pytest
+
+from app.nlu.grounding import (
+    names_event_type,
+    names_moment,
+    names_record_by_pronoun,
+    same_record,
+    user_description,
+)
+
+
+@pytest.mark.parametrize(
+    ("model_query", "text", "expected"),
+    [
+        ("встреча с Иваном", "Перенеси встречу с Иваном на пятницу", "встреча с Иваном"),
+        ("позвонить Ивану", "Я уже позвонил Ивану", "позвонить Ивану"),
+        ("отчёт", "Отметь задачу про отчёт как выполненную", "отчёт"),
+        ("созвон", "Перенеси завтрашний созвон на 16:00", "созвон"),
+        ("купить билеты", "Переименуй задачу купить билеты в Казань", "купить билеты"),
+    ],
+)
+def test_description_from_user_words_is_kept(model_query: str, text: str, expected: str) -> None:
+    assert user_description(model_query, text) == expected
+
+
+def test_title_from_focus_is_replaced_by_user_words() -> None:
+    text = "Отметь звонок Ивану как сделанный"
+
+    assert user_description("Встреча с Иваном", text) == "звонок Ивану"
+
+
+def test_prepositions_between_user_words_are_kept() -> None:
+    text = "перенеси звонок Ивану по договору на пятницу"
+
+    assert user_description("Встреча с Иваном по CRM", text) == "звонок Ивану по договору"
+
+
+def test_day_words_are_not_part_of_description() -> None:
+    text = "Отмени в четверг созвон с Орбитой"
+
+    assert user_description("Подготовиться к встрече с Вектором", text) == "созвон с Орбитой"
+
+
+@pytest.mark.parametrize("text", ["Удали её", "А перенеси её на завтра", "Отметь как выполненное"])
+def test_pronoun_only_reply_has_no_description(text: str) -> None:
+    assert user_description("Созвон с партнёром", text) is None
+
+
+def test_no_model_description_stays_empty() -> None:
+    assert user_description(None, "Отметь звонок Ивану") is None
+
+
+def test_description_of_only_stop_words_is_kept() -> None:
+    assert user_description("задача", "Удали задачу") == "задача"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Перенеси завтрашний созвон",
+        "Удали встречу в четверг",
+        "Отметь задачу на 26 ноября",
+        "Отмени созвон в 15:00",
+        "Удали утреннюю планёрку",
+        "Отметь звонок на этой неделе",
+    ],
+)
+def test_moment_words(text: str) -> None:
+    assert names_moment(text)
+
+
+@pytest.mark.parametrize(
+    "text", ["Отметь звонок Ивану как сделанный", "Удали её", "Отметь среди задач отчёт"]
+)
+def test_no_moment_words(text: str) -> None:
+    assert not names_moment(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Удали встречу с Иваном",
+        "Отмени созвон",
+        "Отметь задачу",
+        "Удали напоминание",
+        "Удали планёрку",
+    ],
+)
+def test_event_type_words(text: str) -> None:
+    assert names_event_type(text)
+
+
+@pytest.mark.parametrize("text", ["Отметь звонок Ивану как сделанный", "Удали её"])
+def test_call_is_not_an_event_type(text: str) -> None:
+    """«Позвонить Ивану» — задача или напоминание, «Созвон с Иваном» — встреча."""
+    assert not names_event_type(text)
+
+
+def test_same_record_ignores_word_forms() -> None:
+    assert same_record("встречу с Иваном", "Встреча с Иваном")
+    assert not same_record("звонок Ивану", "Встреча с Иваном")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "А перенеси её на завтра",
+        "нет, лучше перенеси её на понедельник на 10 утра",
+        "не удаляй, сдвинь её на 17:00",
+        "Удали эту встречу",
+        "Отметь его выполненным",
+        "Переименуй её в созвон с партнёрами",
+    ],
+)
+def test_record_named_by_pronoun(text: str) -> None:
+    assert names_record_by_pronoun(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Отметь звонок Ивану как сделанный",
+        "Удали встречу с Иваном и его командой",
+        "Перенеси встречу с Ольгой и её помощником на пятницу",
+    ],
+)
+def test_no_record_pronoun(text: str) -> None:
+    """«Его командой», «её помощником» — притяжательные, а не ссылка на запись."""
+    assert not names_record_by_pronoun(text)
+
+
+@pytest.mark.parametrize("text", ["нет, лучше перенеси на понедельник", "тогда сдвинь на 17:00"])
+def test_conversation_fillers_are_not_description(text: str) -> None:
+    assert user_description("Созвон с Орбитой по презентации", text) is None

@@ -6,11 +6,14 @@
 - точность по полям: action, event_type, when.date, when.time, period, target, title и др.;
 - задержку разбора p50 / p95.
 Отдельно — по отложенной проверке (`holdout`): по этим случаям промпт не подгонялся.
+Конфигурация как в приложении: основная модель и запасная (`GIGACHAT_FALLBACK_MODEL`) для
+пустого или битого ответа; отчёт показывает, сколько раз отвечала запасная.
 
 Запуск из каталога backend/:
     uv run python -m scripts.eval_parser                                  # модель из настроек
     uv run python -m scripts.eval_parser --models GigaChat-2-Pro GigaChat-3-Ultra
     uv run python -m scripts.eval_parser --models GigaChat-2-Pro --show-failures
+    uv run python -m scripts.eval_parser --models GigaChat-2-Pro --no-fallback  # без запасной
     uv run python -m scripts.eval_parser --models GigaChat-2-Pro --save-raw raw.json
     uv run python -m scripts.eval_parser --replay raw.json                # пересчёт без сети
 """
@@ -21,7 +24,7 @@ import datetime as dt
 import json
 import statistics
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -32,10 +35,18 @@ import numpy as np
 
 from app.core.enums import EventType, PendingExpectation
 from app.core.errors import DomainError
-from app.llm.gigachat import GigaChatClient
+from app.llm.gigachat import ChatTransport, CompletionOptions, GigaChatClient, GigaChatTransport
 from app.llm.interfaces import LLMClient, LLMMessage
 from app.llm.settings import GigaChatSettings
-from app.nlu.interfaces import ContextEvent, DialogContext, DialogTurn, Intent, Period, When
+from app.nlu.interfaces import (
+    Action,
+    ContextEvent,
+    DialogContext,
+    DialogTurn,
+    Intent,
+    Period,
+    When,
+)
 from app.nlu.parser import LLMIntentParser
 from app.search.lemmas import MorphLemmatizer, normalize_yo
 
@@ -44,6 +55,9 @@ FIXTURE_PATH = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "par
 SECONDS_TO_MS = 1000.0
 LATENCY_BUDGET_MS = 3000.0
 """Q37: выбираем лучшую точность при задержке не больше 3 с."""
+
+NOTHING_PARSED = Intent(action=Action.UNKNOWN, text="")
+"""Заглушка для сбоя модели: по ней получаем имена ожидаемых полей, все — не совпали."""
 
 FIELD_ORDER = (
     "action",
@@ -79,10 +93,38 @@ class CaseResult:
     latency_ms: float
     intent: Intent | None
     error: str | None = None
+    models: tuple[str, ...] = ()
+    """Какие модели отвечали на запросы этого случая, по порядку попыток."""
 
     @property
     def correct(self) -> bool:
         return self.error is None and all(self.checks.values())
+
+
+@dataclass(slots=True)
+class ModelUsage:
+    """`ChatTransport`, который запоминает, какая модель отвечала в каждом случае."""
+
+    inner: ChatTransport
+    current: list[str] = field(default_factory=list)
+    requests: Counter[str] = field(default_factory=Counter)
+
+    async def complete(self, payload: Mapping[str, Any]) -> str:
+        model = str(payload.get("model"))
+        self.current.append(model)
+        self.requests[model] += 1
+        return await self.inner.complete(payload)
+
+    async def ping(self) -> None:
+        await self.inner.ping()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+    def finish_case(self) -> tuple[str, ...]:
+        """Модели текущего случая; счёт начинается заново."""
+        models, self.current = tuple(self.current), []
+        return models
 
 
 @dataclass(slots=True)
@@ -127,6 +169,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--show-failures", action="store_true", help="разбор ошибок по случаям")
     parser.add_argument("--save-raw", type=Path, help="сохранить ответы модели в JSON")
     parser.add_argument("--replay", type=Path, help="пересчитать по сохранённым ответам")
+    parser.add_argument(
+        "--no-fallback", action="store_true", help="без запасной модели (по умолчанию — как в .env)"
+    )
     return parser.parse_args()
 
 
@@ -136,19 +181,24 @@ async def _run(args: argparse.Namespace) -> None:
     if args.replay:
         recorded = json.loads(args.replay.read_text(encoding="utf-8"))
         for model, answers in recorded.items():
-            results = await _evaluate(ReplayLLM(answers), cases, lemmatizer)
+            results = await _evaluate(ReplayLLM(answers), cases, lemmatizer, usage=None)
             _report(f"{model} (повтор сохранённых ответов)", results, args.show_failures)
         return
     raw: dict[str, dict[str, dict[str, Any]]] = {}
     for model in args.models or [GigaChatSettings().model]:
-        client = GigaChatClient.from_settings(GigaChatSettings(model=model))
+        settings = GigaChatSettings(model=model)
+        if args.no_fallback:
+            settings = settings.model_copy(update={"fallback_model": None})
+        usage = ModelUsage(GigaChatTransport(settings))
+        client = GigaChatClient(usage, CompletionOptions.from_settings(settings))
         recorder = RecordingLLM(client)
         try:
-            results = await _evaluate(recorder, cases, lemmatizer)
+            results = await _evaluate(recorder, cases, lemmatizer, usage)
         finally:
             await client.aclose()
         raw[model] = recorder.answers
-        _report(model, results, args.show_failures)
+        _report(_title(settings), results, args.show_failures)
+        _print_model_usage(settings, results, usage)
     if args.save_raw:
         args.save_raw.write_text(json.dumps(raw, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -164,8 +214,16 @@ def _select(cases: list[EvalCase], args: argparse.Namespace) -> list[EvalCase]:
     return cases
 
 
+def _title(settings: GigaChatSettings) -> str:
+    fallback = settings.fallback_model or "нет"
+    return f"{settings.model} (запасная модель: {fallback})"
+
+
 async def _evaluate(
-    llm: RecordingLLM | ReplayLLM, cases: Sequence[EvalCase], lemmatizer: MorphLemmatizer
+    llm: RecordingLLM | ReplayLLM,
+    cases: Sequence[EvalCase],
+    lemmatizer: MorphLemmatizer,
+    usage: ModelUsage | None,
 ) -> list[CaseResult]:
     """Случаи по одному: у физлиц один поток, параллельные запросы получат 429."""
     parser = LLMIntentParser(llm)
@@ -177,11 +235,16 @@ async def _evaluate(
             intent = await parser.parse(case.text, case.context)
         except DomainError as error:
             latency = (time.perf_counter() - started) * SECONDS_TO_MS
-            results.append(CaseResult(case, {}, latency, None, error=error.message))
+            models = usage.finish_case() if usage else ()
+            failed = dict.fromkeys(compare(NOTHING_PARSED, case.expected, lemmatizer), False)
+            results.append(
+                CaseResult(case, failed, latency, None, error=error.message, models=models)
+            )
             continue
         latency = (time.perf_counter() - started) * SECONDS_TO_MS
         checks = compare(intent, case.expected, lemmatizer)
-        results.append(CaseResult(case, checks, latency, intent))
+        models = usage.finish_case() if usage else ()
+        results.append(CaseResult(case, checks, latency, intent, models=models))
     return results
 
 
@@ -252,9 +315,16 @@ def _compare_when(
     if expected is None:
         return {f"{prefix}.date": actual is None, f"{prefix}.time": actual is None}
     return {
-        f"{prefix}.{name}": _plain(getattr(actual, name) if actual else None) == value
+        f"{prefix}.{name}": _matches(_plain(getattr(actual, name) if actual else None), value)
         for name, value in expected.items()
     }
+
+
+def _matches(actual: object, expected: object) -> bool:
+    """Список в `expected` — допустимые варианты: `[null, "2026-10-29"]`."""
+    if isinstance(expected, list):
+        return actual in expected
+    return actual == expected
 
 
 def _same_period(actual: Period | None, expected: Mapping[str, str] | None) -> bool:
@@ -317,6 +387,18 @@ def _report(title: str, results: Sequence[CaseResult], show_failures: bool) -> N
         _print_failures(results)
 
 
+def _print_model_usage(
+    settings: GigaChatSettings, results: Sequence[CaseResult], usage: ModelUsage
+) -> None:
+    """Сколько запросов ушло каждой модели и в каких случаях отвечала запасная."""
+    requests = ", ".join(f"{model} {count}" for model, count in usage.requests.items())
+    print(f"Запросов к моделям: {requests}")
+    if not settings.fallback_model:
+        return
+    rescued = [r.case.case_id for r in results if settings.fallback_model in r.models]
+    print(f"Запасная модель отвечала в {len(rescued)} из {len(results)} случаев: {rescued}")
+
+
 def _print_accuracy(title: str, results: Sequence[CaseResult]) -> None:
     if not results:
         return
@@ -327,10 +409,6 @@ def _print_accuracy(title: str, results: Sequence[CaseResult]) -> None:
 def _print_fields(results: Sequence[CaseResult]) -> None:
     by_field: defaultdict[str, list[bool]] = defaultdict(list)
     for result in results:
-        if result.error is not None:
-            for name in result.case.expected:
-                by_field[name].append(False)
-            continue
         for name, ok in result.checks.items():
             by_field[name].append(ok)
     known = [name for name in FIELD_ORDER if name in by_field]

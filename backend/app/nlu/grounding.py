@@ -1,0 +1,135 @@
+"""Ссылка на изменяемую запись — по словам пользователя, а не по списку записей в фокусе.
+
+GigaChat-2-Pro на «Отметь звонок Ивану как сделанный», когда в фокусе была «Встреча
+с Иваном», 4 раза из 4 подставлял в описание её название, тип «встреча» и придуманную
+дату. Нужная запись — напоминание «Позвонить Ивану» — в фокусе не было, и бизнес-логика
+искала бы не то. Поэтому код сверяет ответ модели с самой репликой:
+
+- описание записи (`query`) должно состоять из слов реплики: если больше половины его лемм
+  в реплике нет, описанием становятся слова самой реплики без команд и указаний времени;
+- день записи (`target.when`) остаётся, только если в реплике есть слово о дне или времени;
+- тип записи (`target.event_type`) остаётся, только если в реплике назван тип.
+"""
+
+import re
+from functools import cache
+
+from app.search.lemmas import DEFAULT_STOP_WORDS, MorphLemmatizer, shared_morph_analyzer
+
+MIN_QUERY_COVERAGE = 0.5
+"""Доля лемм описания, которая должна быть в реплике: больше половины, а у описания из двух
+слов — оба. «Встреча с Иваном» для «Отметь звонок Ивану» — только одно слово из двух."""
+
+CHANGE_COMMAND_WORDS = frozenset(
+    {
+        "отметить", "отмечать", "пометить", "перенести", "переносить", "сдвинуть", "сдвигать",
+        "передвинуть", "передвигать", "удалить", "удалять", "удали", "удаль", "убрать",
+        "убирать", "отменить", "отменять", "переименовать", "переименовывать", "назвать",
+        "выполнить", "выполнять", "сделанный", "готовый",
+        "лучше", "тогда", "давать", "ладно", "нет",
+    }
+)  # fmt: skip
+"""Слова-команды изменения и связки разговора («нет, лучше перенеси…», «тогда сдвинь…»):
+в описании записи их не бывает. «удали» pymorphy3 разбирает как «удаль», поэтому в списке и
+форма, и ошибочная лемма."""
+
+PREPOSITION = "PREP"
+
+_TOKEN = re.compile(r"[а-яёa-z0-9]+(?:-[а-яё]+)*", re.IGNORECASE)
+_MOMENT_WORD = re.compile(
+    r"\d|\b(?:сегодн|завтр|послезавтр|вчер|позавчер|понедельник|вторник|сред[аеуы]\b|четверг"
+    r"|пятниц|суббот|воскресень|недел|выходн|месяц|январ|феврал|марта?\b|апрел|ма[йяю]\b"
+    r"|июн|июл|август|сентябр|октябр|ноябр|декабр|утр|вечер|дн[её]м\b|ноч|обед|полд|полноч"
+    r"|через)",
+    re.IGNORECASE,
+)
+"""День или время в реплике: «завтрашний», «в пятницу», «26 ноября», «в 15:00», «утром»."""
+OBJECT_PRONOUNS = frozenset({"её", "ее", "его", "неё", "нее", "него", "ней", "нём", "нем"})
+"""«Перенеси её», «удали его». Перед существительным это притяжательное: «его команда»."""
+DEMONSTRATIVES = frozenset({"эту", "этот", "эта", "этой", "этого", "это"})
+"""«Удали эту встречу», «отметь это»."""
+POSSESSED_PARTS_OF_SPEECH = frozenset({"NOUN", "ADJF"})
+_EVENT_TYPE_WORD = re.compile(
+    r"\b(?:встреч|созвон|совещан|планёрк|планерк|переговор|митинг|задач|напомина|напомн)",
+    re.IGNORECASE,
+)
+"""Тип записи в реплике. «Звонок» не тип: «Позвонить Ивану» — задача или напоминание,
+«Созвон с Иваном» — встреча."""
+
+
+def user_description(model_query: str | None, text: str) -> str | None:
+    """Описание записи словами реплики.
+
+    Описание модели остаётся, если больше половины его лемм есть в реплике. Иначе — слова
+    самой реплики без команд, местоимений и указаний дня; `None`, если таких слов нет
+    («отметь её выполненной»).
+    """
+    if model_query is None:
+        return None
+    query_lemmas = set(_lemmatizer().lemmas(model_query))
+    if not query_lemmas:
+        return model_query
+    covered = len(query_lemmas.intersection(_lemmatizer().lemmas(text))) / len(query_lemmas)
+    if covered > MIN_QUERY_COVERAGE:
+        return model_query
+    return _content_words(text)
+
+
+def same_record(description: str, title: str) -> bool:
+    """Описание называет запись: «встречу с Иваном» и «Встреча с Иваном» — одна запись."""
+    description_lemmas = set(_lemmatizer().lemmas(description))
+    return bool(description_lemmas) and description_lemmas == set(_lemmatizer().lemmas(title))
+
+
+def names_record_by_pronoun(text: str) -> bool:
+    """Названа ли запись местоимением — тогда это запись из контекста диалога.
+
+    Модель иногда «разворачивает» местоимение в название записи из фокуса, а описание
+    словами реплики дало бы мусор: «нет, лучше перенеси её…» → «лучше».
+    """
+    tokens = [token.lower() for token in _TOKEN.findall(text)]
+    return any(
+        token in DEMONSTRATIVES
+        or (token in OBJECT_PRONOUNS and not _starts_noun_phrase(tokens[index + 1 : index + 2]))
+        for index, token in enumerate(tokens)
+    )
+
+
+def names_moment(text: str) -> bool:
+    """Есть ли в реплике день или время."""
+    return _MOMENT_WORD.search(text) is not None
+
+
+def names_event_type(text: str) -> bool:
+    """Назван ли в реплике тип записи: встреча, задача, напоминание."""
+    return _EVENT_TYPE_WORD.search(text) is not None
+
+
+def _content_words(text: str) -> str | None:
+    """Слова реплики от первого значимого до последнего: «звонок Ивану» из «Отметь звонок
+    Ивану как сделанный». Предлоги между значимыми словами остаются: «встречу с Иваном»."""
+    tokens = _TOKEN.findall(text)
+    content = [index for index, token in enumerate(tokens) if _is_content(token)]
+    if not content:
+        return None
+    span = tokens[content[0] : content[-1] + 1]
+    return " ".join(token for token in span if _is_content(token) or _is_preposition(token))
+
+
+def _is_content(token: str) -> bool:
+    return bool(_lemmatizer().lemmas(token)) and not names_moment(token)
+
+
+def _starts_noun_phrase(following: list[str]) -> bool:
+    if not following:
+        return False
+    return shared_morph_analyzer().parse(following[0])[0].tag.POS in POSSESSED_PARTS_OF_SPEECH
+
+
+def _is_preposition(token: str) -> bool:
+    return bool(shared_morph_analyzer().parse(token.lower())[0].tag.POS == PREPOSITION)
+
+
+@cache
+def _lemmatizer() -> MorphLemmatizer:
+    return MorphLemmatizer(DEFAULT_STOP_WORDS | CHANGE_COMMAND_WORDS)

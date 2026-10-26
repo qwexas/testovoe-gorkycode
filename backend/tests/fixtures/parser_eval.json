@@ -1,5 +1,5 @@
 {
-  "description": "Eval разбора реплик (решение Q37). Сейчас — вторник 27.10.2026 12:00 по Москве. В expected только значимые поля: поле, которого нет, не сравнивается; null — должно быть пустым. title и query сравниваются мягко: по леммам, с любым из вариантов. holdout — отложенная проверка: по этим случаям промпт не подгонялся.",
+  "description": "Eval разбора реплик (решение Q37). Сейчас — вторник 27.10.2026 12:00 по Москве. В expected только значимые поля: поле, которого нет, не сравнивается; null — должно быть пустым; список в when — допустимые варианты: при переносе только на время или только на день модель может оставить другое поле пустым или взять его у самой записи — результат одинаковый. title и query сравниваются мягко: по леммам, с любым из вариантов. holdout — отложенная проверка: по этим случаям промпт не подгонялся.",
   "now": "2026-10-27T12:00:00+03:00",
   "contexts": {
     "pending_time": {
@@ -85,6 +85,102 @@
       ],
       "focus": [
         {"id": 501, "type": "task", "title": "Отправить отчёт", "starts_at": "2026-10-30T00:00:00+03:00"}
+      ]
+    }
+,
+    "busy_week": {
+      "recent": [
+        {"role": "user", "text": "Что у меня на этой неделе?"},
+        {"role": "assistant", "text": "На этой неделе 8 записей: «Встреча с Иваном по CRM», «Подготовиться к встрече с Вектором» — 2 раза, «Провести планёрку по интеграции», «Созвон с Орбитой по презентации», «Отправить итоги встречи Иваном», «Подготовить отчёт» — 2 раза."}
+      ],
+      "focus": [
+        {"id": 601, "type": "meeting", "title": "Встреча с Иваном по CRM", "starts_at": "2026-10-26T10:00:00+03:00"},
+        {"id": 602, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-27T09:00:00+03:00"},
+        {"id": 603, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-28T18:00:00+03:00"},
+        {"id": 604, "type": "meeting", "title": "Провести планёрку по интеграции", "starts_at": "2026-10-29T10:00:00+03:00"},
+        {"id": 605, "type": "meeting", "title": "Созвон с Орбитой по презентации", "starts_at": "2026-10-29T15:30:00+03:00"},
+        {"id": 606, "type": "task", "title": "Отправить итоги встречи Иваном", "starts_at": "2026-10-30T12:00:00+03:00"},
+        {"id": 607, "type": "task", "title": "Подготовить отчёт", "starts_at": "2026-10-30T00:00:00+03:00"},
+        {"id": 608, "type": "task", "title": "Подготовить отчёт", "starts_at": "2026-11-01T00:00:00+03:00"}
+      ]
+    },
+    "found_orbita": {
+      "recent": [
+        {"role": "user", "text": "Найди подготовку к встрече с Орбитой"},
+        {"role": "assistant", "text": "Нашёл 5 записей «Подготовиться к встрече с Орбитой», последняя — 20 сентября. Ещё «Созвон с Орбитой по презентации» — 29 октября в 15:30."}
+      ],
+      "focus": [
+        {"id": 701, "type": "task", "title": "Подготовиться к встрече с Орбитой", "starts_at": "2026-09-20T10:00:00+03:00"},
+        {"id": 702, "type": "task", "title": "Подготовиться к встрече с Орбитой", "starts_at": "2026-08-22T19:45:00+03:00"},
+        {"id": 703, "type": "task", "title": "Подготовиться к встрече с Орбитой", "starts_at": "2025-10-26T09:15:00+03:00"},
+        {"id": 704, "type": "task", "title": "Подготовиться к встрече с Орбитой", "starts_at": "2025-04-17T09:15:00+03:00"},
+        {"id": 705, "type": "task", "title": "Подготовиться к встрече с Орбитой", "starts_at": "2027-03-16T18:15:00+03:00"},
+        {"id": 706, "type": "meeting", "title": "Созвон с Орбитой по презентации", "starts_at": "2026-10-29T15:30:00+03:00"}
+      ]
+    },
+    "pending_delete_busy": {
+      "pending": "confirm",
+      "pending_question": "Удалить «Созвон с Орбитой по презентации» в четверг в 15:30?",
+      "recent": [
+        {"role": "user", "text": "Что у меня на этой неделе?"},
+        {"role": "assistant", "text": "На этой неделе 8 записей: «Встреча с Иваном по CRM», «Подготовиться к встрече с Вектором» — 2 раза, «Провести планёрку по интеграции», «Созвон с Орбитой по презентации», «Отправить итоги встречи Иваном», «Подготовить отчёт» — 2 раза."},
+        {"role": "user", "text": "Удали созвон с Орбитой"},
+        {"role": "assistant", "text": "Удалить «Созвон с Орбитой по презентации» в четверг в 15:30?"}
+      ],
+      "focus": [
+        {"id": 605, "type": "meeting", "title": "Созвон с Орбитой по презентации", "starts_at": "2026-10-29T15:30:00+03:00"},
+        {"id": 601, "type": "meeting", "title": "Встреча с Иваном по CRM", "starts_at": "2026-10-26T10:00:00+03:00"},
+        {"id": 602, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-27T09:00:00+03:00"},
+        {"id": 603, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-28T18:00:00+03:00"},
+        {"id": 604, "type": "meeting", "title": "Провести планёрку по интеграции", "starts_at": "2026-10-29T10:00:00+03:00"},
+        {"id": 606, "type": "task", "title": "Отправить итоги встречи Иваном", "starts_at": "2026-10-30T12:00:00+03:00"},
+        {"id": 607, "type": "task", "title": "Подготовить отчёт", "starts_at": "2026-10-30T00:00:00+03:00"},
+        {"id": 608, "type": "task", "title": "Подготовить отчёт", "starts_at": "2026-11-01T00:00:00+03:00"}
+      ]
+    },
+    "pending_conflict_busy": {
+      "pending": "confirm",
+      "pending_question": "В четверг в 15:30 уже стоит «Созвон с Орбитой по презентации». Всё равно добавить?",
+      "recent": [
+        {"role": "user", "text": "Что у меня на этой неделе?"},
+        {"role": "assistant", "text": "На этой неделе 8 записей: «Встреча с Иваном по CRM», «Подготовиться к встрече с Вектором» — 2 раза, «Провести планёрку по интеграции», «Созвон с Орбитой по презентации», «Отправить итоги встречи Иваном», «Подготовить отчёт» — 2 раза."},
+        {"role": "user", "text": "Добавь встречу с дизайнером в четверг в 15:30"},
+        {"role": "assistant", "text": "В четверг в 15:30 уже стоит «Созвон с Орбитой по презентации». Всё равно добавить?"}
+      ],
+      "focus": [
+        {"id": 605, "type": "meeting", "title": "Созвон с Орбитой по презентации", "starts_at": "2026-10-29T15:30:00+03:00"},
+        {"id": 601, "type": "meeting", "title": "Встреча с Иваном по CRM", "starts_at": "2026-10-26T10:00:00+03:00"},
+        {"id": 602, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-27T09:00:00+03:00"},
+        {"id": 603, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-28T18:00:00+03:00"},
+        {"id": 604, "type": "meeting", "title": "Провести планёрку по интеграции", "starts_at": "2026-10-29T10:00:00+03:00"},
+        {"id": 606, "type": "task", "title": "Отправить итоги встречи Иваном", "starts_at": "2026-10-30T12:00:00+03:00"},
+        {"id": 607, "type": "task", "title": "Подготовить отчёт", "starts_at": "2026-10-30T00:00:00+03:00"},
+        {"id": 608, "type": "task", "title": "Подготовить отчёт", "starts_at": "2026-11-01T00:00:00+03:00"}
+      ]
+    },
+    "partner_call_created": {
+      "recent": [
+        {"role": "user", "text": "Созвон с партнёром на следующей неделе"},
+        {"role": "assistant", "text": "На какой день следующей недели?"},
+        {"role": "user", "text": "в среду в 12"},
+        {"role": "assistant", "text": "Встреча «Созвон с партнёром» — 4 ноября в 12:00."}
+      ],
+      "focus": [
+        {"id": 901, "type": "meeting", "title": "Созвон с партнёром", "starts_at": "2026-11-04T12:00:00+03:00"},
+        {"id": 902, "type": "meeting", "title": "Встреча с Иваном", "starts_at": "2026-10-28T15:00:00+03:00"}
+      ]
+    },
+    "pending_choice_duplicates": {
+      "pending": "choice",
+      "pending_question": "Нашёл три записи «Подготовиться к встрече с Вектором». Какую перенести?",
+      "recent": [
+        {"role": "user", "text": "Перенеси подготовку к встрече с Вектором на понедельник"},
+        {"role": "assistant", "text": "Нашёл три записи «Подготовиться к встрече с Вектором»: 1 — вторник 27 октября в 9:00, 2 — среда 28 октября в 18:00, 3 — пятница 30 октября в 11:00. Какую перенести?"}
+      ],
+      "focus": [
+        {"id": 801, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-27T09:00:00+03:00"},
+        {"id": 802, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-28T18:00:00+03:00"},
+        {"id": 803, "type": "task", "title": "Подготовиться к встрече с Вектором", "starts_at": "2026-10-30T11:00:00+03:00"}
       ]
     }
   },
@@ -222,7 +318,7 @@
      "expected": {"action": "confirm"}},
 
     {"id": "ctx-13", "group": "context", "context": "created_meeting", "text": "А перенеси её на завтра",
-     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-10-28", "time": null}}},
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-10-28", "time": [null, "15:00"]}}},
     {"id": "ctx-14", "group": "context", "holdout": true, "context": "created_meeting", "text": "Перенеси её на пятницу в 10",
      "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-10-30", "time": "10:00"}}},
     {"id": "ctx-15", "group": "context", "context": "created_meeting", "text": "Удали её",
@@ -241,7 +337,7 @@
     {"id": "mod-04", "group": "modify", "text": "Перенеси встречу с дизайнером на понедельник",
      "expected": {"action": "reschedule", "target": {"last": false, "query": ["встреча с дизайнером"]}, "when": {"date": "2026-11-02", "time": null}}},
     {"id": "mod-05", "group": "modify", "holdout": true, "text": "Перенеси завтрашний созвон на 16:00",
-     "expected": {"action": "reschedule", "target": {"last": false, "query": ["созвон"], "when": {"date": "2026-10-28"}}, "when": {"date": null, "time": "16:00"}}},
+     "expected": {"action": "reschedule", "target": {"last": false, "query": ["созвон"], "when": {"date": "2026-10-28"}}, "when": {"date": [null, "2026-10-28"], "time": "16:00"}}},
     {"id": "mod-06", "group": "modify", "text": "Переименуй задачу купить билеты в купить билеты в Казань",
      "expected": {"action": "rename", "target": {"last": false, "query": ["купить билеты"]}, "title": ["Купить билеты в Казань"]}},
     {"id": "mod-07", "group": "modify", "text": "Отмени встречу с Сергеем в четверг",
@@ -288,6 +384,46 @@
     {"id": "voice-11", "group": "voice", "holdout": true, "text": "созвон с вероникой в пятницу в одиннадцать на полчаса",
      "expected": {"action": "create", "event_type": "meeting", "title": ["Созвон с Вероникой"], "when": {"date": "2026-10-30", "time": "11:00"}, "duration_minutes": 30}},
     {"id": "voice-12", "group": "voice", "text": "мне нужно в среду к 10 сдать документы в бухгалтерию",
-     "expected": {"action": "create", "event_type": "task", "title": ["Сдать документы в бухгалтерию"], "when": {"date": "2026-10-28", "time": "10:00"}}}
+     "expected": {"action": "create", "event_type": "task", "title": ["Сдать документы в бухгалтерию"], "when": {"date": "2026-10-28", "time": "10:00"}}},
+    {"id": "dlg-01", "group": "context_search", "context": "found_orbita", "text": "Когда у меня будет созвон с Орбитой?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["созвон с Орбитой"], "time_scope": "future"}},
+    {"id": "dlg-02", "group": "context_search", "context": "busy_week", "text": "Когда у меня будет созвон с Орбитой?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["созвон с Орбитой"], "time_scope": "future"}},
+    {"id": "dlg-03", "group": "context_search", "context": "busy_week", "text": "Я когда-то ставил задачу по договору, найди ее",
+     "expected": {"action": "search", "event_type": "task", "query": ["договор"], "time_scope": "past"}},
+    {"id": "dlg-04", "group": "context_search", "context": "found_orbita", "text": "Я когда-то ставил задачу по договору, найди ее",
+     "expected": {"action": "search", "event_type": "task", "query": ["договор"], "time_scope": "past"}},
+    {"id": "dlg-05", "group": "context_search", "context": "busy_week", "text": "Когда у меня была встреча с Иваном?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["встреча с Иваном"], "time_scope": "past"}},
+    {"id": "dlg-06", "group": "context_search", "holdout": true, "context": "busy_week", "text": "А когда следующая встреча с Иваном?",
+     "expected": {"action": "search", "event_type": "meeting", "query": ["встреча с Иваном"], "time_scope": "future"}},
+    {"id": "dlg-07", "group": "context_search", "context": "found_orbita", "text": "Найди ближайшую подготовку к встрече с Вектором",
+     "expected": {"action": "search", "query": ["подготовка к встрече с Вектором", "подготовиться к встрече с Вектором"], "time_scope": "future"}},
+    {"id": "dlg-08", "group": "context_search", "holdout": true, "context": "busy_week", "text": "Когда я последний раз проводил планёрку по CRM?",
+     "expected": {"action": "search", "query": ["планёрка по CRM", "провести планёрку по CRM"], "time_scope": "past"}},
+    {"id": "dlg-10", "group": "context_pending", "context": "pending_delete_busy", "text": "А перенеси её на пятницу",
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-10-30", "time": [null, "15:30"]}}},
+    {"id": "dlg-11", "group": "context_pending", "context": "pending_delete_busy", "text": "нет, лучше перенеси её на понедельник на 10 утра",
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": "2026-11-02", "time": "10:00"}}},
+    {"id": "dlg-12", "group": "context_pending", "holdout": true, "context": "pending_delete_busy", "text": "не удаляй, сдвинь её на 17:00",
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": [null, "2026-10-29"], "time": "17:00"}}},
+    {"id": "dlg-13", "group": "context_pending", "context": "pending_conflict_busy", "text": "тогда перенеси её на 17:00",
+     "expected": {"action": "reschedule", "target": {"last": true}, "when": {"date": [null, "2026-10-29"], "time": "17:00"}}},
+    {"id": "dlg-14", "group": "context_pending", "context": "pending_delete_busy", "text": "да, удаляй",
+     "expected": {"action": "confirm"}},
+    {"id": "dlg-15", "group": "context_pending", "context": "pending_choice_duplicates", "text": "ту, что в пятницу",
+     "expected": {"action": "choose", "choice_index": 3}},
+    {"id": "dlg-16", "group": "context_pending", "holdout": true, "context": "pending_choice_duplicates", "text": "которая в среду",
+     "expected": {"action": "choose", "choice_index": 2}},
+    {"id": "dlg-18", "group": "context_target", "context": "partner_call_created", "text": "Отметь звонок Ивану как сделанный",
+     "expected": {"action": "complete", "target": {"last": false, "query": ["звонок Ивану", "позвонить Ивану"], "event_type": null, "when": null}}},
+    {"id": "dlg-19", "group": "context_target", "holdout": true, "context": "partner_call_created", "text": "Я уже позвонил Ивану",
+     "expected": {"action": "complete", "target": {"last": false, "query": ["позвонить Ивану", "звонок Ивану"], "event_type": null, "when": null}}},
+    {"id": "dlg-20", "group": "context_target", "context": "partner_call_created", "text": "Перенеси встречу с Иваном на пятницу",
+     "expected": {"action": "reschedule", "target": {"last": false, "query": ["встреча с Иваном"]}, "when": {"date": "2026-10-30", "time": [null, "15:00"]}}},
+    {"id": "dlg-21", "group": "context_target", "context": "partner_call_created", "text": "Удали её",
+     "expected": {"action": "delete", "target": {"last": true}}},
+    {"id": "dlg-17", "group": "context_pending", "context": "pending_delete_busy", "text": "Что у меня завтра?",
+     "expected": {"action": "list", "period": {"start": "2026-10-28T00:00", "end": "2026-10-29T00:00"}}}
   ]
 }

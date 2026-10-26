@@ -152,6 +152,24 @@ async def test_search_keeps_query_and_time_scope() -> None:
     assert intent.event_type is EventType.MEETING
 
 
+async def test_search_time_scope_lost_by_model_is_restored_from_text() -> None:
+    intent = await parse(
+        {"action": "search", "query": "созвон с Орбитой", "time_scope": "any"},
+        text="Когда у меня будет созвон с Орбитой?",
+    )
+
+    assert intent.time_scope is TimeScope.FUTURE
+
+
+async def test_search_time_scope_from_model_without_markers() -> None:
+    intent = await parse(
+        {"action": "search", "query": "договор", "time_scope": "past"},
+        text="Найди договор с Марией",
+    )
+
+    assert intent.time_scope is TimeScope.PAST
+
+
 async def test_search_without_query_searches_whole_text() -> None:
     intent = await parse({"action": "search"}, text="  Найди договор с Марией ")
 
@@ -176,7 +194,8 @@ async def test_reschedule_pronoun_points_to_context() -> None:
 
 async def test_reschedule_keeps_current_day_of_record_apart_from_new_time() -> None:
     intent = await parse(
-        {"action": "reschedule", "query": "созвон", "target_date": "tomorrow", "time": "16:00"}
+        {"action": "reschedule", "query": "созвон", "target_date": "tomorrow", "time": "16:00"},
+        text="Перенеси завтрашний созвон на 16:00",
     )
 
     assert intent.target == TargetRef(last=False, query="созвон", when=When(date=TOMORROW))
@@ -194,7 +213,9 @@ async def test_query_with_title_of_focused_record_means_that_record() -> None:
     context = DialogContext(now=NOW, focus=(MEETING_WITH_IVAN,))
 
     intent = await parse(
-        {"action": "reschedule", "query": "встреча с Иваном", "date": "tomorrow"}, context=context
+        {"action": "reschedule", "query": "встреча с Иваном", "date": "tomorrow"},
+        text="Перенеси встречу с Иваном на завтра",
+        context=context,
     )
 
     assert intent.target is not None
@@ -203,7 +224,8 @@ async def test_query_with_title_of_focused_record_means_that_record() -> None:
 
 async def test_delete_by_description_and_day() -> None:
     intent = await parse(
-        {"action": "delete", "event_type": "meeting", "query": "встреча с Сергеем", "date": "thu"}
+        {"action": "delete", "event_type": "meeting", "query": "встреча с Сергеем", "date": "thu"},
+        text="Отмени встречу с Сергеем в четверг",
     )
 
     assert intent.target == TargetRef(
@@ -215,7 +237,9 @@ async def test_delete_by_description_and_day() -> None:
 
 
 async def test_complete_by_description() -> None:
-    intent = await parse({"action": "complete", "query": "позвонить Ивану"})
+    intent = await parse(
+        {"action": "complete", "query": "позвонить Ивану"}, text="Я уже позвонил Ивану"
+    )
 
     assert intent.action is Action.COMPLETE
     assert intent.target == TargetRef(last=False, query="позвонить Ивану")
@@ -223,7 +247,8 @@ async def test_complete_by_description() -> None:
 
 async def test_rename_takes_new_title() -> None:
     intent = await parse(
-        {"action": "rename", "query": "купить билеты", "new_title": "купить билеты в Казань"}
+        {"action": "rename", "query": "купить билеты", "new_title": "купить билеты в Казань"},
+        text="Переименуй задачу купить билеты в купить билеты в Казань",
     )
 
     assert intent.title == "Купить билеты в Казань"
@@ -233,6 +258,94 @@ async def test_rename_takes_new_title() -> None:
 async def test_rename_accepts_new_title_in_title_field() -> None:
     intent = await parse({"action": "rename", "about_last": True, "title": "Созвон с партнёрами"})
 
+    assert intent.title == "Созвон с партнёрами"
+
+
+PARTNER_CALL = ContextEvent(
+    id=1,
+    type=EventType.MEETING,
+    title="Созвон с партнёром",
+    starts_at=dt.datetime(2026, 11, 4, 12, 0, tzinfo=MOSCOW),
+)
+MEETING_WITH_IVAN_WEDNESDAY = ContextEvent(
+    id=2,
+    type=EventType.MEETING,
+    title="Встреча с Иваном",
+    starts_at=dt.datetime(2026, 10, 28, 15, 0, tzinfo=MOSCOW),
+)
+TWO_IN_FOCUS = DialogContext(
+    now=dt.datetime(2026, 10, 26, 15, 0, tzinfo=MOSCOW),
+    recent=(
+        DialogTurn("user", "Созвон с партнёром на следующей неделе"),
+        DialogTurn("assistant", "На какой день следующей недели?"),
+        DialogTurn("user", "в среду в 12"),
+        DialogTurn("assistant", "Встреча «Созвон с партнёром» — 4 ноября в 12:00."),
+    ),
+    focus=(PARTNER_CALL, MEETING_WITH_IVAN_WEDNESDAY),
+)
+
+
+async def test_title_copied_from_focus_is_replaced_by_user_words() -> None:
+    """GigaChat-2-Pro 4 раза из 4 подставлял название, тип и дату записи из фокуса."""
+    intent = await parse(
+        {
+            "action": "complete",
+            "event_type": "meeting",
+            "query": "Встреча с Иваном",
+            "date": "sat",
+        },
+        text="Отметь звонок Ивану как сделанный",
+        context=TWO_IN_FOCUS,
+    )
+
+    assert intent.target == TargetRef(last=False, query="звонок Ивану")
+
+
+async def test_named_meeting_and_day_survive_grounding() -> None:
+    intent = await parse(
+        {
+            "action": "reschedule",
+            "event_type": "meeting",
+            "query": "встреча с Иваном",
+            "date": "fri",
+        },
+        text="Перенеси встречу с Иваном на пятницу",
+        context=TWO_IN_FOCUS,
+    )
+
+    assert intent.target == TargetRef(
+        last=False, query="встреча с Иваном", event_type=EventType.MEETING
+    )
+    assert intent.when == When(date=dt.date(2026, 10, 30))
+
+
+async def test_pronoun_with_copied_title_points_to_context() -> None:
+    intent = await parse(
+        {"action": "delete", "event_type": "meeting", "query": "Созвон с партнёром"},
+        text="Удали её",
+        context=TWO_IN_FOCUS,
+    )
+
+    assert intent.target == TargetRef(last=True)
+
+
+async def test_pronoun_overrides_expanded_title_and_fillers() -> None:
+    """«нет, лучше перенеси её…»: модель развернула «её» в название, а «лучше» — не описание."""
+    intent = await parse(
+        {"action": "reschedule", "query": "Созвон с Орбитой по презентации", "date": "mon"},
+        text="нет, лучше перенеси её на понедельник на 10 утра",
+    )
+
+    assert intent.target == TargetRef(last=True)
+
+
+async def test_new_title_is_not_description_of_renamed_record() -> None:
+    intent = await parse(
+        {"action": "rename", "query": "созвон с партнёрами", "new_title": "созвон с партнёрами"},
+        text="Переименуй её в созвон с партнёрами",
+    )
+
+    assert intent.target == TargetRef(last=True)
     assert intent.title == "Созвон с партнёрами"
 
 

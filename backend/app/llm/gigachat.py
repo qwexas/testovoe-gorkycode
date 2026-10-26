@@ -140,6 +140,16 @@ class CompletionOptions:
     """Разбор занимает до ~100 токенов; больше — признак зацикливания, его режем раньше."""
     retry: RetryPolicy = field(default_factory=RetryPolicy)
 
+    @classmethod
+    def from_settings(cls, settings: GigaChatSettings) -> "CompletionOptions":
+        """Параметры запроса по настройкам `GIGACHAT_*`."""
+        return cls(
+            model=settings.model,
+            fallback_model=settings.fallback_model,
+            temperature=settings.temperature,
+            request_timeout_seconds=settings.request_timeout_seconds,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class _HealthMark:
@@ -167,13 +177,7 @@ class GigaChatClient:
         """Клиент на SDK GigaChat по настройкам `GIGACHAT_*`."""
         if not settings.is_configured:
             logger.warning("GIGACHAT_CREDENTIALS не задан: разбор реплик будет недоступен")
-        options = CompletionOptions(
-            model=settings.model,
-            fallback_model=settings.fallback_model,
-            temperature=settings.temperature,
-            request_timeout_seconds=settings.request_timeout_seconds,
-        )
-        return cls(GigaChatTransport(settings), options)
+        return cls(GigaChatTransport(settings), CompletionOptions.from_settings(settings))
 
     @property
     def model(self) -> str:
@@ -265,7 +269,7 @@ class GigaChatClient:
             async with asyncio.timeout(self._options.request_timeout_seconds):
                 content = await self._transport.complete(payload)
             elapsed_ms = (self._clock() - started) * MILLISECONDS_IN_SECOND
-        logger.info("GigaChat %s ответил за %.0f мс", self.model, elapsed_ms)
+        logger.info("GigaChat %s ответил за %.0f мс", payload.get("model"), elapsed_ms)
         return parse_json_object(content, required)
 
     def _retry_payload(

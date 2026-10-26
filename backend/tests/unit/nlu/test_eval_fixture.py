@@ -141,3 +141,11 @@ def test_compare_period_and_target(lemmatizer: MorphLemmatizer) -> None:
     )
 
     assert compare(intent, expected, lemmatizer) == {"action": True, "period": True, "target": True}
+
+
+def test_compare_accepts_any_listed_variant(lemmatizer: MorphLemmatizer) -> None:
+    expected = {"action": "reschedule", "when": {"date": [None, "2026-10-29"], "time": "17:00"}}
+
+    for date, ok in ((None, True), (dt.date(2026, 10, 29), True), (dt.date(2026, 10, 27), False)):
+        intent = Intent(action=Action.RESCHEDULE, text="", when=When(date=date, time=dt.time(17)))
+        assert compare(intent, expected, lemmatizer)["when.date"] is ok
