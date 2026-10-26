@@ -10,6 +10,7 @@ import math
 import re
 from collections.abc import Sequence
 
+from app.core.enums import EventType
 from app.search.interfaces import EMBEDDING_DIMENSION, RankedResult, SearchCandidate
 
 _WORD = re.compile(r"[а-яёa-z0-9]+", re.IGNORECASE)
@@ -56,6 +57,7 @@ class SimilarityRanker:
         candidates: Sequence[SearchCandidate],
         *,
         limit: int,
+        preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
         relevant = [c for c in candidates if c.similarity >= self._threshold]
         relevant.sort(key=lambda c: c.similarity, reverse=True)

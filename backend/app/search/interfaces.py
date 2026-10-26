@@ -9,6 +9,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.core.enums import EventType
+
 EMBEDDING_DIMENSION = 1024
 """Размерность векторов: под неё создана колонка `events.embedding vector(1024)`."""
 
@@ -46,6 +48,8 @@ class SearchCandidate:
     lemmas: Sequence[str]
     similarity: float
     """Косинусная близость запроса и записи, от -1 до 1."""
+    event_type: EventType | None = None
+    """Тип записи — для мягкого бонуса, если разбор запроса назвал тип («встреча с Иваном»)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +69,11 @@ class Ranker(Protocol):
         candidates: Sequence[SearchCandidate],
         *,
         limit: int,
+        preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
-        """Лучшие записи по убыванию `score`; пустой список — «ничего похожего нет»."""
+        """Лучшие записи по убыванию `score`; пустой список — «ничего похожего нет».
+
+        `preferred_type` — тип из разбора запроса; записи этого типа получают небольшой
+        бонус, но записи других типов не отсекаются (LLM может ошибиться с типом).
+        """
         ...

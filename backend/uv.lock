@@ -193,6 +193,20 @@ wheels = [
 ]
 
 [[package]]
+name = "gigachat"
+version = "0.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a9/3e/42105fe7be2aa33907349fd177a2d8a97e14f434cfc1b8cbf3ba7b4a03f8/gigachat-0.2.3.tar.gz", hash = "sha256:b298dc70d28153e83780cdb7f40ec7273462ce497daafb1bee7e08509126aab3", size = 42631, upload-time = "2026-07-31T14:30:32.776Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/c6/cea9fd75f06c4c5a3f00a96c157c183146cb42b20e58b7580cd723c359bb/gigachat-0.2.3-py3-none-any.whl", hash = "sha256:61a51bcb9c3888c7643a9ffabe191695279f7cfca6b9d9d639e60c073a2385da", size = 55335, upload-time = "2026-07-31T14:30:34.101Z" },
+]
+
+[[package]]
 name = "gorky-backend"
 version = "0.1.0"
 source = { virtual = "." }
@@ -200,6 +214,8 @@ dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
+    { name = "gigachat" },
+    { name = "httpx" },
     { name = "numpy" },
     { name = "pgvector" },
     { name = "pydantic-settings" },
@@ -227,6 +243,8 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.20.1" },
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "fastapi", specifier = ">=0.162.0" },
+    { name = "gigachat", specifier = ">=0.2.3" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "pgvector", specifier = ">=0.5.1" },
     { name = "pydantic-settings", specifier = ">=2.16.1" },

@@ -13,6 +13,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.core.enums import EventType
 from app.search.interfaces import RankedResult, SearchCandidate
 
 
@@ -101,6 +102,7 @@ class HybridRanker:
         candidates: Sequence[SearchCandidate],
         *,
         limit: int,
+        preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
         """Лучшие записи по убыванию `score`; пустой список — «ничего похожего нет».
 
