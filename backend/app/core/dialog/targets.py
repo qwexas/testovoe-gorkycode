@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 
 from app.core.dialog.models import Turn
+from app.core.dialog.relevance import near_best
 from app.core.enums import EventStatus, EventType
 from app.core.events import EventCard, EventService, ScoredCard
 from app.core.queries import EventFilter
@@ -16,9 +17,6 @@ TARGET_SEARCH_LIMIT = 50
 DAYS_PER_WEEK = 7
 OPEN_ONLY_ACTIONS = frozenset({Action.RESCHEDULE, Action.COMPLETE})
 """Переносят и отмечают невыполненное; если такого нет — ищем среди всех записей."""
-TARGET_SCORE_MARGIN = 0.06
-"""Насколько оценка кандидата может отставать от лучшей, чтобы попасть в варианты выбора.
-Иначе рядом с «Позвонить Ивану» на «звонок Ивану» предлагались бы «Обсудить бюджет с Иваном»."""
 FOCUS_TIE_MARGIN = 0.015
 """Упомянутая в разговоре запись решает выбор, только если почти не уступает лидеру:
 иначе только что созданная «Встреча с Иваном» перехватила бы «отметь звонок Ивану»."""
@@ -113,7 +111,8 @@ def _narrow(found: Sequence[ScoredCard], focus: Sequence[EventCard]) -> list[Eve
     Пользователь только что создал «Позвонить Ивану» и говорит «отметь звонок Ивану» — без
     вопроса «какую?» отмечаем её. Но упоминание не перевешивает заметно более похожую
     запись. Равные по оценке записи (повторы одного названия в разные дни) остаются
-    вариантами выбора.
+    вариантами выбора; отстающие больше чем на `relevance.SCORE_MARGIN` — отсекаются:
+    иначе рядом с «Позвонить Ивану» предлагалось бы «Обсудить бюджет с Иваном».
     """
     if not found:
         return []
@@ -126,4 +125,4 @@ def _narrow(found: Sequence[ScoredCard], focus: Sequence[EventCard]) -> list[Eve
     ]
     if tied_mentioned:
         return tied_mentioned[:1]
-    return [item.card for item in found if best - item.score <= TARGET_SCORE_MARGIN]
+    return [item.card for item in near_best(found)]

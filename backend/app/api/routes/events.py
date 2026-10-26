@@ -48,7 +48,7 @@ async def list_events(
         profile_id=profile.id,
         period_start=period_start,
         period_end=period_end,
-        event_type=event_type,
+        event_types=None if event_type is None else frozenset({event_type}),
         status=event_status,
     )
     query = (q or "").strip()

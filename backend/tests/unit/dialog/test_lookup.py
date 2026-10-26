@@ -4,12 +4,14 @@ from datetime import date
 
 import pytest
 
+from app.core.dialog.models import Reply
 from app.core.enums import EventStatus, EventType, ReplyKind
 from app.nlu.interfaces import Period, TimeScope
 from tests.unit.dialog.support import (
     THURSDAY,
     TODAY,
     TOMORROW,
+    ContainsAllRanker,
     DialogHarness,
     at,
     day_period,
@@ -68,7 +70,7 @@ class TestList:
 
         assert reply.text == (
             "Сегодня у вас 3 дела: встреча и 2 напоминания. "
-            "Ближайшее — «Позвонить маме» в 19:00. Сделано 1 из 3."
+            "Ближайшее — «Позвонить маме» сегодня в 19:00. Сделано 1 из 3."
         )
 
     async def test_past_period_has_no_nearest(self, dialog: DialogHarness) -> None:
@@ -205,9 +207,19 @@ class TestSearch:
     ) -> None:
         reply = await dialog.say(search("Найди встречи с Иваном", "встреча Иван"))
 
-        assert reply.text.startswith(
-            "Нашёл 5 записей. Ближе всего — встреча «Встреча с Иваном по CRM»"
+        assert reply.text == (
+            "Нашёл 5 записей. Больше всего подходит — встреча «Встреча с Иваном по CRM», "
+            "5 ноября в 12:00."
         )
+
+    async def test_equal_scores_nearest_future_then_latest_past(
+        self, dialog: DialogHarness, ivan_meetings: dict[str, int]
+    ) -> None:
+        reply = await dialog.say(search("Найди встречи с Иваном", "встреча Иван"))
+
+        order = [ivan_meetings[key] for key in ("next", "later", "last", "old")]
+        assert [card.id for card in reply.events][:4] == order
+        assert reply.events[4].starts_at is None
 
     async def test_preferred_type_is_passed_to_ranking(self, dialog: DialogHarness) -> None:
         await dialog.say(search("Найди встречу с Иваном", "Иван", event_type=EventType.MEETING))
@@ -229,3 +241,121 @@ class TestSearch:
         await dialog.say(search("Найди презентацию", "презентация"))
 
         assert dialog.state is not None and dialog.state.last_event_ids[0] == found.id
+
+
+class TestWhenAmongCloseTitles:
+    """«Когда был / будет созвон с Орбитой?»: близкие названия оцениваются почти одинаково."""
+
+    @pytest.fixture
+    async def orbita(self, dialog: DialogHarness) -> dict[str, int]:
+        events = {
+            "analytics_old": ("Созвон с Орбитой по аналитике", at(date(2025, 11, 3), 10), 0.0),
+            "integration_last": ("Созвон с Орбитой по интеграции", at(date(2026, 3, 5), 15), -0.01),
+            "presentation_next": (
+                "Созвон с Орбитой по презентации",
+                at(date(2027, 3, 20), 11),
+                -0.02,
+            ),
+            "budget_far_past": ("Созвон с Орбитой по бюджету", at(date(2026, 9, 1), 9), -0.2),
+            "budget_far_future": ("Созвон с Орбитой по бюджету", at(date(2026, 11, 10), 9), -0.2),
+        }
+        ids = {}
+        for key, (title, starts_at, shift) in events.items():
+            ids[key] = (await dialog.add_event(EventType.MEETING, title, starts_at)).id
+            dialog.ranker.score_shifts[ids[key]] = shift
+        return ids
+
+    async def ask(self, dialog: DialogHarness, scope: TimeScope) -> Reply:
+        return await dialog.say(
+            search(
+                "Когда созвон с Орбитой?",
+                "созвон Орбита",
+                event_type=EventType.MEETING,
+                time_scope=scope,
+            )
+        )
+
+    async def test_when_keeps_same_person_meeting_with_other_topic(
+        self, dialog: DialogHarness
+    ) -> None:
+        """«Следующая встреча с Иваном»: тема другая (отставание 0,08), но это та же встреча."""
+        last = await dialog.add_event(
+            EventType.MEETING, "Встреча с Иваном по презентации", at(date(2026, 3, 5), 15)
+        )
+        upcoming = await dialog.add_event(
+            EventType.MEETING, "Встреча с Иваном по бюджету", at(date(2027, 3, 20), 8, 45)
+        )
+        dialog.ranker.score_shifts[upcoming.id] = -0.08
+
+        reply = await dialog.say(
+            search(
+                "Когда у меня следующая встреча с Иваном?",
+                "встреча с Иваном",
+                event_type=EventType.MEETING,
+                time_scope=TimeScope.FUTURE,
+            )
+        )
+
+        assert reply.events[0].id == upcoming.id
+        assert last.id in {card.id for card in reply.events}
+
+    async def test_past_is_latest_passed_among_close(
+        self, dialog: DialogHarness, orbita: dict[str, int]
+    ) -> None:
+        reply = await self.ask(dialog, TimeScope.PAST)
+
+        assert reply.events[0].id == orbita["integration_last"]
+        assert reply.text == (
+            "Последняя встреча «Созвон с Орбитой по интеграции» была 5 марта 2026 в 15:00."
+        )
+
+    async def test_future_is_earliest_upcoming_among_close(
+        self, dialog: DialogHarness, orbita: dict[str, int]
+    ) -> None:
+        reply = await self.ask(dialog, TimeScope.FUTURE)
+
+        assert reply.events[0].id == orbita["presentation_next"]
+        assert reply.text == (
+            "Ближайшая встреча «Созвон с Орбитой по презентации» будет 20 марта 2027 в 11:00."
+        )
+
+    async def test_no_upcoming_says_so_and_names_latest(
+        self, dialog: DialogHarness, orbita: dict[str, int]
+    ) -> None:
+        await dialog.storage.events.delete(dialog.profile_id, orbita["presentation_next"])
+
+        reply = await self.ask(dialog, TimeScope.FUTURE)
+
+        assert reply.text == (
+            "Впереди такого нет. "
+            "Последняя встреча «Созвон с Орбитой по интеграции» была 5 марта 2026 в 15:00."
+        )
+
+    async def test_close_record_of_other_type_is_not_the_answer(
+        self, dialog: DialogHarness, orbita: dict[str, int]
+    ) -> None:
+        task = await dialog.add_event(
+            EventType.TASK, "Подготовиться к созвону с Орбитой", at(date(2026, 10, 20), 9)
+        )
+        dialog.ranker.score_shifts[task.id] = ContainsAllRanker.TYPE_BONUS - 0.03
+
+        reply = await self.ask(dialog, TimeScope.PAST)
+
+        assert reply.events[0].id == orbita["integration_last"]
+
+    async def test_asked_task_includes_reminders(self, dialog: DialogHarness) -> None:
+        reminder = await dialog.add_event(
+            EventType.REMINDER, "Позвонить в Орбиту", at(date(2026, 10, 20), 9)
+        )
+        await dialog.add_event(EventType.MEETING, "Созвон с Орбитой", at(date(2026, 10, 22), 9))
+
+        reply = await dialog.say(
+            search(
+                "Когда я звонил в Орбиту?",
+                "Орбита",
+                event_type=EventType.TASK,
+                time_scope=TimeScope.PAST,
+            )
+        )
+
+        assert reply.events[0].id == reminder.id

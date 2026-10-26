@@ -8,7 +8,7 @@ from datetime import date, time, timedelta
 import pytest
 
 from app.core.enums import EventStatus, EventType, PendingExpectation, ReplyKind
-from app.nlu.interfaces import Action, Period, TimeScope, When
+from app.nlu.interfaces import Action, Intent, Period, TimeScope, When
 from tests.unit.dialog.support import (
     FRIDAY,
     NEXT_MONDAY,
@@ -133,7 +133,7 @@ class TestListPeriod:
         assert reply.kind is ReplyKind.LIST
         assert reply.text == (
             "Сегодня у вас 3 дела: 2 встречи и задача. "
-            "Ближайшее — «Разбор макетов с Ольгой» в 17:00."
+            "Ближайшее — «Разбор макетов с Ольгой» сегодня в 17:00."
         )
         assert [card.title for card in reply.events] == [
             "Отправить отчёт",
@@ -149,8 +149,8 @@ class TestListPeriod:
     async def test_meetings_today(self, dialog: DialogHarness, planned: None, text: str) -> None:
         reply = await dialog.say(listing(text, event_type=EventType.MEETING))
 
-        assert (
-            reply.text == "Сегодня у вас 2 встречи. Ближайшая — «Разбор макетов с Ольгой» в 17:00."
+        assert reply.text == (
+            "Сегодня у вас 2 встречи. Ближайшая — «Разбор макетов с Ольгой» сегодня в 17:00."
         )
         assert {card.type for card in reply.events} == {EventType.MEETING}
 
@@ -163,8 +163,53 @@ class TestListPeriod:
             )
         )
 
-        assert reply.text == "На завтра у вас одна задача: «Купить билеты» завтра, 27 октября."
+        assert reply.text == "На завтра у вас одна задача: «Купить билеты»."
         assert [card.title for card in reply.events] == ["Купить билеты"]
+
+    async def test_reminder_counts_as_task_for_tomorrow(self, dialog: DialogHarness) -> None:
+        """Ровно сценарий ТЗ: напоминание создано, затем «Какие задачи у меня на завтра?»."""
+        await dialog.say(
+            create(
+                "Напомни мне завтра в 10 утра позвонить Ивану",
+                EventType.REMINDER,
+                "позвонить Ивану",
+                date=TOMORROW,
+                time=time(10, 0),
+            )
+        )
+
+        reply = await dialog.say(tomorrow_tasks())
+
+        assert reply.text == "На завтра у вас одно напоминание: «Позвонить Ивану» в 10:00."
+        assert [card.type for card in reply.events] == [EventType.REMINDER]
+
+    async def test_tasks_and_reminders_together(self, dialog: DialogHarness, planned: None) -> None:
+        await dialog.add_event(EventType.REMINDER, "Позвонить Ивану", at(TOMORROW, 10))
+        await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 12))
+
+        reply = await dialog.say(tomorrow_tasks())
+
+        assert reply.text == (
+            "На завтра у вас 2 дела: задача и напоминание. "
+            "Ближайшее — «Позвонить Ивану» завтра в 10:00."
+        )
+        assert [card.title for card in reply.events] == ["Купить билеты", "Позвонить Ивану"]
+
+    @pytest.mark.parametrize(
+        ("event_type", "titles"),
+        [(EventType.REMINDER, ["Позвонить Ивану"]), (EventType.MEETING, ["Демо"])],
+    )
+    async def test_reminders_and_meetings_are_listed_alone(
+        self, dialog: DialogHarness, planned: None, event_type: EventType, titles: list[str]
+    ) -> None:
+        await dialog.add_event(EventType.REMINDER, "Позвонить Ивану", at(TOMORROW, 10))
+        await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 12))
+
+        reply = await dialog.say(
+            listing("Что завтра?", event_type=event_type, period=day_period(TOMORROW, "на завтра"))
+        )
+
+        assert [card.title for card in reply.events] == titles
 
     async def test_this_week(self, dialog: DialogHarness, planned: None) -> None:
         week = Period(at(TODAY, 0), at(NEXT_MONDAY, 0), "на этой неделе")
@@ -173,6 +218,14 @@ class TestListPeriod:
 
         assert reply.text.startswith("На этой неделе у вас 5 дел: 3 встречи и 2 задачи.")
         assert len(reply.events) == 5
+
+
+def tomorrow_tasks() -> Intent:
+    return listing(
+        "Какие задачи у меня на завтра?",
+        event_type=EventType.TASK,
+        period=day_period(TOMORROW, "на завтра"),
+    )
 
 
 class TestSearchOldRecords:
@@ -215,6 +268,30 @@ class TestSearchOldRecords:
         )
         assert reply.events[0].id == latest.id
 
+    async def test_next_meeting_with_ivan_among_close_titles(self, dialog: DialogHarness) -> None:
+        """«Когда у меня следующая встреча с Иваном?» — будущая есть, хоть и не первая в выдаче."""
+        shifts = {
+            ("Встреча с Иваном по презентации", at(date(2026, 3, 5), 15, 45)): 0.0,
+            ("Встреча с Иваном по CRM", at(date(2025, 9, 9), 10)): -0.01,
+            ("Встреча с Иваном по бюджету", at(date(2027, 3, 20), 14)): -0.02,
+        }
+        for (title, starts_at), shift in shifts.items():
+            card = await dialog.add_event(EventType.MEETING, title, starts_at)
+            dialog.ranker.score_shifts[card.id] = shift
+
+        reply = await dialog.say(
+            search(
+                "Когда у меня следующая встреча с Иваном?",
+                "встреча с Иваном",
+                event_type=EventType.MEETING,
+                time_scope=TimeScope.FUTURE,
+            )
+        )
+
+        assert reply.text == (
+            "Ближайшая встреча «Встреча с Иваном по бюджету» будет 20 марта 2027 в 14:00."
+        )
+
     async def test_contract_task_found_by_meaning(self, dialog: DialogHarness) -> None:
         await dialog.add_event(
             EventType.TASK, "Подписать договор с Вектором", at(FRIDAY, 0), has_time=False
@@ -230,7 +307,7 @@ class TestSearchOldRecords:
         )
 
         assert reply.text == (
-            "Нашёл 2 записи. Ближе всего — задача «Подписать договор с Вектором», "
+            "Нашёл 2 записи. Больше всего подходит — задача «Подписать договор с Вектором», "
             "в пятницу, 30 октября."
         )
 

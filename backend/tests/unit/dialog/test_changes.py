@@ -226,6 +226,35 @@ class TestChoice:
 
         assert dialog.state is not None and dialog.state.last_event_ids[:3] == ivan
 
+    async def test_options_are_numbered_by_date_undated_last(self, dialog: DialogHarness) -> None:
+        undated = await dialog.add_event(EventType.TASK, "Позвонить Ивану")
+        friday = await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(FRIDAY, 10))
+        past = await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(date(2026, 9, 1), 10))
+        tomorrow = await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(TOMORROW, 10))
+
+        reply = await dialog.say(
+            change(Action.DELETE, "Удали звонок Ивану", target=about("позвонить Ивану"))
+        )
+
+        expected = [past.id, tomorrow.id, friday.id, undated.id]
+        assert [card.id for card in reply.choices] == expected
+        assert dialog.state is not None and dialog.state.last_event_ids[:4] == expected
+
+    async def test_more_than_five_keeps_most_timely(self, dialog: DialogHarness) -> None:
+        old = await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(date(2025, 1, 10), 10))
+        upcoming = [
+            (await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(day, 10))).id
+            for day in (date(2026, 11, 20), FRIDAY, TOMORROW, date(2026, 11, 5), THURSDAY)
+        ]
+
+        reply = await dialog.say(
+            change(Action.DELETE, "Удали звонок Ивану", target=about("позвонить Ивану"))
+        )
+
+        shown = [card.id for card in reply.choices]
+        assert old.id not in shown
+        assert shown == [upcoming[2], upcoming[4], upcoming[1], upcoming[3], upcoming[0]]
+
     async def test_choice_is_capped_at_five(self, dialog: DialogHarness) -> None:
         for hour in range(9, 16):
             await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(FRIDAY, hour))

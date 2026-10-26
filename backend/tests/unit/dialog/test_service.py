@@ -201,13 +201,32 @@ class TestHints:
             f"Я Горький — веду ваши задачи, напоминания и встречи. Скажите, например: {EXAMPLES}."
         )
 
-    async def test_unknown(self, dialog: DialogHarness) -> None:
-        reply = await dialog.say(simple(Action.UNKNOWN, "Какая погода в Сочи?"))
+    async def test_off_topic(self, dialog: DialogHarness) -> None:
+        reply = await dialog.say(simple(Action.UNKNOWN, "Какая завтра погода?"))
 
         assert reply.kind is ReplyKind.INFO
-        assert reply.text == f"Не понял, что сделать. Скажите, например: {EXAMPLES}."
+        assert reply.text == (
+            "Это не по моей части: я веду задачи, напоминания и встречи. Скажите, например: "
+            "«Что у меня сегодня?» или «Напомни завтра в 10 позвонить Ивану»."
+        )
 
-    @pytest.mark.parametrize("action", [Action.CHOOSE, Action.CONFIRM, Action.DENY])
+    async def test_unclear_answer_repeats_question(self, dialog: DialogHarness) -> None:
+        await dialog.say(
+            create("Встреча с Иваном завтра", EventType.MEETING, "Встреча с Иваном", date=TOMORROW)
+        )
+
+        reply = await dialog.say(simple(Action.UNKNOWN, "ммм, ну это"))
+
+        assert reply.kind is ReplyKind.CLARIFICATION
+        assert reply.text == "Не понял ответ. На какое время поставить встречу?"
+        assert dialog.state is not None and dialog.state.pending is not None
+
+    async def test_deny_without_question(self, dialog: DialogHarness) -> None:
+        reply = await dialog.say(simple(Action.DENY, "нет, не надо"))
+
+        assert (reply.kind, reply.text) == (ReplyKind.INFO, "Хорошо, ничего не делаю.")
+
+    @pytest.mark.parametrize("action", [Action.CHOOSE, Action.CONFIRM])
     async def test_follow_up_without_question(self, dialog: DialogHarness, action: Action) -> None:
         reply = await dialog.say(simple(action, "да"))
 

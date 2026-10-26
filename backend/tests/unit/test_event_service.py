@@ -260,7 +260,7 @@ class TestListAndSearch:
     ) -> None:
         for title in ["Отправить отчёт", "Купить билеты", "Отчёт"]:
             await service.create(profile_id, EventDraft(EventType.TASK, title))
-        criteria = EventFilter(profile_id, event_type=EventType.TASK)
+        criteria = EventFilter(profile_id, event_types=frozenset({EventType.TASK}))
 
         found = await service.search_events(criteria, "отчёт", limit=10)
 

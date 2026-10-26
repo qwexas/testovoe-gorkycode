@@ -238,7 +238,9 @@ class TestLemmaChannel:
         await self.create(events, bare_profile_id, "Проверить договоры")
 
         found = await events.search_events(
-            EventFilter(bare_profile_id, event_type=EventType.MEETING), "договор", limit=10
+            EventFilter(bare_profile_id, event_types=frozenset({EventType.MEETING})),
+            "договор",
+            limit=10,
         )
 
         assert [card.id for card in found] == [meeting]

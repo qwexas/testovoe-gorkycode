@@ -16,13 +16,14 @@ class EventFilter:
     """Какие записи профиля выбрать.
 
     Период — полуинтервал `[period_start, period_end)` по началу записи; записи
-    без даты (задачи «без срока») в выборку с периодом не попадают.
+    без даты (задачи «без срока») в выборку с периодом не попадают. `event_types` —
+    записи любого из этих типов; `None` — любого типа.
     """
 
     profile_id: UUID
     period_start: datetime | None = None
     period_end: datetime | None = None
-    event_type: EventType | None = None
+    event_types: frozenset[EventType] | None = None
     status: EventStatus | None = None
 
 

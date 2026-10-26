@@ -6,6 +6,7 @@
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
+from datetime import datetime
 from types import MappingProxyType
 
 from app.core.dialog import phrases
@@ -14,6 +15,7 @@ from app.core.dialog.conflicts import ConflictFinder
 from app.core.dialog.creation import CreationFlow
 from app.core.dialog.lookup import ListingFlow, SearchFlow
 from app.core.dialog.models import Outcome, PendingQuestion, PendingStep, Reply, Turn
+from app.core.dialog.relevance import by_date, timeliness
 from app.core.dialog.rules import merge_answer
 from app.core.dialog.targets import TargetFinder
 from app.core.dialog.undo import UndoLog
@@ -30,6 +32,11 @@ MIN_MATCH_WORD_LENGTH = 3
 
 Command = Callable[[Turn, Intent], Awaitable[Outcome]]
 FollowUp = Callable[[Turn, Intent, PendingStep], Awaitable[Outcome]]
+
+_WITHOUT_QUESTION: Mapping[Action, str] = MappingProxyType(
+    {Action.DENY: phrases.NOTHING_TO_DECLINE}
+)
+"""Ответ на «нет» и т. п., когда ассистент ни о чём не спрашивал; иначе — `NOT_UNDERSTOOD`."""
 
 _REPEATED_KINDS: Mapping[PendingExpectation, ReplyKind] = MappingProxyType(
     {
@@ -61,7 +68,7 @@ class DialogRouter:
                 Action.DELETE: self._change,
                 Action.UNDO: self._undo_latest,
                 Action.SMALLTALK: _smalltalk,
-                Action.UNKNOWN: _not_understood,
+                Action.UNKNOWN: self._unknown,
             }
         )
         self._follow_ups: Mapping[Action, FollowUp] = MappingProxyType(
@@ -81,7 +88,7 @@ class DialogRouter:
         if follow_up is None:
             return await self._commands[intent.action](turn, intent)
         if turn.pending is None:
-            return await _not_understood(turn, intent)
+            return Outcome.say(_WITHOUT_QUESTION.get(intent.action, phrases.NOT_UNDERSTOOD))
         return await follow_up(turn, intent, turn.pending)
 
     async def _change(self, turn: Turn, intent: Intent) -> Outcome:
@@ -91,7 +98,13 @@ class DialogRouter:
             return Outcome.say(_nothing_to_change(lookup.query))
         if len(candidates) == 1:
             return await self._changes.apply(turn, intent, candidates[0])
-        return _offer_choice(intent, candidates)
+        return _offer_choice(intent, candidates, turn.now)
+
+    async def _unknown(self, turn: Turn, intent: Intent) -> Outcome:
+        """Не про задачи и встречи: без вопроса — подсказка, при вопросе — повторить его."""
+        if turn.pending is None:
+            return Outcome.say(phrases.OFF_TOPIC)
+        return await self._repeat(turn, turn.pending, phrases.REPLY_NOT_UNDERSTOOD)
 
     async def _undo_latest(self, turn: Turn, intent: Intent) -> Outcome:
         reply = await self._undo.undo_latest(turn.profile_id, turn.now)
@@ -189,9 +202,14 @@ def _nothing_to_change(query: str | None) -> str:
     return phrases.TARGET_UNCLEAR if query is None else phrases.target_not_found(query)
 
 
-def _offer_choice(intent: Intent, candidates: Sequence[EventCard]) -> Outcome:
-    """Несколько подходящих записей — пронумерованный список (Q33)."""
-    options = tuple(candidates[:CHOICE_LIMIT])
+def _offer_choice(intent: Intent, candidates: Sequence[EventCard], now: datetime) -> Outcome:
+    """Несколько подходящих записей — пронумерованный список (Q33).
+
+    Если подходящих больше `CHOICE_LIMIT`, показываются самые актуальные: ближайшие будущие,
+    затем самые свежие прошедшие. Варианты нумеруются по дате, записи без даты — в конце.
+    """
+    most_timely = sorted(candidates, key=lambda card: timeliness(card, now))[:CHOICE_LIMIT]
+    options = tuple(by_date(most_timely))
     noun = phrases.ENTRY
     types = {card.type for card in options}
     if len(types) == 1:
@@ -218,10 +236,6 @@ def _match_by_title(options: list[EventCard], choice: Intent) -> EventCard | Non
 
 async def _smalltalk(turn: Turn, intent: Intent) -> Outcome:
     return Outcome.say(phrases.SMALLTALK)
-
-
-async def _not_understood(turn: Turn, intent: Intent) -> Outcome:
-    return Outcome.say(phrases.NOT_UNDERSTOOD)
 
 
 async def _deny(turn: Turn, intent: Intent, pending: PendingStep) -> Outcome:

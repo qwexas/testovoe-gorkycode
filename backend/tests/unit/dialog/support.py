@@ -148,7 +148,7 @@ class FakeEventRepository:
 def _matches(event: EventRecord, criteria: EventFilter) -> bool:
     if event.profile_id != criteria.profile_id:
         return False
-    if criteria.event_type is not None and event.type is not criteria.event_type:
+    if criteria.event_types is not None and event.type not in criteria.event_types:
         return False
     if criteria.status is not None and event.status is not criteria.status:
         return False
@@ -254,6 +254,8 @@ class ContainsAllRanker:
 
     def __init__(self) -> None:
         self.preferred_types: list[EventType | None] = []
+        self.score_shifts: dict[int, float] = {}
+        """Поправка оценки записи по `id`: «близкое название — чуть ниже»."""
 
     def rank(
         self,
@@ -268,7 +270,9 @@ class ContainsAllRanker:
         relevant = [
             RankedResult(
                 event_id=c.event_id,
-                score=1.0 + (self.TYPE_BONUS if c.event_type is preferred_type else 0.0),
+                score=1.0
+                + (self.TYPE_BONUS if c.event_type is preferred_type else 0.0)
+                + self.score_shifts.get(c.event_id, 0.0),
             )
             for c in candidates
             if wanted and wanted <= set(c.lemmas)

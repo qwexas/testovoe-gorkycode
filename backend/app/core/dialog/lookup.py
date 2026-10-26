@@ -1,9 +1,10 @@
 """Вопросы о записях: список за период и поиск по смыслу.
 
 Список: «Что у меня сегодня?», «Какие задачи на завтра?» — период из разбора, по
-умолчанию сегодня. Поиск: «Найди задачу про презентацию», «Когда у меня была встреча
-с Иваном?» — выдача группируется по названию, и в первой группе выбирается последняя
-прошедшая (`past`) или ближайшая будущая (`future`) запись (`docs/search.md`).
+умолчанию сегодня; «задачи» — это задачи и напоминания (`relevance.ASKED_TYPES`).
+Поиск: «Найди задачу про презентацию», «Когда у меня была встреча с Иваном?». Для «когда
+была / когда будет» кандидаты — все записи с оценкой рядом с лучшей (близкие названия
+почти равны), среди них — последняя прошедшая или ближайшая будущая.
 """
 
 from collections.abc import Callable, Mapping, Sequence
@@ -15,8 +16,14 @@ from typing import Final
 
 from app.core.dialog import phrases
 from app.core.dialog.models import Outcome, Reply, Turn
-from app.core.enums import ReplyKind
-from app.core.events import EventCard, EventService
+from app.core.dialog.relevance import (
+    WHEN_SCORE_MARGIN,
+    asked_types,
+    by_score_then_timeliness,
+    near_best,
+)
+from app.core.enums import EventType, ReplyKind
+from app.core.events import EventCard, EventService, ScoredCard
 from app.core.queries import EventFilter
 from app.core.schedule import start_of_day
 from app.nlu.interfaces import Intent, Period, TimeScope
@@ -47,7 +54,7 @@ class ListingFlow:
             profile_id=turn.profile_id,
             period_start=period.start,
             period_end=period.end,
-            event_type=intent.event_type,
+            event_types=asked_types(intent.event_type),
             status=intent.status,
         )
         events = await self._reader.list_events(criteria, LIST_LIMIT)
@@ -62,6 +69,25 @@ class _Answer:
 
     chosen: EventCard
     text: str
+
+
+@dataclass(frozen=True, slots=True)
+class _Found:
+    """Выдача поиска по убыванию оценки (равные — ближайшая будущая первой) и вопрос."""
+
+    ranked: Sequence[ScoredCard]
+    asked_type: EventType | None
+
+    @property
+    def best(self) -> EventCard:
+        return self.ranked[0].card
+
+    def contenders(self) -> list[EventCard]:
+        """Равноправные кандидаты ответа «когда»: оценка рядом с лучшей, тип — названный."""
+        near = [item.card for item in near_best(self.ranked, WHEN_SCORE_MARGIN)]
+        types = asked_types(self.asked_type)
+        typed = [card for card in near if types is None or card.type in types]
+        return typed or near
 
 
 class SearchFlow:
@@ -79,27 +105,23 @@ class SearchFlow:
             status=intent.status,
         )
         query = intent.query or intent.title or intent.text
-        found = await self._reader.search_events(
+        scored = await self._reader.search_scored(
             criteria, query, SEARCH_LIMIT, preferred_type=intent.event_type
         )
-        if not found:
+        if not scored:
             return Outcome.say(phrases.SEARCH_NOTHING)
+        found = _Found(by_score_then_timeliness(scored, turn.now), intent.event_type)
         answer = _ANSWERS[intent.time_scope](found, turn)
-        events = [answer.chosen, *(card for card in found if card.id != answer.chosen.id)]
-        reply = Reply(ReplyKind.SEARCH_RESULTS, answer.text, events=events[:REPLY_EVENTS_LIMIT])
-        return Outcome(reply, focus=tuple(card.id for card in events[:REPLY_EVENTS_LIMIT]))
-
-
-def _first_group(found: Sequence[EventCard]) -> list[EventCard]:
-    """Записи с тем же названием, что и самая похожая (повторы одного дела)."""
-    title = found[0].title.casefold()
-    return [card for card in found if card.title.casefold() == title]
+        others = (item.card for item in found.ranked if item.card.id != answer.chosen.id)
+        events = [answer.chosen, *others][:REPLY_EVENTS_LIMIT]
+        reply = Reply(ReplyKind.SEARCH_RESULTS, answer.text, events=events)
+        return Outcome(reply, focus=tuple(card.id for card in events))
 
 
 def _split_by_now(
     cards: Sequence[EventCard], now: datetime
 ) -> tuple[list[EventCard], list[EventCard]]:
-    """Записи с датой: прошедшие (по возрастанию) и будущие (по возрастанию)."""
+    """Записи с датой: прошедшие и будущие, каждые по возрастанию времени."""
     dated = sorted(
         ((card.starts_at, card) for card in cards if card.starts_at is not None),
         key=itemgetter(0),
@@ -109,38 +131,37 @@ def _split_by_now(
     return past, future
 
 
-def _latest_past_first(found: Sequence[EventCard], turn: Turn) -> _Answer:
-    """«Когда была…»: последняя прошедшая; если прошедших нет — ближайшая будущая."""
-    past, future = _split_by_now(_first_group(found), turn.now)
+def _latest_past_first(found: _Found, turn: Turn) -> _Answer:
+    """«Когда была…»: последняя прошедшая; если прошедших нет — честно и ближайшая будущая."""
+    past, future = _split_by_now(found.contenders(), turn.now)
     if past:
         return _Answer(past[-1], phrases.search_latest_past(past[-1], turn.today))
     if future:
         return _Answer(future[0], phrases.search_no_past(future[0], turn.today))
-    return _Answer(found[0], phrases.search_undated(found[0]))
+    return _Answer(found.best, phrases.search_undated(found.best))
 
 
-def _nearest_future_first(found: Sequence[EventCard], turn: Turn) -> _Answer:
-    """«Когда будет…»: ближайшая будущая; если будущих нет — последняя прошедшая."""
-    past, future = _split_by_now(_first_group(found), turn.now)
+def _nearest_future_first(found: _Found, turn: Turn) -> _Answer:
+    """«Когда будет…»: ближайшая будущая; если будущих нет — честно и последняя прошедшая."""
+    past, future = _split_by_now(found.contenders(), turn.now)
     if future:
         return _Answer(future[0], phrases.search_nearest_future(future[0], turn.today))
     if past:
         return _Answer(past[-1], phrases.search_no_future(past[-1], turn.today))
-    return _Answer(found[0], phrases.search_undated(found[0]))
+    return _Answer(found.best, phrases.search_undated(found.best))
 
 
-def _best_match_first(found: Sequence[EventCard], turn: Turn) -> _Answer:
-    """«Найди…»: самая похожая запись и сколько всего нашлось."""
-    capped = len(found) >= SEARCH_LIMIT
-    return _Answer(found[0], phrases.search_found(len(found), found[0], turn.today, capped=capped))
+def _best_match_first(found: _Found, turn: Turn) -> _Answer:
+    """«Найди…»: самая подходящая запись и сколько всего нашлось."""
+    total = len(found.ranked)
+    text = phrases.search_found(total, found.best, turn.today, capped=total >= SEARCH_LIMIT)
+    return _Answer(found.best, text)
 
 
-_ANSWERS: Final[Mapping[TimeScope, Callable[[Sequence[EventCard], Turn], _Answer]]] = (
-    MappingProxyType(
-        {
-            TimeScope.PAST: _latest_past_first,
-            TimeScope.FUTURE: _nearest_future_first,
-            TimeScope.ANY: _best_match_first,
-        }
-    )
+_ANSWERS: Final[Mapping[TimeScope, Callable[[_Found, Turn], _Answer]]] = MappingProxyType(
+    {
+        TimeScope.PAST: _latest_past_first,
+        TimeScope.FUTURE: _nearest_future_first,
+        TimeScope.ANY: _best_match_first,
+    }
 )

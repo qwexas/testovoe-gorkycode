@@ -2,7 +2,8 @@
 
 from datetime import UTC, datetime
 
-from app.core.dialog.targets import TARGET_SCORE_MARGIN, _narrow
+from app.core.dialog.relevance import SCORE_MARGIN
+from app.core.dialog.targets import _narrow
 from app.core.enums import EventSource, EventStatus, EventType
 from app.core.events import EventCard, ScoredCard
 
@@ -30,7 +31,7 @@ CALL_AGAIN = card(3, "Позвонить Ивану")
 
 
 def test_candidates_far_behind_the_leader_are_dropped() -> None:
-    found = [ScoredCard(CALL, 0.80), ScoredCard(BUDGET, 0.80 - TARGET_SCORE_MARGIN - 0.01)]
+    found = [ScoredCard(CALL, 0.80), ScoredCard(BUDGET, 0.80 - SCORE_MARGIN - 0.01)]
 
     assert _narrow(found, focus=()) == [CALL]
 

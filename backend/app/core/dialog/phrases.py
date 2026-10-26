@@ -250,13 +250,28 @@ def week_text(week_of: date, today: date) -> str:
     return f"недели с {date_text(week_of, today)}"
 
 
-def _short_moment(card: EventCard, today: date) -> str:
-    """Время записи в сводке: « в 17:00» сегодня, « завтра, 27 октября, в 10:00» в другой день."""
+_SOON_DAYS = MappingProxyType({0: "сегодня", 1: "завтра"})
+ONE_DAY = timedelta(days=1)
+
+
+def _moment_in_period(card: EventCard, period: Period, today: date) -> str:
+    """Время записи в сводке за период: за один день — только « в 17:00», иначе и день."""
     if card.starts_at is None:
         return ""
-    if card.starts_at.date() == today:
+    if period.end - period.start <= ONE_DAY:
         return f" в {time_text(card.starts_at.time())}" if card.has_time else ""
-    return f" {when_text(card.starts_at, card.has_time, today)}"
+    return f" {_nearest_moment(card, today)}"
+
+
+def _nearest_moment(card: EventCard, today: date) -> str:
+    """Когда ближайшая запись сводки: «сегодня в 16:45», «завтра в 10:00», иначе полностью."""
+    starts_at = card.starts_at
+    if starts_at is None:
+        return ""
+    soon = _SOON_DAYS.get((starts_at.date() - today).days)
+    if soon is None:
+        return when_text(starts_at, card.has_time, today)
+    return f"{soon} в {time_text(starts_at.time())}" if card.has_time else soon
 
 
 # --- Создание и уточнения (Q30) ---------------------------------------------------------------
@@ -321,12 +336,12 @@ def list_summary(
     noun = noun_of(next(iter(types))) if len(types) == 1 else THING
     heading = f"{_capitalized(period.label)} у вас {count_phrase(len(events), noun)}"
     if len(events) == 1:
-        return f"{heading}: «{events[0].title}»{_short_moment(events[0], today)}."
+        return f"{heading}: «{events[0].title}»{_moment_in_period(events[0], period, today)}."
     sentences = [f"{heading}{_breakdown(events) if noun is THING else ''}."]
     nearest = _nearest_upcoming(events, now)
     if nearest is not None:
         lead = _capitalized(_NEAREST[noun.gender])
-        sentences.append(f"{lead} — «{nearest.title}»{_short_moment(nearest, today)}.")
+        sentences.append(f"{lead} — «{nearest.title}» {_nearest_moment(nearest, today)}.")
     sentences.extend(_done_note(events))
     return " ".join(sentences)
 
@@ -408,7 +423,9 @@ def search_undated(card: EventCard) -> str:
 
 
 def search_found(total: int, best: EventCard, today: date, *, capped: bool = False) -> str:
-    """«Нашёл 4 записи. Ближе всего — задача «…», 14 апреля 2024.».
+    """«Нашёл 4 записи. Больше всего подходит — задача «…», 14 апреля 2024.».
+
+    Не «ближе всего»: рядом с датой это читалось бы как «ближайшая по времени».
 
     `capped` — поиск упёрся в предел выдачи: точное число («Нашёл 50 записей») звучало бы
     как отчёт базы данных, поэтому говорим «много похожих».
@@ -417,8 +434,8 @@ def search_found(total: int, best: EventCard, today: date, *, capped: bool = Fal
     if total == 1:
         return f"Нашёл одну запись: {best_text}."
     if capped:
-        return f"Нашёл много похожих записей. Ближе всего — {best_text}."
-    return f"Нашёл {count_phrase(total, ENTRY)}. Ближе всего — {best_text}."
+        return f"Нашёл много похожих записей. Больше всего подходит — {best_text}."
+    return f"Нашёл {count_phrase(total, ENTRY)}. Больше всего подходит — {best_text}."
 
 
 # --- Изменение записей -------------------------------------------------------------------------
@@ -570,3 +587,12 @@ EXAMPLE_PHRASES = (
 _EXAMPLES = f"{EXAMPLE_PHRASES[0]}, {EXAMPLE_PHRASES[1]} или {EXAMPLE_PHRASES[2]}"
 SMALLTALK = f"Я Горький — веду ваши задачи, напоминания и встречи. Скажите, например: {_EXAMPLES}."
 NOT_UNDERSTOOD = f"Не понял, что сделать. Скажите, например: {_EXAMPLES}."
+OFF_TOPIC = (
+    "Это не по моей части: я веду задачи, напоминания и встречи. "
+    f"Скажите, например: {EXAMPLE_PHRASES[1]} или {EXAMPLE_PHRASES[0]}."
+)
+"""Реплика не про задачи и встречи («какая завтра погода?»), и ассистент ни о чём не спрашивал."""
+NOTHING_TO_DECLINE = "Хорошо, ничего не делаю."
+"""«Нет, не надо», когда ассистент ни о чём не спрашивал."""
+REPLY_NOT_UNDERSTOOD = "Не понял ответ."
+"""Начало повторного вопроса, если ответ на него не разобран."""

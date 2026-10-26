@@ -388,8 +388,8 @@ def _filter_conditions(criteria: EventFilter) -> list[ColumnElement[bool]]:
         conditions.append(EventRecord.starts_at >= criteria.period_start)
     if criteria.period_end is not None:
         conditions.append(EventRecord.starts_at < criteria.period_end)
-    if criteria.event_type is not None:
-        conditions.append(EventRecord.type == criteria.event_type)
+    if criteria.event_types is not None:
+        conditions.append(EventRecord.type.in_(criteria.event_types))
     if criteria.status is not None:
         conditions.append(EventRecord.status == criteria.status)
     return conditions
