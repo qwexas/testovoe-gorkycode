@@ -10,9 +10,9 @@
 Все даты и время — по Москве (`Europe/Moscow`), наивные `date`/`time` трактуются так же.
 """
 
+import datetime as dt
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
 from enum import StrEnum
 from typing import Protocol
 
@@ -69,11 +69,11 @@ class When:
     Пустые поля значат «не названо» — по ним бизнес-логика решает, нужно ли уточнение.
     """
 
-    date: date | None = None
+    date: dt.date | None = None
     """День. Для «до конца недели» — воскресенье этой недели (время 23:59 — в `time`)."""
-    time: time | None = None
+    time: dt.time | None = None
     """Время. `None` — время не названо («завтра», «в пятницу»)."""
-    week_of: date | None = None
+    week_of: dt.date | None = None
     """Понедельник недели, если известна только неделя («на следующей неделе»), а день — нет."""
 
     @property
@@ -86,8 +86,8 @@ class When:
 class Period:
     """Полуинтервал времени `[start, end)` для списков и фильтра поиска."""
 
-    start: datetime
-    end: datetime
+    start: dt.datetime
+    end: dt.datetime
     label: str
     """Как назвать период пользователю: «сегодня», «на завтра», «на этой неделе»."""
 
@@ -140,7 +140,7 @@ class ContextEvent:
     id: int
     type: EventType
     title: str
-    starts_at: datetime | None
+    starts_at: dt.datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,7 +156,7 @@ class DialogTurn:
 class DialogContext:
     """Всё, что парсеру нужно знать о диалоге, кроме самой реплики."""
 
-    now: datetime
+    now: dt.datetime
     """Текущий момент (Москва). Тесты и eval подставляют фиксированное значение."""
     pending: PendingExpectation | None = None
     """Ассистент задал вопрос и ждёт: времени, даты, выбора, подтверждения..."""
