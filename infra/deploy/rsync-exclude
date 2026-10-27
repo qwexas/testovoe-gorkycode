@@ -1,13 +1,14 @@
-.git/
+# Скрытые каталоги (.git, .venv, .next, кэши линтеров и т.п.) на сервер не нужны.
+.*/
 .env
 .env.*
 .DS_Store
+# Документация и служебные файлы из корня — тоже.
+/*.md
+/*.json
 models/
 node_modules/
-.next/
 out/
-.venv/
 __pycache__/
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
+# Подсказки для ИИ-ассистентов, которые генерирует next dev.
+AGENTS.md
