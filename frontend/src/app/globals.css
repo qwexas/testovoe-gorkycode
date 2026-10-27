@@ -2,7 +2,7 @@
 
 /*
  * Дизайн-токены «Горького», направление «Консоль» (решение Q8): тёмная тема — экран
- * терминала, светлая — распечатка на перфорированной бумаге с фиолетовыми полосами.
+ * терминала, светлая — распечатка на белой перфорированной бумаге.
  * Пары текст/фон проверены формулой WCAG: текст ≥ 4.5:1, границы полей и фокус ≥ 3:1
  * в обеих темах (docs/design/variants/README.md, раздел «Консоль»).
  *
@@ -17,7 +17,7 @@
   --bg: #f6f4fa;
   --surface: #f6f4fa;
   --surface-raised: #e6ddfb;
-  --band: #ede7fb;
+  --paper: #ffffff;
   --hole: #ddd5ec;
   --border: #b3a7d3;
   --border-strong: #7c7099;
@@ -52,7 +52,7 @@
   --bg: #0e0b16;
   --surface: #0e0b16;
   --surface-raised: #261d40;
-  --band: transparent;
+  --paper: transparent;
   --hole: transparent;
   --border: #3d3358;
   --border-strong: #7b6fa0;
@@ -89,7 +89,7 @@
     --bg: #0e0b16;
     --surface: #0e0b16;
     --surface-raised: #261d40;
-    --band: transparent;
+    --paper: transparent;
     --hole: transparent;
     --border: #3d3358;
     --border-strong: #7b6fa0;

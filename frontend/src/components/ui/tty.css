@@ -36,23 +36,23 @@
     white-space: nowrap;
   }
 
-  /* ── Лог сессии: в светлой теме — бумага с полосами и перфорацией ───────────── */
+  /* ── Лог сессии: в светлой теме — белая бумага с перфорацией по краям ───────── */
+  /* Сплошная заливка вместо чередующихся полос: строки лога разной высоты, и текст
+     съезжал с полос фиксированного шага. */
 
   .tty-paper {
+    background-color: var(--paper);
     background-image:
       radial-gradient(circle at 50% 12px, var(--hole) 0 4px, transparent 4.5px),
-      radial-gradient(circle at 50% 12px, var(--hole) 0 4px, transparent 4.5px),
-      repeating-linear-gradient(to bottom, var(--band) 0 48px, transparent 48px 96px);
+      radial-gradient(circle at 50% 12px, var(--hole) 0 4px, transparent 4.5px);
     background-size:
       20px 24px,
-      20px 24px,
-      100% 96px;
+      20px 24px;
     background-position:
       left 0 top 0,
-      right 0 top 0,
-      0 0;
-    background-repeat: repeat-y, repeat-y, repeat;
-    background-attachment: local, local, local;
+      right 0 top 0;
+    background-repeat: repeat-y, repeat-y;
+    background-attachment: local, local;
   }
 
   .tty-logText {
