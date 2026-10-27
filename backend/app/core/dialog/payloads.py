@@ -1,4 +1,4 @@
-"""Ответ ассистента в JSON формата контракта `AssistantReply` (`docs/api-contract.md`).
+"""Ответ ассистента в JSON формата контракта `AssistantReply`.
 
 Этот же JSON хранится в `chat_messages.reply`, поэтому история диалога отдаётся
 ровно в том виде, в каком ответ пришёл в `POST /api/chat`.

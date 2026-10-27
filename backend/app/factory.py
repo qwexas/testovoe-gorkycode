@@ -33,9 +33,7 @@ from app.storage.database import Database
 from app.voice.interfaces import AudioClip, SpeechToText, TextToSpeech
 
 API_TITLE = "Горький API"
-API_DESCRIPTION = (
-    "Голосовой ассистент задач и встреч. Человекочитаемый контракт — `docs/api-contract.md`."
-)
+API_DESCRIPTION = "Голосовой ассистент задач и встреч."
 
 logger = logging.getLogger(__name__)
 

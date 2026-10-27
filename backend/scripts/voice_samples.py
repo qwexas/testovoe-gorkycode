@@ -1,7 +1,7 @@
 """Образцы голосов Silero для выбора на слух (Q38): одна реплика ассистента каждым голосом.
 
 Запуск из каталога backend/ (веса Silero — в ./models/silero репозитория):
-    uv run python -m scripts.voice_samples                 # → docs/voice-samples/<голос>.ogg
+    uv run python -m scripts.voice_samples                 # → voice-samples/<голос>.ogg
     uv run python -m scripts.voice_samples --out /tmp/samples
 """
 
@@ -13,7 +13,7 @@ from app.voice.settings import SILERO_VOICES, TextToSpeechSettings
 from app.voice.silero import SileroTextToSpeech
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SAMPLES_DIR = REPO_ROOT / "docs" / "voice-samples"
+SAMPLES_DIR = REPO_ROOT / "voice-samples"
 SAMPLE_REPLY = (
     "Я Горький. Встреча «Встреча с командой» — завтра, 27 октября, в 15:00. Сегодня у вас 2 задачи."
 )

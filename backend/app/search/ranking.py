@@ -59,7 +59,7 @@ class RankingParams:
       Порог `threshold` сравнивается с оценкой без этого бонуса.
 
     Значения по умолчанию подобраны на `tests/fixtures/search_eval.json` для
-    `deepvk/USER-bge-m3` (см. `docs/search.md`); для другой модели их нужно подобрать заново.
+    `deepvk/USER-bge-m3`; для другой модели их нужно подобрать заново.
     `type_weight` — наименьший вес с лучшим результатом на запросах с типом из разбора
     (`eval_search --type-bonus --tune-type`).
     """

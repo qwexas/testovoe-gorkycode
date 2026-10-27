@@ -23,3 +23,6 @@ models/
 
 # системное
 .DS_Store
+
+# образцы голосов из scripts/voice_samples
+voice-samples/

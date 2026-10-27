@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.config import ENV_FILE
 
 DEFAULT_WHISPER_MODEL = "large-v3-turbo"
-"""Q20 и замер `docs/voice.md`: точнее medium и small; medium быстрее лишь на ~20 %."""
+"""По замеру точнее medium и small; medium быстрее лишь на ~20 %."""
 DEFAULT_BEAM_SIZE = 5
 """Луч 1 быстрее всего на ~0,1 с на фразу и на 1 п. п. менее точен."""
 DEFAULT_STT_CPU_THREADS = 8
