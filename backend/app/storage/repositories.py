@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import EventSource, EventStatus, EventType
-from app.core.queries import EventFilter, MeetingSlot
+from app.core.queries import EventFilter, MeetingSlot, SameMoment
 from app.core.schedule import DEFAULT_MEETING_DURATION
 from app.search.interfaces import SearchCandidate
 from app.storage.models import (
@@ -198,6 +198,25 @@ class EventRepository:
             for row in rows
         ]
 
+    async def list_at_moment(self, moment: SameMoment) -> list[EventRecord]:
+        """Открытые записи профиля типа `moment.event_type`, начинающиеся ровно в `starts_at`."""
+        starts_at = (
+            EventRecord.starts_at.is_(None)
+            if moment.starts_at is None
+            else EventRecord.starts_at == moment.starts_at
+        )
+        statement = (
+            select(EventRecord)
+            .where(
+                EventRecord.profile_id == moment.profile_id,
+                EventRecord.type == moment.event_type,
+                EventRecord.status == EventStatus.OPEN,
+                starts_at,
+            )
+            .order_by(EventRecord.id)
+        )
+        return list(await self._session.scalars(statement))
+
     async def find_overlapping_meetings(self, slot: MeetingSlot) -> list[EventRecord]:
         """Открытые встречи профиля, пересекающиеся со `slot`, по времени начала.
 
@@ -258,6 +277,7 @@ class DialogStateRepository:
         values = {
             "pending": state.pending,
             "last_event_ids": state.last_event_ids,
+            "focus_peers": state.focus_peers,
             "recent": state.recent,
         }
         statement = upsert(DialogStateRecord).values(profile_id=state.profile_id, **values)

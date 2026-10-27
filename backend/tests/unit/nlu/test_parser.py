@@ -395,6 +395,93 @@ async def test_new_title_is_not_description_of_renamed_record() -> None:
     assert intent.title == "Созвон с партнёрами"
 
 
+async def test_put_meeting_parsed_as_reschedule_becomes_create() -> None:
+    """«Поставь встречу с Иваном на следующей неделе» при существующей встрече с Иваном."""
+    intent = await parse(
+        {
+            "action": "reschedule",
+            "event_type": "meeting",
+            "query": "встреча с Иваном",
+            "date": "next_week",
+        },
+        text="Поставь встречу с Иваном на следующей неделе",
+        context=DialogContext(now=NOW, focus=(MEETING_WITH_IVAN,)),
+    )
+
+    assert intent == Intent(
+        action=Action.CREATE,
+        text="Поставь встречу с Иваном на следующей неделе",
+        event_type=EventType.MEETING,
+        title="Встреча с Иваном",
+        when=When(week_of=dt.date(2026, 11, 2)),
+    )
+
+
+async def test_move_meeting_to_next_week_stays_reschedule() -> None:
+    intent = await parse(
+        {"action": "reschedule", "query": "встреча с Иваном", "date": "next_week"},
+        text="Перенеси встречу с Иваном на следующую неделю",
+    )
+
+    assert intent.action is Action.RESCHEDULE
+    assert intent.target == TargetRef(last=False, query="встреча с Иваном")
+    assert intent.when == When(week_of=dt.date(2026, 11, 2))
+
+
+@pytest.mark.parametrize("title", ["Встреча", "встреча", "Новая встреча"])
+async def test_bare_type_title_is_not_a_title(title: str) -> None:
+    intent = await parse(
+        {
+            "action": "create",
+            "event_type": "meeting",
+            "title": title,
+            "date": "tomorrow",
+            "time": "12:00",
+        },
+        text="поставь встречу на завтра в 12",
+    )
+
+    assert intent.title is None
+    assert intent.event_type is EventType.MEETING
+    assert intent.when == When(date=TOMORROW, time=dt.time(12, 0))
+
+
+async def test_call_title_is_kept() -> None:
+    intent = await parse({"action": "create", "event_type": "meeting", "title": "Созвон"})
+
+    assert intent.title == "Созвон"
+
+
+async def test_list_tomorrow_evening_is_evening_only() -> None:
+    intent = await parse(
+        {"action": "list", "date": "tomorrow", "day_part": "evening"},
+        text="Что у меня завтра вечером?",
+    )
+
+    assert intent.period == Period(
+        start=dt.datetime(2026, 10, 28, 18, 0, tzinfo=MOSCOW),
+        end=dt.datetime(2026, 10, 29, 0, 0, tzinfo=MOSCOW),
+        label="завтра вечером",
+    )
+
+
+async def test_day_part_written_into_time_field_is_day_part() -> None:
+    """«В пятницу утром»: модель пишет `"time": "morning"` вместо `day_part`."""
+    intent = await parse({"action": "list", "date": "fri", "time": "morning"})
+
+    assert intent.period == Period(
+        start=dt.datetime(2026, 10, 30, 6, 0, tzinfo=MOSCOW),
+        end=dt.datetime(2026, 10, 30, 12, 0, tzinfo=MOSCOW),
+        label="в пятницу, 30 октября, утром",
+    )
+
+
+async def test_russian_day_part_in_time_field_gives_q31_time() -> None:
+    intent = await parse({"action": "create", "title": "Выпить витамины", "time": "утром"})
+
+    assert intent.when == When(time=dt.time(9, 0))
+
+
 async def test_answer_with_time_only() -> None:
     intent = await parse({"action": "answer", "time": "3:00"})
 

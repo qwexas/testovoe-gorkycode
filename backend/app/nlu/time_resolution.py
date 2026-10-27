@@ -12,7 +12,9 @@
   через неделю (см. `upcoming_weekday`); в списке и при поиске записи — сегодня
   (`nearest_weekday`); «в следующую пятницу» — пятница следующей недели;
 - «до конца недели» — воскресенье 23:59; «на следующей неделе» — только неделя (`week_of`);
-- периоды списков — полуинтервалы `[начало, конец)`: день, неделя пн-вс, выходные, месяц.
+- периоды списков — полуинтервалы `[начало, конец)`: день, неделя пн-вс, выходные, месяц;
+  часть суток сужает день: утро 06-12, день 12-18, вечер 18-24, ночь 00-06
+  (`narrow_to_day_part`).
 """
 
 import datetime as dt
@@ -84,6 +86,37 @@ DAY_LABELS: dict[DateKind, str] = {
     DateKind.AFTER_TOMORROW: "на послезавтра",
     DateKind.YESTERDAY: "вчера",
 }
+DAY_PART_HOURS: dict[DayPart, tuple[int, int]] = {
+    DayPart.MORNING: (6, 12),
+    DayPart.DAY: (12, 18),
+    DayPart.EVENING: (18, 24),
+    DayPart.NIGHT: (0, 6),
+}
+"""Часы части суток в списке: `[начало, конец)`.
+
+Границы по обычному словоупотреблению: утро до полудня, «днём» — с 12 до 18, «вечером» —
+с 18 до полуночи, «ночью» — до 6 утра. Время по умолчанию из Q31 (утром 09:00, днём 13:00,
+вечером 19:00) лежит внутри своей части, а «в 3» и «в 7» без уточнения (15:00, 19:00) — в
+«дне» и «вечере», как и задумано в Q31.
+"""
+DAY_PART_ADVERBS: dict[DayPart, str] = {
+    DayPart.MORNING: "утром",
+    DayPart.DAY: "днём",
+    DayPart.EVENING: "вечером",
+    DayPart.NIGHT: "ночью",
+}
+DAY_WORDS: dict[int, str] = {0: "сегодня", 1: "завтра", 2: "послезавтра", -1: "вчера"}
+"""Сдвиг от сегодняшнего дня → слово для подписи «завтра вечером»."""
+WEEKDAYS_WITH_PREPOSITION = (
+    "в понедельник",
+    "во вторник",
+    "в среду",
+    "в четверг",
+    "в пятницу",
+    "в субботу",
+    "в воскресенье",
+)
+
 RANGE_LABELS: dict[DateKind, str] = {
     DateKind.THIS_WEEK: "на этой неделе",
     DateKind.NEXT_WEEK: "на следующей неделе",
@@ -323,6 +356,32 @@ def resolve_period(
         end=_midnight(day + dt.timedelta(days=1)),
         label=DAY_LABELS.get(kind) or day_label(day),
     )
+
+
+def narrow_to_day_part(period: Period, day_part: DayPart, now: dt.datetime) -> Period:
+    """Часть суток внутри одного дня: «завтра вечером» — завтра с 18:00 до полуночи.
+
+    Период длиннее дня («на этой неделе вечером») и период без части суток не меняются.
+    """
+    hours = DAY_PART_HOURS.get(day_part)
+    if hours is None or period.end - period.start != dt.timedelta(days=1):
+        return period
+    first_hour, last_hour = hours
+    day = period.start.date()
+    return Period(
+        start=period.start + dt.timedelta(hours=first_hour),
+        end=period.start + dt.timedelta(hours=last_hour),
+        label=f"{_day_words(day, in_moscow(now).date())} {DAY_PART_ADVERBS[day_part]}",
+    )
+
+
+def _day_words(day: dt.date, today: dt.date) -> str:
+    """«завтра» или «в пятницу, 30 октября,» — для подписи с частью суток."""
+    word = DAY_WORDS.get((day - today).days)
+    if word is not None:
+        return word
+    weekday = WEEKDAYS_WITH_PREPOSITION[day.weekday()]
+    return f"{weekday}, {day.day} {MONTHS_GENITIVE[day.month - 1]},"
 
 
 def day_label(day: dt.date) -> str:

@@ -28,6 +28,18 @@ class EventFilter:
 
 
 @dataclass(frozen=True, slots=True)
+class SameMoment:
+    """Открытые записи профиля этого типа ровно на `starts_at` (`None` — задачи без срока).
+
+    По ним создание проверяет дубли: то же название, тот же тип и то же время.
+    """
+
+    profile_id: UUID
+    event_type: EventType
+    starts_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
 class MeetingSlot:
     """Время встречи `[starts_at, ends_at)`, с которым не должны пересекаться другие встречи.
 

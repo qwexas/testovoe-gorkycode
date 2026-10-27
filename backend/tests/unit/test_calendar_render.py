@@ -134,6 +134,28 @@ class TestDateOnlyTask:
         assert event["DTSTART"].params["VALUE"] == "DATE"
         assert alarm_trigger(event) == timedelta(hours=9)
 
+    def test_deadline_at_2359_is_all_day_like_date_only(self) -> None:
+        """«Купить билеты до конца недели» — срок вс 23:59: не событие через полночь."""
+        task = card(5, EventType.TASK, datetime(2026, 10, 30, 23, 59, tzinfo=MOSCOW))
+
+        event = only_event(parse(task))
+
+        assert (event.decoded("DTSTART"), event.decoded("DTEND")) == (
+            FRIDAY,
+            FRIDAY + timedelta(days=1),
+        )
+        assert event["DTSTART"].params["VALUE"] == "DATE"
+        assert alarm_trigger(event) == timedelta(hours=9)
+        assert event["TRANSP"] == "TRANSPARENT"
+
+    def test_reminder_at_2359_stays_a_moment(self) -> None:
+        reminder = card(6, EventType.REMINDER, datetime(2026, 10, 30, 23, 59, tzinfo=MOSCOW))
+
+        event = only_event(parse(reminder))
+
+        assert event.decoded("DTSTART") == datetime(2026, 10, 30, 23, 59, tzinfo=MOSCOW)
+        assert alarm_trigger(event) == timedelta(0)
+
 
 class TestStamps:
     def test_service_stamps_are_utc(self) -> None:

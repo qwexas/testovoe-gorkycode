@@ -68,6 +68,8 @@ _LATEST = MappingProxyType({Gender.FEMININE: "последняя", Gender.NEUTER
 _WAS = MappingProxyType({Gender.FEMININE: "была", Gender.NEUTER: "было"})
 _WHICH = MappingProxyType({Gender.FEMININE: "какую", Gender.NEUTER: "какое"})
 _DONE = MappingProxyType({Gender.FEMININE: "сделанной", Gender.NEUTER: "сделанным"})
+_SUCH = MappingProxyType({Gender.FEMININE: "такая", Gender.NEUTER: "такое"})
+_ONE_MORE = MappingProxyType({Gender.FEMININE: "ещё одну", Gender.NEUTER: "ещё одно"})
 
 EN_DASH = "\u2013"
 """Короткое тире в диапазоне времени встречи: «15:00» + тире + «16:00»."""
@@ -312,6 +314,16 @@ ADD_ANYWAY = "Всё равно добавить?"
 MOVE_ANYWAY = "Всё равно перенести?"
 
 
+def duplicate_question(existing: EventCard, today: date) -> str:
+    """«Такое напоминание уже есть: «Позвонить Ивану» — завтра в 10:00. Добавить ещё одно?»."""
+    noun = noun_of(existing.type)
+    moment = _nearest_moment(existing, today) or "без срока"
+    return (
+        f"{_capitalized(_SUCH[noun.gender])} {noun.nominative} уже есть: «{existing.title}» — "
+        f"{moment}. Добавить {_ONE_MORE[noun.gender]}?"
+    )
+
+
 def conflict_question(conflicts: Sequence[EventCard], question: str) -> str:
     """«В это время уже стоит «Планёрка» (15:00-16:00). Всё равно добавить?», тире — `EN_DASH`."""
     meetings = [f"«{card.title}» ({_time_range(card, EN_DASH)})" for card in conflicts]
@@ -330,11 +342,11 @@ def list_summary(
     """Сводка за период: «Сегодня у вас 3 дела: 2 встречи и задача. Ближайшее — «…» в 17:00.»."""
     if not events:
         missing = noun_of(asked_type).genitive_plural if asked_type else "ничего"
-        return f"{_empty_period(period.label)} {missing} нет."
+        return f"{_closed(_empty_period(period.label))} {missing} нет."
     today = now.date()
     types = {card.type for card in events}
     noun = noun_of(next(iter(types))) if len(types) == 1 else THING
-    heading = f"{_capitalized(period.label)} у вас {count_phrase(len(events), noun)}"
+    heading = f"{_closed(_capitalized(period.label))} у вас {count_phrase(len(events), noun)}"
     if len(events) == 1:
         return f"{heading}: «{events[0].title}»{_moment_in_period(events[0], period, today)}."
     sentences = [f"{heading}{_breakdown(events) if noun is THING else ''}."]
@@ -346,9 +358,20 @@ def list_summary(
     return " ".join(sentences)
 
 
+def _closed(lead: str) -> str:
+    """Период с уточнением через запятую закрывается запятой: «На пятницу, 30 октября, у вас…»."""
+    return f"{lead}," if "," in lead else lead
+
+
+_DAY_PARTS = frozenset({"утром", "днём", "днем", "вечером", "ночью"})
+"""Подпись с частью суток уже обстоятельство времени: «Завтра вечером ничего нет», без «На»."""
+
+
 def _empty_period(label: str) -> str:
-    first_word = label.split(" ", 1)[0].lower()
-    return _capitalized(label) if first_word in _PREPOSITIONS else f"На {label}"
+    words = label.lower().replace(",", " ").split()
+    if (words and words[0] in _PREPOSITIONS) or (words and words[-1] in _DAY_PARTS):
+        return _capitalized(label)
+    return f"На {label}"
 
 
 def _breakdown(events: Sequence[EventCard]) -> str:

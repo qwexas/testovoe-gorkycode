@@ -14,6 +14,8 @@ from app.core.errors import EventValidationError
 PROFILE_TIMEZONE = "Europe/Moscow"
 MOSCOW = ZoneInfo(PROFILE_TIMEZONE)
 DEFAULT_MEETING_DURATION = timedelta(minutes=60)
+DEADLINE_TIME = time(23, 59)
+"""Срок задачи «до конца дня / недели» и «на следующей неделе» — 23:59 (Q31)."""
 
 TYPES_WITH_REQUIRED_TIME = {
     EventType.MEETING: "У встречи должны быть дата и время.",

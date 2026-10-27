@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.enums import EventStatus, EventType
+from app.nlu.command_words import creation_over_change, is_generic_title
 from app.nlu.expressions import TimeExpression
 from app.nlu.grounding import (
     names_event_type,
@@ -20,7 +21,7 @@ from app.nlu.grounding import (
 )
 from app.nlu.interfaces import Action, DialogContext, Intent, TargetRef, TimeScope, When
 from app.nlu.schema import EventTypeName, Extraction, StatusName
-from app.nlu.time_resolution import resolve_period, resolve_when
+from app.nlu.time_resolution import narrow_to_day_part, resolve_period, resolve_when
 from app.nlu.time_scope import search_time_scope
 
 TRIMMED_PUNCTUATION = " \t\n.,!?;:«»\"'"
@@ -45,27 +46,39 @@ class _Utterance:
 
 
 def build_intent(extraction: Extraction, text: str, context: DialogContext) -> Intent:
-    """`Intent` по ответу модели; даты считаются от `context.now` (Москва)."""
+    """`Intent` по ответу модели; даты считаются от `context.now` (Москва).
+
+    «Поставь встречу…», разобранное моделью как перенос, становится созданием
+    (`creation_over_change`).
+    """
+    extraction = creation_over_change(extraction, text)
     fields_for = _FIELDS_BY_ACTION.get(extraction.action, _no_fields)
     utterance = _Utterance(extraction, text, context)
     return Intent(action=extraction.action, text=text, **fields_for(utterance))
 
 
 def _create_fields(utterance: _Utterance) -> IntentFields:
+    """Название-заглушка («Встреча» из «поставь встречу на завтра») — не названо."""
     extraction = utterance.extraction
+    title = _title(extraction.title)
     return {
         "event_type": _event_type(extraction),
-        "title": _title(extraction.title),
+        "title": None if title is None or is_generic_title(title) else title,
         "when": _new_when(utterance),
         "duration_minutes": _positive(extraction.duration_minutes),
     }
 
 
 def _list_fields(utterance: _Utterance) -> IntentFields:
+    """Часть суток сужает день: «что у меня завтра вечером» — завтра с 18:00 до полуночи."""
     extraction = utterance.extraction
+    now = utterance.context.now
+    period = resolve_period(extraction.date_expression, now)
     return {
         "event_type": _event_type(extraction),
-        "period": resolve_period(extraction.date_expression, utterance.context.now),
+        "period": None
+        if period is None
+        else narrow_to_day_part(period, extraction.time_expression.day_part, now),
         "status": STATUSES.get(extraction.status),
     }
 

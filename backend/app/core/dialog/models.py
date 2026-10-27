@@ -67,11 +67,19 @@ class Outcome:
     """Итог обработки реплики: ответ, следующий отложенный шаг и записи для фокуса.
 
     `focus` — записи, которые становятся первыми в фокусе диалога (созданная, найденная…).
+    `peer_focus` — это равноправные записи ответа-списка (список за период, найденные,
+    варианты выбора): «её» после такого ответа неоднозначно и переспрашивается.
     """
 
     reply: Reply
     pending: PendingStep | None = None
     focus: tuple[int, ...] = ()
+    peer_focus: bool = False
+
+    @property
+    def focus_peers(self) -> int:
+        """Сколько первых записей `focus` равноправны: все из ответа-списка, иначе первая."""
+        return len(self.focus) if self.peer_focus else min(len(self.focus), 1)
 
     @classmethod
     def say(cls, text: str) -> Self:
@@ -97,6 +105,8 @@ class Turn:
     pending: PendingStep | None = None
     focus: Sequence[EventCard] = field(default_factory=tuple)
     """Записи в фокусе, последняя упомянутая — первой."""
+    peers: Sequence[EventCard] = field(default_factory=tuple)
+    """Записи последнего ответа-списка, если их больше одной: для «её» нужно переспросить."""
 
     @property
     def today(self) -> date:

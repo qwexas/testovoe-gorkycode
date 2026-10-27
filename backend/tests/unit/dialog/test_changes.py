@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.enums import EventStatus, EventType, PendingExpectation, ReplyKind
-from app.nlu.interfaces import Action, Intent, TargetRef, When
+from app.nlu.interfaces import Action, Intent, TargetRef, TimeScope, When
 from tests.unit.dialog.support import (
     FRIDAY,
     NEXT_MONDAY,
@@ -460,3 +460,92 @@ class TestRenameCompleteDelete:
         reply = await dialog.say(change(Action.DELETE, "Удали билеты", target=about("билеты")))
 
         assert reply.text.startswith("Не нашёл ничего похожего")
+
+
+class TestPronounAfterList:
+    """«Что у меня сегодня?» (несколько записей) → «Отметь её» — какую? Переспросить."""
+
+    @pytest.fixture
+    async def two_reminders(self, dialog: DialogHarness) -> list[int]:
+        later = await dialog.add_event(EventType.REMINDER, "Полить цветы", at(TODAY, 19))
+        earlier = await dialog.add_event(EventType.REMINDER, "Позвонить маме", at(TODAY, 16, 45))
+        await dialog.say(listing("Что у меня сегодня?"))
+        return [earlier.id, later.id]
+
+    async def test_it_after_list_of_two_asks_which(
+        self, dialog: DialogHarness, two_reminders: list[int]
+    ) -> None:
+        reply = await dialog.say(change(Action.COMPLETE, "Отметь её выполненной", target=it()))
+
+        assert reply.kind is ReplyKind.CHOICE
+        assert reply.text == "Какое напоминание отметить сделанным?"
+        assert [card.id for card in reply.choices] == two_reminders
+        statuses = [dialog.event(event_id) for event_id in two_reminders]
+        assert all(record is not None and record.status is EventStatus.OPEN for record in statuses)
+
+    async def test_choice_then_completes_chosen(
+        self, dialog: DialogHarness, two_reminders: list[int]
+    ) -> None:
+        await dialog.say(change(Action.COMPLETE, "Отметь её выполненной", target=it()))
+
+        reply = await dialog.say(choose("вторую", index=2))
+
+        assert reply.text == "Отметил как сделанное: «Полить цветы»."
+        assert dialog.state is not None and dialog.state.focus_peers == 1
+
+    async def test_list_of_one_acts_at_once(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.REMINDER, "Позвонить маме", at(TODAY, 16, 45))
+        await dialog.say(listing("Что у меня сегодня?"))
+
+        reply = await dialog.say(change(Action.COMPLETE, "Отметь её", target=it()))
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+
+    async def test_named_type_narrows_to_single(self, dialog: DialogHarness) -> None:
+        meeting = await dialog.add_event(EventType.MEETING, "Демо", at(TODAY, 15))
+        await dialog.add_event(EventType.REMINDER, "Позвонить маме", at(TODAY, 16, 45))
+        await dialog.say(listing("Что у меня сегодня?"))
+
+        reply = await dialog.say(
+            change(
+                Action.COMPLETE,
+                "Отметь эту встречу",
+                target=TargetRef(last=True, event_type=EventType.MEETING),
+            )
+        )
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+        assert reply.events[0].id == meeting.id
+
+    async def test_created_record_after_list_is_it(
+        self, dialog: DialogHarness, two_reminders: list[int]
+    ) -> None:
+        created = await dialog.say(create("Купить хлеб", EventType.TASK, "Купить хлеб"))
+
+        reply = await dialog.say(change(Action.DELETE, "Удали её", target=it()))
+
+        assert reply.kind is ReplyKind.CONFIRM_REQUEST
+        assert reply.events[0].id == created.events[0].id
+
+    async def test_search_list_asks_but_when_answer_names_one(self, dialog: DialogHarness) -> None:
+        older = await dialog.add_event(EventType.MEETING, "Демо", at(date(2026, 9, 1), 10))
+        await dialog.add_event(EventType.MEETING, "Демо", at(date(2026, 11, 5), 10))
+
+        await dialog.say(search_for("Найди демо", TimeScope.ANY))
+        found_list = await dialog.say(change(Action.DELETE, "Удали её", target=it()))
+        await dialog.say(search_for("Когда было демо?", TimeScope.PAST))
+        named = await dialog.say(change(Action.DELETE, "Удали её", target=it()))
+
+        assert found_list.kind is ReplyKind.CHOICE
+        assert named.kind is ReplyKind.CONFIRM_REQUEST
+        assert named.events[0].id == older.id
+
+    async def test_peers_are_saved_in_state(
+        self, dialog: DialogHarness, two_reminders: list[int]
+    ) -> None:
+        assert dialog.state is not None
+        assert (dialog.state.last_event_ids[:2], dialog.state.focus_peers) == (two_reminders, 2)
+
+
+def search_for(text: str, scope: TimeScope) -> Intent:
+    return Intent(Action.SEARCH, text, query="демо", time_scope=scope)

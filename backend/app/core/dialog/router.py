@@ -4,7 +4,7 @@
 другая команда отложенный шаг сбрасывает и выполняется как новая.
 """
 
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import replace
 from datetime import datetime
 from types import MappingProxyType
@@ -17,7 +17,7 @@ from app.core.dialog.lookup import ListingFlow, SearchFlow
 from app.core.dialog.models import Outcome, PendingQuestion, PendingStep, Reply, Turn
 from app.core.dialog.relevance import by_date, timeliness
 from app.core.dialog.rules import merge_answer
-from app.core.dialog.targets import TargetFinder
+from app.core.dialog.targets import TargetFinder, TargetLookup
 from app.core.dialog.undo import UndoLog
 from app.core.enums import PendingExpectation, ReplyKind
 from app.core.errors import EventNotFoundError
@@ -98,7 +98,7 @@ class DialogRouter:
             return Outcome.say(_nothing_to_change(lookup.query))
         if len(candidates) == 1:
             return await self._changes.apply(turn, intent, candidates[0])
-        return _offer_choice(intent, candidates, turn.now)
+        return _offer_choice(intent, lookup, turn.now)
 
     async def _unknown(self, turn: Turn, intent: Intent) -> Outcome:
         """Не про задачи и встречи: без вопроса — подсказка, при вопросе — повторить его."""
@@ -202,12 +202,14 @@ def _nothing_to_change(query: str | None) -> str:
     return phrases.TARGET_UNCLEAR if query is None else phrases.target_not_found(query)
 
 
-def _offer_choice(intent: Intent, candidates: Sequence[EventCard], now: datetime) -> Outcome:
+def _offer_choice(intent: Intent, lookup: TargetLookup, now: datetime) -> Outcome:
     """Несколько подходящих записей — пронумерованный список (Q33).
 
     Если подходящих больше `CHOICE_LIMIT`, показываются самые актуальные: ближайшие будущие,
     затем самые свежие прошедшие. Варианты нумеруются по дате, записи без даты — в конце.
+    На «её» после ответа-списка ассистент ничего не искал — звучит только вопрос «Какое…?».
     """
+    candidates = lookup.candidates
     most_timely = sorted(candidates, key=lambda card: timeliness(card, now))[:CHOICE_LIMIT]
     options = tuple(by_date(most_timely))
     noun = phrases.ENTRY
@@ -217,10 +219,15 @@ def _offer_choice(intent: Intent, candidates: Sequence[EventCard], now: datetime
     question = PendingQuestion(
         PendingExpectation.CHOICE, phrases.choice_question(intent.action, noun)
     )
-    text = phrases.choice_text(intent.action, noun, shown=len(options), total=len(candidates))
+    text = (
+        question.question
+        if lookup.query is None
+        else phrases.choice_text(intent.action, noun, shown=len(options), total=len(candidates))
+    )
     ids = tuple(card.id for card in options)
     reply = Reply(ReplyKind.CHOICE, text, choices=options, pending=question)
-    return Outcome(reply, pending=PendingStep(question, intent, option_ids=ids), focus=ids)
+    step = PendingStep(question, intent, option_ids=ids)
+    return Outcome(reply, pending=step, focus=ids, peer_focus=True)
 
 
 def _match_by_title(options: list[EventCard], choice: Intent) -> EventCard | None:

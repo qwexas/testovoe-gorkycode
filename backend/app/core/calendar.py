@@ -8,7 +8,10 @@
 |---|---|---|
 | встреча | от начала до конца | за 15 минут |
 | напоминание, задача со временем | 15 минут с момента | в момент начала |
-| задача только с датой | на весь день | в 09:00 этого дня («утром», Q31) |
+| задача только с датой или со сроком 23:59 | на весь день | в 09:00 этого дня («утром», Q31) |
+
+Срок 23:59 («до конца недели», «на следующей неделе») — это «к этому дню», а не момент:
+событием с 23:59 до 00:14 через полночь с сигналом ночью он был бы бесполезен.
 
 Время событий — с `TZID=Europe/Moscow` и описанием пояса `VTIMEZONE`: запись стоит
 в московском времени (Q9) в любом клиенте, а Google, Apple и Яндекс узнают пояс по
@@ -29,6 +32,7 @@ from app.core.events import EventCard
 from app.core.queries import EventFilter
 from app.core.rate_limit import Throttle
 from app.core.schedule import (
+    DEADLINE_TIME,
     DEFAULT_MEETING_DURATION,
     MOSCOW,
     PROFILE_TIMEZONE,
@@ -164,13 +168,18 @@ def _event(card: EventCard, starts_at: datetime, stamp: datetime) -> Event:
 
 
 def _slot(card: EventCard, starts_at: datetime) -> _Slot:
-    if not card.has_time:
+    if not card.has_time or _is_deadline(card, starts_at):
         day = starts_at.date()
         return _Slot(day, day + ONE_DAY, ALL_DAY_ALERT_OFFSET, busy=False)
     if card.type is EventType.MEETING:
         ends_at = starts_at + DEFAULT_MEETING_DURATION if card.ends_at is None else card.ends_at
         return _Slot(starts_at, ends_at.astimezone(MOSCOW), -MEETING_ALERT_LEAD, busy=True)
     return _Slot(starts_at, starts_at + MOMENT_DURATION, AT_START, busy=False)
+
+
+def _is_deadline(card: EventCard, starts_at: datetime) -> bool:
+    """Задача со сроком «до конца дня»: время 23:59 — граница дня, а не момент."""
+    return card.type is EventType.TASK and starts_at.time() == DEADLINE_TIME
 
 
 def _alarm(title: str, offset: timedelta) -> Alarm:

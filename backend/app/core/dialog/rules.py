@@ -20,13 +20,11 @@ from app.core.dialog import phrases
 from app.core.dialog.models import PendingQuestion
 from app.core.enums import EventType, PendingExpectation
 from app.core.events import EventCard, EventDraft
-from app.core.schedule import DEFAULT_MEETING_DURATION, MOSCOW, Schedule
+from app.core.schedule import DEADLINE_TIME, DEFAULT_MEETING_DURATION, MOSCOW, Schedule
 from app.nlu.interfaces import Intent, When
 
 DEFAULT_CREATED_TYPE = EventType.TASK
 """Тип записи, если разбор его не назвал: «Поставь на завтра купить молоко» — задача."""
-DEADLINE_TIME = time(23, 59)
-"""Срок задачи «до конца недели» / «на следующей неделе» — воскресенье, 23:59 (Q31)."""
 SUNDAY_OFFSET = timedelta(days=6)
 ONE_DAY = timedelta(days=1)
 TITLE_TRAILING = " .!?,;:«»\"'"

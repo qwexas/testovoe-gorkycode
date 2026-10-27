@@ -13,6 +13,7 @@ from app.nlu.time_resolution import (
     clock_time,
     in_moscow,
     moment_after,
+    narrow_to_day_part,
     resolve_day,
     resolve_period,
     resolve_when,
@@ -437,3 +438,79 @@ def test_now_in_other_zone_is_converted_to_moscow() -> None:
     expression = DateExpression(DateKind.TODAY)
 
     assert resolve_when(expression, TimeExpression(), late_utc) == When(date=day(10, 28))
+
+
+# --- Часть суток в списке: «что у меня завтра вечером» ---------------------------------
+
+
+def period_of(kind: DateKind) -> Period:
+    found = period(kind)
+    assert found is not None
+    return found
+
+
+@pytest.mark.parametrize(
+    ("day_part", "first_hour", "last_hour", "label"),
+    [
+        (DayPart.MORNING, 6, 12, "завтра утром"),
+        (DayPart.DAY, 12, 18, "завтра днём"),
+        (DayPart.EVENING, 18, 24, "завтра вечером"),
+        (DayPart.NIGHT, 0, 6, "завтра ночью"),
+    ],
+)
+def test_day_part_narrows_one_day(
+    day_part: DayPart, first_hour: int, last_hour: int, label: str
+) -> None:
+    start = midnight(10, 28)
+
+    narrowed = narrow_to_day_part(period_of(DateKind.TOMORROW), day_part, TUESDAY_NOON)
+
+    assert narrowed == Period(
+        start + dt.timedelta(hours=first_hour), start + dt.timedelta(hours=last_hour), label
+    )
+
+
+@pytest.mark.parametrize(
+    ("day_part", "default_time"),
+    [(DayPart.MORNING, at(9)), (DayPart.DAY, at(13)), (DayPart.EVENING, at(19))],
+)
+def test_q31_default_time_lies_inside_its_day_part(
+    day_part: DayPart, default_time: dt.time
+) -> None:
+    narrowed = narrow_to_day_part(period_of(DateKind.TODAY), day_part, TUESDAY_NOON)
+    moment = dt.datetime.combine(day(10, 27), default_time, tzinfo=MOSCOW)
+
+    assert narrowed.start <= moment < narrowed.end
+
+
+def test_day_part_label_today() -> None:
+    narrowed = narrow_to_day_part(period_of(DateKind.TODAY), DayPart.EVENING, TUESDAY_NOON)
+
+    assert narrowed.label == "сегодня вечером"
+
+
+def test_day_part_label_for_named_weekday() -> None:
+    narrowed = narrow_to_day_part(period_of(DateKind.FRIDAY), DayPart.MORNING, TUESDAY_NOON)
+
+    assert narrowed.label == "в пятницу, 30 октября, утром"
+
+
+def test_day_part_label_uses_vo_before_tuesday() -> None:
+    next_tuesday = period(DateKind.NEXT_TUESDAY)
+    assert next_tuesday is not None
+
+    narrowed = narrow_to_day_part(next_tuesday, DayPart.DAY, TUESDAY_NOON)
+
+    assert narrowed.label == "во вторник, 3 ноября, днём"
+
+
+def test_without_day_part_period_is_unchanged() -> None:
+    tomorrow = period_of(DateKind.TOMORROW)
+
+    assert narrow_to_day_part(tomorrow, DayPart.NONE, TUESDAY_NOON) == tomorrow
+
+
+def test_day_part_does_not_narrow_a_week() -> None:
+    week = period_of(DateKind.THIS_WEEK)
+
+    assert narrow_to_day_part(week, DayPart.EVENING, TUESDAY_NOON) == week

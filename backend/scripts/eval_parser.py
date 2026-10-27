@@ -302,6 +302,8 @@ def compare(
                 checks["period"] = _same_period(intent.period, value)
             case "target":
                 checks["target"] = _same_target(intent, value, lemmatizer)
+            case "title" | "query" if value is None:
+                checks[key] = getattr(intent, key) is None
             case "title" | "query":
                 checks[key] = _same_text(getattr(intent, key), value, lemmatizer)
             case _:

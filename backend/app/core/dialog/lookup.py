@@ -60,7 +60,7 @@ class ListingFlow:
         events = await self._reader.list_events(criteria, LIST_LIMIT)
         text = phrases.list_summary(events, period, turn.now, intent.event_type)
         reply = Reply(ReplyKind.LIST, text, events=events, period=period)
-        return Outcome(reply, focus=tuple(card.id for card in events))
+        return Outcome(reply, focus=tuple(card.id for card in events), peer_focus=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,7 +115,9 @@ class SearchFlow:
         others = (item.card for item in found.ranked if item.card.id != answer.chosen.id)
         events = [answer.chosen, *others][:REPLY_EVENTS_LIMIT]
         reply = Reply(ReplyKind.SEARCH_RESULTS, answer.text, events=events)
-        return Outcome(reply, focus=tuple(card.id for card in events))
+        # «Когда была / будет…» называет одну запись — «её» после такого ответа однозначно.
+        names_one = intent.time_scope is not TimeScope.ANY
+        return Outcome(reply, focus=tuple(card.id for card in events), peer_focus=not names_one)
 
 
 def _split_by_now(

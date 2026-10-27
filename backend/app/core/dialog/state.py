@@ -3,6 +3,8 @@
 - `pending` — отложенный шаг: вопрос ассистента и действие, которое ждёт ответа;
 - `focus_ids` — записи в фокусе для «её», «эту»: последняя упомянутая — первой,
   при выборе — варианты по порядку;
+- `focus_peers` — сколько первых записей фокуса пришли одним ответом-списком (список
+  за период, найденные записи, варианты выбора). Если их больше одной, «её» неоднозначно;
 - `recent` — последние реплики диалога для контекста разбора.
 """
 
@@ -34,6 +36,7 @@ class DialogState:
 
     pending: PendingStep | None = None
     focus_ids: tuple[int, ...] = ()
+    focus_peers: int = 0
     recent: tuple[DialogTurn, ...] = ()
 
     @classmethod
@@ -48,6 +51,7 @@ class DialogState:
         return cls(
             pending=_decode_pending(record.pending),
             focus_ids=tuple(record.last_event_ids),
+            focus_peers=record.focus_peers,
             recent=_RECENT.validate_python(record.recent),
         )
 
@@ -57,6 +61,7 @@ class DialogState:
             profile_id=profile_id,
             pending=_PENDING.dump_python(self.pending, mode="json"),
             last_event_ids=list(self.focus_ids),
+            focus_peers=self.focus_peers,
             recent=list(_RECENT.dump_python(self.recent, mode="json")),
         )
 
@@ -65,6 +70,9 @@ class DialogState:
         return type(self)(
             pending=outcome.pending,
             focus_ids=_merged_focus(outcome.focus, self.focus_ids),
+            focus_peers=min(outcome.focus_peers, FOCUS_LIMIT)
+            if outcome.focus
+            else self.focus_peers,
             recent=self._with_turns(
                 DialogTurn(role=MessageRole.USER.value, text=user_text),
                 DialogTurn(role=MessageRole.ASSISTANT.value, text=outcome.reply.text),
@@ -76,8 +84,14 @@ class DialogState:
         return type(self)(
             pending=self.pending,
             focus_ids=_merged_focus([card.id for card in reply.events], self.focus_ids),
+            focus_peers=1 if reply.events else self.focus_peers,
             recent=self._with_turns(DialogTurn(role=MessageRole.ASSISTANT.value, text=reply.text)),
         )
+
+    @property
+    def peer_ids(self) -> tuple[int, ...]:
+        """Записи последнего ответа-списка, если их больше одной; иначе пусто."""
+        return self.focus_ids[: self.focus_peers] if self.focus_peers > 1 else ()
 
     def _with_turns(self, *turns: DialogTurn) -> tuple[DialogTurn, ...]:
         return (*self.recent, *turns)[-RECENT_TURNS_LIMIT:]

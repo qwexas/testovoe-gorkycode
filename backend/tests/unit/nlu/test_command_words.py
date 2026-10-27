@@ -1,0 +1,129 @@
+"""Создание или перенос по глаголам реплики и названия-заглушки."""
+
+import pytest
+
+from app.nlu.command_words import (
+    asks_to_change,
+    asks_to_create,
+    creation_over_change,
+    is_generic_title,
+)
+from app.nlu.expressions import DateKind
+from app.nlu.interfaces import Action
+from app.nlu.schema import Extraction
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Поставь встречу с Иваном на следующей неделе",
+        "Добавь созвон с партнёром",
+        "Создай задачу",
+        "Запланируй встречу с командой",
+        "Назначь встречу с Ольгой на пятницу",
+        "Напомни позвонить маме",
+        "Запиши встречу с юристом",
+        "На следующей неделе нужно встретиться с Иваном",
+        "надо купить билеты",
+    ],
+)
+def test_create_words(text: str) -> None:
+    assert asks_to_create(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Перенеси встречу с Иваном на следующую неделю",
+        "Сдвинь созвон на 17:00",
+        "Передвинь планёрку на утро",
+        "Перемести встречу на пятницу",
+        "Измени время встречи",
+        "Отложи задачу на завтра",
+        "Поменяй время созвона",
+    ],
+)
+def test_change_words(text: str) -> None:
+    assert asks_to_change(text)
+
+
+def test_question_has_neither() -> None:
+    assert not asks_to_create("Что у меня завтра?")
+    assert not asks_to_change("Что у меня завтра?")
+
+
+def reschedule(**fields: object) -> Extraction:
+    return Extraction.model_validate({"action": "reschedule", **fields})
+
+
+def test_reschedule_with_create_verb_becomes_create() -> None:
+    extraction = reschedule(
+        event_type="meeting", query="встреча с Иваном", target_date="mon", date="next_week"
+    )
+
+    created = creation_over_change(extraction, "Поставь встречу с Иваном на следующей неделе")
+
+    assert created.action is Action.CREATE
+    assert created.title == "встреча с Иваном"
+    assert created.query == ""
+    assert created.target_date is DateKind.NONE
+    assert created.date is DateKind.NEXT_WEEK
+
+
+def test_title_from_model_wins_over_description() -> None:
+    extraction = reschedule(query="встреча с Иваном", title="Встреча с Иваном по CRM")
+
+    created = creation_over_change(extraction, "Добавь встречу с Иваном по CRM на пятницу")
+
+    assert created.title == "Встреча с Иваном по CRM"
+
+
+def test_change_verb_keeps_reschedule() -> None:
+    extraction = reschedule(query="встреча с Иваном", date="next_week")
+
+    kept = creation_over_change(extraction, "Перенеси встречу с Иваном на следующую неделю")
+
+    assert kept is extraction
+
+
+def test_both_verbs_keep_reschedule() -> None:
+    extraction = reschedule(query="встреча с Иваном", date="fri")
+
+    kept = creation_over_change(extraction, "Надо перенести встречу с Иваном на пятницу")
+
+    assert kept is extraction
+
+
+@pytest.mark.parametrize("text", ["Поставь её на пятницу", "Поставь эту встречу на пятницу"])
+def test_pronoun_keeps_reschedule(text: str) -> None:
+    extraction = reschedule(date="fri")
+
+    assert creation_over_change(extraction, text) is extraction
+
+
+def test_about_last_keeps_reschedule() -> None:
+    extraction = reschedule(about_last=True, date="fri")
+
+    assert creation_over_change(extraction, "Поставь на пятницу") is extraction
+
+
+def test_other_actions_are_not_touched() -> None:
+    extraction = Extraction.model_validate({"action": "delete", "query": "встреча"})
+
+    assert creation_over_change(extraction, "Добавь и удали встречу") is extraction
+
+
+@pytest.mark.parametrize(
+    "title", ["Встреча", "встреча", "Задача", "Напоминание", "Дело", "Новая встреча", "Событие"]
+)
+def test_generic_titles(title: str) -> None:
+    assert is_generic_title(title)
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Встреча с Иваном", "Созвон", "Планёрка", "Совещание", "Встреча CRM", "Купить молоко", ""],
+)
+def test_real_titles(title: str) -> None:
+    """«Созвон», «Планёрка» — уже содержание: формат встречи, а не просто тип."""
+    assert not is_generic_title(title)

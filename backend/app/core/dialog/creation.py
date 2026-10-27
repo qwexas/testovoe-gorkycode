@@ -1,4 +1,4 @@
-"""Создание задач, напоминаний и встреч: уточнение (Q30), конфликт встреч, отмена."""
+"""Создание задач, напоминаний и встреч: уточнение (Q30), дубль, конфликт встреч, отмена."""
 
 from dataclasses import replace
 
@@ -32,13 +32,16 @@ class CreationFlow:
         if question is not None:
             return Outcome.clarify(PendingStep(question, typed))
         draft = creation_draft(typed, turn.now)
+        duplicate = await self._conflicts.duplicate_of(turn.profile_id, draft)
+        if duplicate is not None:
+            return _confirm_duplicate(typed, duplicate, turn)
         conflicts = await self._meeting_conflicts(turn, draft)
         if conflicts:
             return _confirm_despite_conflicts(typed, conflicts)
         return await self._create(turn, draft)
 
     async def create_confirmed(self, turn: Turn, intent: Intent) -> Outcome:
-        """Создаёт запись, несмотря на пересечение: пользователь согласился."""
+        """Создаёт запись, несмотря на дубль или пересечение: пользователь согласился."""
         return await self._create(turn, creation_draft(intent, turn.now))
 
     async def _meeting_conflicts(self, turn: Turn, draft: EventDraft) -> list[EventCard]:
@@ -57,6 +60,16 @@ class CreationFlow:
             undo=ticket,
         )
         return Outcome(reply, focus=(card.id,))
+
+
+def _confirm_duplicate(intent: Intent, existing: EventCard, turn: Turn) -> Outcome:
+    question = PendingQuestion(
+        PendingExpectation.CONFIRM, phrases.duplicate_question(existing, turn.today)
+    )
+    reply = Reply(
+        ReplyKind.CONFIRM_REQUEST, question.question, events=(existing,), pending=question
+    )
+    return Outcome(reply, pending=PendingStep(question, intent), focus=(existing.id,))
 
 
 def _confirm_despite_conflicts(intent: Intent, conflicts: list[EventCard]) -> Outcome:

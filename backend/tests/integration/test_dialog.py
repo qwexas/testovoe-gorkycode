@@ -241,6 +241,53 @@ class TestFullCycle:
         assert older[-1]["id"] < newest[0]["id"]
 
 
+class TestContextBetweenRequests:
+    async def test_it_after_list_of_two_asks_which(
+        self, client: httpx.AsyncClient, parser: FakeIntentParser, db_engine: AsyncEngine
+    ) -> None:
+        today = datetime.now(MOSCOW).date()
+        for title, hour in (("Позвонить маме", 10), ("Полить цветы", 11)):
+            created = await client.post(
+                "/api/events",
+                json={"type": "reminder", "title": title, "starts_at": moment(today, hour)},
+            )
+            assert created.status_code == 201, created.text
+
+        listed = await chat(
+            client,
+            parser,
+            Intent(Action.LIST, "Какие напоминания сегодня?", event_type=EventType.REMINDER),
+        )
+        async with db_engine.connect() as connection:
+            peers = (await connection.execute(select(DialogStateRecord.focus_peers))).scalar_one()
+        asked = await chat(client, parser, Intent(Action.COMPLETE, "Отметь её выполненной"))
+
+        assert len(listed["events"]) == 2
+        assert peers == 2
+        assert asked["kind"] == "choice"
+        assert asked["text"] == "Какое напоминание отметить сделанным?"
+        assert [c["event"]["title"] for c in asked["choices"]] == ["Позвонить маме", "Полить цветы"]
+
+    async def test_repeated_reminder_asks_before_adding(
+        self, client: httpx.AsyncClient, parser: FakeIntentParser
+    ) -> None:
+        reminder = create(
+            "Напомни завтра в 10 позвонить Ивану",
+            EventType.REMINDER,
+            "Позвонить Ивану",
+            date=tomorrow(),
+            time=time(10),
+        )
+        await chat(client, parser, reminder)
+
+        again = await chat(client, parser, reminder)
+
+        assert again["kind"] == "confirm_request"
+        assert again["text"] == (
+            "Такое напоминание уже есть: «Позвонить Ивану» — завтра в 10:00. Добавить ещё одно?"
+        )
+
+
 class TestIsolation:
     async def test_profiles_do_not_see_each_other(
         self,

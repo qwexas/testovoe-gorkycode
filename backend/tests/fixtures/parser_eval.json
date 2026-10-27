@@ -170,6 +170,15 @@
         {"id": 902, "type": "meeting", "title": "Встреча с Иваном", "starts_at": "2026-10-28T15:00:00+03:00"}
       ]
     },
+    "existing_ivan_meeting": {
+      "recent": [
+        {"role": "user", "text": "Что у меня на этой неделе?"},
+        {"role": "assistant", "text": "На этой неделе у вас 1 встреча: «Встреча с Иваном» в среду в 15:00."}
+      ],
+      "focus": [
+        {"id": 1001, "type": "meeting", "title": "Встреча с Иваном", "starts_at": "2026-10-28T15:00:00+03:00"}
+      ]
+    },
     "pending_choice_duplicates": {
       "pending": "choice",
       "pending_question": "Нашёл три записи «Подготовиться к встрече с Вектором». Какую перенести?",
@@ -423,6 +432,22 @@
      "expected": {"action": "reschedule", "target": {"last": false, "query": ["встреча с Иваном"]}, "when": {"date": "2026-10-30", "time": [null, "15:00"]}}},
     {"id": "dlg-21", "group": "context_target", "context": "partner_call_created", "text": "Удали её",
      "expected": {"action": "delete", "target": {"last": true}}},
+    {"id": "cc-01", "group": "create_or_change", "context": "existing_ivan_meeting", "text": "Поставь встречу с Иваном на следующей неделе",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с Иваном"], "when": {"date": null, "time": null, "week_of": "2026-11-02"}}},
+    {"id": "cc-02", "group": "create_or_change", "context": "existing_ivan_meeting", "text": "Перенеси встречу с Иваном на следующую неделю",
+     "expected": {"action": "reschedule", "when": {"date": null, "week_of": "2026-11-02"}}},
+    {"id": "cc-03", "group": "create_or_change", "holdout": true, "context": "existing_ivan_meeting", "text": "Добавь ещё одну встречу с Иваном в пятницу в 11",
+     "expected": {"action": "create", "event_type": "meeting", "title": ["Встреча с Иваном"], "when": {"date": "2026-10-30", "time": "11:00"}}},
+    {"id": "cc-04", "group": "create_or_change", "context": "existing_ivan_meeting", "text": "Сдвинь встречу с Иваном на следующую неделю",
+     "expected": {"action": "reschedule", "when": {"date": null, "week_of": "2026-11-02"}}},
+    {"id": "cc-05", "group": "create_or_change", "text": "поставь встречу на завтра в 12",
+     "expected": {"action": "create", "event_type": "meeting", "title": null, "when": {"date": "2026-10-28", "time": "12:00"}}},
+    {"id": "dp-01", "group": "list_day_part", "text": "Что у меня завтра вечером?",
+     "expected": {"action": "list", "period": {"start": "2026-10-28T18:00", "end": "2026-10-29T00:00"}}},
+    {"id": "dp-02", "group": "list_day_part", "text": "Какие встречи сегодня днём?",
+     "expected": {"action": "list", "event_type": "meeting", "period": {"start": "2026-10-27T12:00", "end": "2026-10-27T18:00"}}},
+    {"id": "dp-03", "group": "list_day_part", "holdout": true, "text": "Есть что-нибудь в пятницу утром?",
+     "expected": {"action": "list", "period": {"start": "2026-10-30T06:00", "end": "2026-10-30T12:00"}}},
     {"id": "dlg-17", "group": "context_pending", "context": "pending_delete_busy", "text": "Что у меня завтра?",
      "expected": {"action": "list", "period": {"start": "2026-10-28T00:00", "end": "2026-10-29T00:00"}}}
   ]

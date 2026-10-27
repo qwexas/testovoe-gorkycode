@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 
 from app.core.dialog.models import Turn
-from app.core.dialog.relevance import near_best
+from app.core.dialog.relevance import asked_types, near_best
 from app.core.enums import EventStatus, EventType
 from app.core.events import EventCard, EventService, ScoredCard
 from app.core.queries import EventFilter
@@ -40,11 +40,14 @@ class TargetFinder:
         self._reader = reader
 
     async def find(self, turn: Turn, intent: Intent) -> TargetLookup:
-        """`target.last` или пустая ссылка — запись в фокусе; иначе — поиск по описанию."""
+        """`target.last` или пустая ссылка — запись из контекста; иначе — поиск по описанию.
+
+        После ответа-списка («Что у меня сегодня?» → два напоминания) «её» неоднозначно:
+        кандидаты — все записи того ответа (подходящего типа), и ассистент переспросит.
+        """
         target = intent.target or TargetRef(last=True)
         if target.last or not target.query:
-            card = _from_focus(turn.focus, target.event_type)
-            return TargetLookup(() if card is None else (card,), query=None)
+            return TargetLookup(_referenced(turn, target.event_type), query=None)
         found = await self._search(turn, intent.action, target, target.query)
         exact = _prefer_exact_time(found, target.when)
         return TargetLookup(_narrow(exact, turn.focus), query=target.query)
@@ -69,12 +72,25 @@ class TargetFinder:
         )
 
 
+def _referenced(turn: Turn, event_type: EventType | None) -> tuple[EventCard, ...]:
+    """На что указывает «её / эту встречу»: записи ответа-списка или одна запись фокуса."""
+    peers = _of_type(turn.peers, event_type)
+    if peers:
+        return tuple(peers)
+    card = _from_focus(turn.focus, event_type)
+    return () if card is None else (card,)
+
+
+def _of_type(cards: Sequence[EventCard], event_type: EventType | None) -> list[EventCard]:
+    types = asked_types(event_type)
+    return [card for card in cards if types is None or card.type in types]
+
+
 def _from_focus(focus: Sequence[EventCard], event_type: EventType | None) -> EventCard | None:
     """Первая запись в фокусе; если назван тип («перенеси встречу») — первая такого типа."""
-    if event_type is not None:
-        typed = next((card for card in focus if card.type is event_type), None)
-        if typed is not None:
-            return typed
+    typed = _of_type(focus, event_type)
+    if typed:
+        return typed[0]
     return focus[0] if focus else None
 
 

@@ -43,6 +43,22 @@ class StatusName(StrEnum):
     DONE = "done"
 
 
+DAY_PART_WORDS: dict[str, DayPart] = {
+    **{part.value: part for part in DayPart if part is not DayPart.NONE},
+    "утро": DayPart.MORNING,
+    "утром": DayPart.MORNING,
+    "день": DayPart.DAY,
+    "днём": DayPart.DAY,
+    "днем": DayPart.DAY,
+    "обед": DayPart.DAY,
+    "вечер": DayPart.EVENING,
+    "вечером": DayPart.EVENING,
+    "ночь": DayPart.NIGHT,
+    "ночью": DayPart.NIGHT,
+}
+"""Часть суток словом — английское значение `DayPart` или русское «утром», «вечером»."""
+
+
 class Extraction(BaseModel):
     """Ответ модели по `EXTRACTION_SCHEMA`."""
 
@@ -94,7 +110,14 @@ class Extraction(BaseModel):
 
     @property
     def time_expression(self) -> TimeExpression:
-        """Названное время."""
+        """Названное время.
+
+        Часть суток, которую модель написала в `time` вместо `day_part` («"time": "morning"»
+        на «в пятницу утром»), считается частью суток.
+        """
+        misplaced = DAY_PART_WORDS.get(self.time.strip().lower())
+        if misplaced is not None and self.day_part is DayPart.NONE:
+            return TimeExpression(day_part=misplaced, in_minutes=self.in_minutes)
         return TimeExpression(clock=self.time, day_part=self.day_part, in_minutes=self.in_minutes)
 
 

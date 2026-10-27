@@ -19,6 +19,7 @@ from sqlalchemy import (
     Identity,
     Index,
     MetaData,
+    SmallInteger,
     String,
     Text,
     func,
@@ -165,7 +166,9 @@ class DialogStateRecord(Base):
     """Состояние диалога (Q23): чего ждёт ассистент, записи в фокусе, последние реплики.
 
     `pending` — отложенный шаг диалога, `last_event_ids` — записи в фокусе (последняя
-    упомянутая первой), `recent` — последние реплики; формат JSON задаёт `app.core.dialog.state`.
+    упомянутая первой), `focus_peers` — сколько первых из них пришли одним ответом-списком
+    (тогда «её» неоднозначно), `recent` — последние реплики; формат задаёт
+    `app.core.dialog.state`.
     """
 
     __tablename__ = "dialog_state"
@@ -175,6 +178,7 @@ class DialogStateRecord(Base):
     last_event_ids: Mapped[list[int]] = mapped_column(
         ARRAY(BigInteger), server_default=text("'{}'::bigint[]")
     )
+    focus_peers: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     recent: Mapped[list[JsonObject]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     updated_at: Mapped[UpdatedAt]
 

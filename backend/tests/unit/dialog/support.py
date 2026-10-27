@@ -15,7 +15,7 @@ from app.core.dialog.models import AssistantAnswer, Reply
 from app.core.dialog.service import DialogDependencies, DialogService, MessageThrottle
 from app.core.enums import EventSource, EventStatus, EventType, MessageSource, ServiceStatus
 from app.core.events import EventCard
-from app.core.queries import EventFilter, MeetingSlot
+from app.core.queries import EventFilter, MeetingSlot, SameMoment
 from app.core.rate_limit import SlidingWindowRateLimiter
 from app.core.schedule import DEFAULT_MEETING_DURATION, MOSCOW
 from app.core.search import SearchService
@@ -129,6 +129,16 @@ class FakeEventRepository:
             )
             for event in self.records.values()
             if _matches(event, criteria)
+        ]
+
+    async def list_at_moment(self, moment: SameMoment) -> list[EventRecord]:
+        return [
+            event
+            for event in self.records.values()
+            if event.profile_id == moment.profile_id
+            and event.type is moment.event_type
+            and event.status is EventStatus.OPEN
+            and event.starts_at == moment.starts_at
         ]
 
     async def find_overlapping_meetings(self, slot: MeetingSlot) -> list[EventRecord]:

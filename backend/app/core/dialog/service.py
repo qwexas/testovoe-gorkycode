@@ -127,7 +127,14 @@ class DialogService:
         await self._save_user_message(profile_id, text)
         focus = await self._focus_cards(profile_id, state.focus_ids)
         intent = await self._parser.parse(text, _parser_context(now, state, focus))
-        turn = Turn(profile_id=profile_id, now=now, pending=state.pending, focus=focus)
+        peer_ids = set(state.peer_ids)
+        turn = Turn(
+            profile_id=profile_id,
+            now=now,
+            pending=state.pending,
+            focus=focus,
+            peers=[card for card in focus if card.id in peer_ids],
+        )
         outcome = await self._router.route(turn, intent)
         recognized_text = text if source is MessageSource.VOICE else None
         answer = await self._save_answer(profile_id, outcome.reply, recognized_text)

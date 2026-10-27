@@ -7,7 +7,7 @@ import pytest
 
 from app.core.dialog.phrases import EN_DASH
 from app.core.enums import EventStatus, EventType, PendingExpectation, ReplyKind
-from app.nlu.interfaces import Action, When
+from app.nlu.interfaces import Action, Intent, When
 from tests.unit.dialog.support import (
     NEXT_MONDAY,
     THURSDAY,
@@ -375,3 +375,98 @@ class TestConflicts:
             f"и «Созвон» (15:30{EN_DASH}16:30). "
             "Всё равно добавить?"
         )
+
+
+class TestDuplicates:
+    """Повтор той же записи (тип, название, время) — переспросить, а не создать молча."""
+
+    def call_ivan(self, text: str = "Напомни завтра в 10 позвонить Ивану", **fields: Any) -> Intent:
+        values: dict[str, Any] = {"date": TOMORROW, "time": time(10)} | fields
+        title = values.pop("title", "Позвонить Ивану")
+        event_type = values.pop("event_type", EventType.REMINDER)
+        return create(text, event_type, title, **values)
+
+    async def test_same_reminder_asks(self, dialog: DialogHarness) -> None:
+        first = await dialog.say(self.call_ivan())
+
+        reply = await dialog.say(self.call_ivan("Напомни завтра в 10 позвонить Ивану ещё раз"))
+
+        assert reply.kind is ReplyKind.CONFIRM_REQUEST
+        assert reply.text == (
+            "Такое напоминание уже есть: «Позвонить Ивану» — завтра в 10:00. Добавить ещё одно?"
+        )
+        assert [card.id for card in reply.events] == [first.events[0].id]
+        assert reply.pending is not None and reply.pending.expects is PendingExpectation.CONFIRM
+        assert len(dialog.storage.events.records) == 1
+
+    async def test_confirm_adds_another(self, dialog: DialogHarness) -> None:
+        await dialog.say(self.call_ivan())
+        await dialog.say(self.call_ivan("Ещё раз: напомни завтра в 10 позвонить Ивану"))
+
+        reply = await dialog.say(simple(Action.CONFIRM, "да, добавь"))
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+        assert len(dialog.storage.events.records) == 2
+
+    async def test_deny_does_not_add(self, dialog: DialogHarness) -> None:
+        await dialog.say(self.call_ivan())
+        await dialog.say(self.call_ivan("Ещё раз: напомни завтра в 10 позвонить Ивану"))
+
+        reply = await dialog.say(simple(Action.DENY, "нет"))
+
+        assert reply.text == "Хорошо, не добавляю."
+        assert len(dialog.storage.events.records) == 1
+
+    async def test_title_is_compared_normalized(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.REMINDER, "Позвонить Ивану", at(TOMORROW, 10))
+
+        reply = await dialog.say(self.call_ivan(title="позвонить  ивану!"))
+
+        assert reply.kind is ReplyKind.CONFIRM_REQUEST
+
+    @pytest.mark.parametrize(
+        "changed",
+        [
+            {"time": time(11)},
+            {"date": THURSDAY},
+            {"title": "Позвонить Ольге"},
+            {"event_type": EventType.TASK},
+        ],
+    )
+    async def test_different_record_is_created_without_question(
+        self, dialog: DialogHarness, changed: dict[str, Any]
+    ) -> None:
+        await dialog.add_event(EventType.REMINDER, "Позвонить Ивану", at(TOMORROW, 10))
+
+        reply = await dialog.say(self.call_ivan(**changed))
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+
+    async def test_done_record_is_not_a_duplicate(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(
+            EventType.REMINDER, "Позвонить Ивану", at(TOMORROW, 10), status=EventStatus.DONE
+        )
+
+        reply = await dialog.say(self.call_ivan())
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+
+    async def test_undated_task(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.TASK, "Купить хлеб")
+
+        reply = await dialog.say(create("Купить хлеб", EventType.TASK, "купить хлеб"))
+
+        assert reply.text == "Такая задача уже есть: «Купить хлеб» — без срока. Добавить ещё одну?"
+
+    async def test_duplicate_meeting_is_asked_once(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.MEETING, "Планёрка", at(TOMORROW, 15))
+
+        asked = await dialog.say(
+            create(
+                "Планёрка завтра в 15", EventType.MEETING, "Планёрка", date=TOMORROW, time=time(15)
+            )
+        )
+        created = await dialog.say(simple(Action.CONFIRM, "да"))
+
+        assert asked.text.startswith("Такая встреча уже есть: «Планёрка» — завтра в 15:00.")
+        assert created.kind is ReplyKind.CONFIRMATION

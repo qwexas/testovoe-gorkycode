@@ -52,6 +52,13 @@ class TestList:
 
         assert reply.text == "На завтра ничего нет."
 
+    async def test_empty_period_with_day_part(self, dialog: DialogHarness) -> None:
+        reply = await dialog.say(
+            listing("Что у меня завтра вечером?", period=day_period(TOMORROW, "завтра вечером"))
+        )
+
+        assert reply.text == "Завтра вечером ничего нет."
+
     async def test_single_event(self, dialog: DialogHarness) -> None:
         await dialog.add_event(EventType.MEETING, "Планёрка", at(TODAY, 17))
 
@@ -359,3 +366,28 @@ class TestWhenAmongCloseTitles:
         )
 
         assert reply.events[0].id == reminder.id
+
+
+class TestPeriodWithDate:
+    """Ярлык периода с датой через запятую («на пятницу, 30 октября») закрывается запятой."""
+
+    async def test_heading(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.TASK, "Отчёт", at(date(2026, 10, 30), 10))
+        await dialog.add_event(EventType.MEETING, "Демо", at(date(2026, 10, 30), 15))
+
+        reply = await dialog.say(
+            listing(
+                "Что в пятницу?", period=day_period(date(2026, 10, 30), "на пятницу, 30 октября")
+            )
+        )
+
+        assert reply.text.startswith("На пятницу, 30 октября, у вас 2 дела: встреча и задача.")
+
+    async def test_empty(self, dialog: DialogHarness) -> None:
+        reply = await dialog.say(
+            listing(
+                "Что в пятницу?", period=day_period(date(2026, 10, 30), "на пятницу, 30 октября")
+            )
+        )
+
+        assert reply.text == "На пятницу, 30 октября, ничего нет."
