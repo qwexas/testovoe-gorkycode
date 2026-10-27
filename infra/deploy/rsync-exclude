@@ -1,0 +1,13 @@
+.git/
+.env
+.env.*
+.DS_Store
+models/
+node_modules/
+.next/
+out/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

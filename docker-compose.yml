@@ -1,5 +1,6 @@
 # «Горький»: PostgreSQL + pgvector, FastAPI, Next.js.
 # Все порты открыты только на 127.0.0.1 — снаружи сервис доступен через nginx (infra/nginx).
+# Порты задаются в .env (FRONTEND_PORT, BACKEND_PORT, DB_PORT): на сервере 3100/8100 заняты.
 
 name: gorky
 
@@ -14,7 +15,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gorky -d gorky"]
       interval: 5s
@@ -35,17 +36,19 @@ services:
       # Веса моделей (эмбеддинги, позже Whisper и Silero) живут в томе, а не в образе:
       # первая загрузка ~2–3 ГБ, дальше — из кэша.
       EMBEDDING_CACHE_DIR: /models
-      STT_CACHE_DIR: /models/whisper
+      STT_CACHE_DIR: /models
       TTS_CACHE_DIR: /models/silero
       HF_HOME: /models/hf
       TORCH_HOME: /models/torch
     volumes:
-      - models:/models
+      # Каталог весов с хоста (как ./models при разработке): его заполняет первый старт
+      # или infra/deploy/sync-models.sh, чтобы не качать гигабайты заново.
+      - ${MODELS_DIR:-./models}:/models
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8100:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8100}:8000"
     healthcheck:
       test:
         - CMD
@@ -70,8 +73,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "127.0.0.1:3100:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3100}:3000"
 
 volumes:
   pgdata:
-  models:
