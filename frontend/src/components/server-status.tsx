@@ -12,8 +12,8 @@ import { tty } from "./ui/tty";
 type Tone = "neutral" | "success" | "warning" | "danger";
 
 /**
- * Пиксельные глифы 5×5: у каждого статуса своя форма (WCAG 1.4.1) — в статусной строке
- * глиф одного цвета с текстом, а на узком экране текст скрыт. «#» — закрашенный пиксель.
+ * Пиксельные глифы 5×5: у каждого статуса своя форма, не только цвет (WCAG 1.4.1) —
+ * на узком экране текст скрыт. «#» — закрашенный пиксель.
  */
 const TONE_GLYPHS: Record<Tone, readonly string[]> = {
   // полый квадрат — проверка идёт
@@ -24,6 +24,13 @@ const TONE_GLYPHS: Record<Tone, readonly string[]> = {
   warning: ["..#..", "..#..", "..#..", ".....", "..#.."],
   // крест — недоступен
   danger: ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
+};
+
+const TONE_COLORS: Record<Tone, string> = {
+  neutral: "text-fg-muted",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-danger",
 };
 
 function glyphPixels(rows: readonly string[]): Array<{ x: number; y: number }> {
@@ -38,7 +45,7 @@ function StatusGlyph({ tone }: { tone: Tone }) {
       viewBox="0 0 5 5"
       aria-hidden="true"
       shapeRendering="crispEdges"
-      className="shrink-0"
+      className={cn("shrink-0", TONE_COLORS[tone])}
     >
       {glyphPixels(TONE_GLYPHS[tone]).map(({ x, y }) => (
         <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />
@@ -117,7 +124,7 @@ export function ServerStatus({ className }: { className?: string }) {
           className={cn(tty.tab, "aria-busy:cursor-progress", className)}
         >
           <StatusGlyph tone={tone} />
-          <span className="sr-only xl:not-sr-only">{label}</span>
+          <span className="sr-only 2xl:not-sr-only">{label}</span>
           <span className="sr-only">. Проверить снова</span>
         </button>
       </Tooltip>

@@ -42,9 +42,6 @@
   --sphere-hi: #4c1d95;
   --sphere-lo: #8b6fd6;
   --sphere-err: #c0261b;
-  --status-bg: #6d28d9;
-  --status-deep: #4c1d95;
-  --status-fg: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -77,9 +74,6 @@
   --sphere-hi: #e2d8ff;
   --sphere-lo: #6a52b8;
   --sphere-err: #ff8a80;
-  --status-bg: #7c3aed;
-  --status-deep: #5b21b6;
-  --status-fg: #ffffff;
 }
 
 /* Фолбэк без JS: системная тема. Значения совпадают с [data-theme="dark"]. */
@@ -114,9 +108,6 @@
     --sphere-hi: #e2d8ff;
     --sphere-lo: #6a52b8;
     --sphere-err: #ff8a80;
-    --status-bg: #7c3aed;
-    --status-deep: #5b21b6;
-    --status-fg: #ffffff;
   }
 }
 
@@ -146,9 +137,6 @@
   --color-danger-fill-hover: var(--danger-fill-hover);
   --color-on-danger: var(--on-danger);
   --color-overlay: var(--overlay);
-  --color-status-bg: var(--status-bg);
-  --color-status-deep: var(--status-deep);
-  --color-status-fg: var(--status-fg);
 
   /* Одна гарнитура на весь интерфейс: Martian Mono с осью ширины (решение Q8). */
   --font-mono: var(--font-martian-mono), ui-monospace, "SFMono-Regular", monospace;
@@ -205,5 +193,41 @@
   ::selection {
     background-color: var(--accent-fill);
     color: var(--on-accent);
+  }
+
+  @media (pointer: fine) {
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+      border: 2px solid transparent;
+      background: repeating-conic-gradient(var(--border) 0 25%, transparent 0 50%) 0 0 / 2px 2px
+        content-box;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      min-height: 2rem;
+      border: 2px solid transparent;
+      background: var(--border-strong) content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover,
+    ::-webkit-scrollbar-thumb:active {
+      background-color: var(--accent);
+    }
+
+    ::-webkit-scrollbar-button,
+    ::-webkit-scrollbar-corner {
+      display: none;
+    }
+
+    @supports not selector(::-webkit-scrollbar) {
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-strong) transparent;
+      }
+    }
   }
 }
