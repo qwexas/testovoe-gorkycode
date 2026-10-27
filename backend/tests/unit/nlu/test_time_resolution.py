@@ -188,8 +188,49 @@ def test_same_weekday_moves_a_week_when_time_passed() -> None:
     assert upcoming_weekday(FRIDAY_NOON, FRIDAY, at(10)) == day(11, 6)
 
 
-def test_same_weekday_without_time_is_today() -> None:
-    assert upcoming_weekday(FRIDAY_NOON, FRIDAY) == day(10, 30)
+def test_same_weekday_without_time_is_next_week() -> None:
+    assert upcoming_weekday(FRIDAY_NOON, FRIDAY) == day(11, 6)
+
+
+def test_same_weekday_exactly_at_named_time_is_next_week() -> None:
+    assert upcoming_weekday(FRIDAY_NOON, FRIDAY, at(12)) == day(11, 6)
+
+
+def friday_when(clock: str = "", day_part: DayPart = DayPart.NONE) -> When | None:
+    """«в пятницу …», сказанное в пятницу в полдень: создание или новая дата переноса."""
+    return resolve_when(
+        DateExpression(DateKind.FRIDAY), TimeExpression(clock, day_part), FRIDAY_NOON
+    )
+
+
+def test_new_date_on_same_weekday_without_time_is_next_week() -> None:
+    assert friday_when() == When(date=day(11, 6))
+
+
+def test_new_date_on_same_weekday_with_time_ahead_is_today() -> None:
+    assert friday_when("15:00") == When(date=day(10, 30), time=at(15))
+
+
+def test_new_date_on_same_weekday_with_passed_time_is_next_week() -> None:
+    assert friday_when("10:00") == When(date=day(11, 6), time=at(10))
+
+
+def test_new_date_on_same_weekday_with_day_part_ahead_is_today() -> None:
+    assert friday_when(day_part=DayPart.EVENING) == When(date=day(10, 30), time=at(19))
+
+
+def test_same_weekday_in_list_is_today() -> None:
+    assert period(DateKind.FRIDAY, now=FRIDAY_NOON) == Period(
+        midnight(10, 30), midnight(10, 31), "на пятницу, 30 октября"
+    )
+
+
+def test_same_weekday_of_existing_record_is_today() -> None:
+    expression = DateExpression(DateKind.FRIDAY)
+
+    assert resolve_when(expression, TimeExpression(), FRIDAY_NOON, TimeScope.ANY) == When(
+        date=day(10, 30)
+    )
 
 
 def test_next_weekday_is_in_next_calendar_week() -> None:

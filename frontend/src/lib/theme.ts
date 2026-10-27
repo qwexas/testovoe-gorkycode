@@ -49,8 +49,15 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
 
 export function applyTheme(theme: ResolvedTheme): void {
   const root = document.documentElement;
+  if (root.dataset.theme === theme) return;
+  // На время смены темы гасим переходы цвета, иначе все кнопки «перетекают» разом.
+  const freeze = document.createElement("style");
+  freeze.textContent = "*,*::before,*::after{transition:none!important}";
+  document.head.append(freeze);
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
+  void window.getComputedStyle(root).opacity;
+  requestAnimationFrame(() => freeze.remove());
 }
 
 /** Подписка на смену системной темы и на выбор темы в другой вкладке. */

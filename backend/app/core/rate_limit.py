@@ -5,6 +5,10 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import ClassVar
+from uuid import UUID
+
+from app.core.errors import TooManyAttemptsError
 
 Clock = Callable[[], float]
 
@@ -64,3 +68,29 @@ class SlidingWindowRateLimiter:
         ]
         for key in idle_keys:
             del self._hits[key]
+
+
+class Throttle:
+    """Лимит событий на ключ (профиль, IP) с ошибкой для пользователя сверх лимита.
+
+    Подкласс задаёт `max_hits` за `window_seconds` и вид ошибки `rejection`.
+    """
+
+    max_hits: ClassVar[int]
+    window_seconds: ClassVar[float]
+    rejection: ClassVar[type[TooManyAttemptsError]]
+
+    def __init__(self, limiter: SlidingWindowRateLimiter | None = None) -> None:
+        self._limiter = limiter or SlidingWindowRateLimiter(
+            max_hits=self.max_hits, window_seconds=self.window_seconds
+        )
+
+    def admit(self, key: str | UUID) -> None:
+        """Учитывает событие для `key`.
+
+        Raises:
+            TooManyAttemptsError: Лимит исчерпан (конкретный вид — `rejection`).
+        """
+        decision = self._limiter.hit(str(key))
+        if not decision.allowed:
+            raise self.rejection(decision.retry_after_seconds)

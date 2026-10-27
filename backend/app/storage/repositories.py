@@ -85,6 +85,11 @@ class ProfileRepository:
         )
         return await self._session.scalar(statement)
 
+    async def get_by_calendar_token(self, calendar_token: str) -> ProfileRecord | None:
+        """Профиль по секретному токену подписки на календарь."""
+        statement = select(ProfileRecord).where(ProfileRecord.calendar_token == calendar_token)
+        return await self._session.scalar(statement)
+
     async def add_session(self, profile_id: UUID, token_digest: str) -> None:
         """Привязывает новую сессию устройства к профилю."""
         self._session.add(ProfileSessionRecord(token_digest=token_digest, profile_id=profile_id))

@@ -98,21 +98,6 @@
         "title": "AssistantReply",
         "type": "object"
       },
-      "Body_send_voice_message": {
-        "properties": {
-          "audio": {
-            "contentMediaType": "application/octet-stream",
-            "description": "Запись голоса",
-            "title": "Audio",
-            "type": "string"
-          }
-        },
-        "required": [
-          "audio"
-        ],
-        "title": "Body_send_voice_message",
-        "type": "object"
-      },
       "ChatMessage": {
         "description": "Реплика в истории диалога.",
         "properties": {
@@ -872,7 +857,7 @@
     },
     "/api/calendar.ics": {
       "get": {
-        "description": "Все предстоящие записи профиля, файлом (attachment).",
+        "description": "Открытые записи профиля с датой, начиная с сегодняшнего дня, файлом `gorky.ics`. Встречи — с предупреждением за 15 минут, напоминания и задачи со временем — в момент начала, задачи на день — в 09:00.",
         "operationId": "download_calendar",
         "responses": {
           "200": {
@@ -883,7 +868,7 @@
                 }
               }
             },
-            "description": "Календарь iCalendar"
+            "description": "Календарь iCalendar (RFC 5545)"
           },
           "429": {
             "content": {
@@ -904,16 +889,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "security": [
@@ -929,7 +904,7 @@
     },
     "/api/calendar/{token}.ics": {
       "get": {
-        "description": "По секретному токену, без cookie. Напоминания — с `VALARM`.",
+        "description": "То же, что `/api/calendar.ics`, по секретному токену из `calendar_subscription_url` — без cookie, профиль не создаётся. Неизвестный токен — 404. Лимит — 60 запросов в минуту с одного IP.",
         "operationId": "subscribe_calendar",
         "parameters": [
           {
@@ -937,6 +912,8 @@
             "name": "token",
             "required": true,
             "schema": {
+              "maxLength": 64,
+              "minLength": 1,
               "title": "Token",
               "type": "string"
             }
@@ -951,7 +928,7 @@
                 }
               }
             },
-            "description": "Календарь iCalendar"
+            "description": "Календарь iCalendar (RFC 5545)"
           },
           "404": {
             "content": {
@@ -973,6 +950,16 @@
             },
             "description": "`validation_error`"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`rate_limited`"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -982,16 +969,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           }
         },
         "summary": "Подписка на календарь",
@@ -1544,7 +1521,7 @@
     },
     "/api/health": {
       "get": {
-        "description": "Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`; `llm: unknown` — языковая модель не подключена.",
+        "description": "Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`; `unknown` — зависимость не подключена (нет ключа LLM, `LLM_BACKEND=disabled` или `VOICE_BACKEND=disabled`).",
         "operationId": "get_health",
         "responses": {
           "200": {
@@ -1775,6 +1752,7 @@
     },
     "/api/tts": {
       "post": {
+        "description": "Аудио OGG/Opus, не кэшируется. `voice` — один из голосов Silero, без него — голос по умолчанию; неизвестный голос — 422. Лимит — 40 запросов в минуту на профиль.",
         "operationId": "synthesize_speech",
         "requestBody": {
           "content": {
@@ -1828,16 +1806,6 @@
             },
             "description": "`internal_error`"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
-          },
           "503": {
             "content": {
               "application/json": {
@@ -1862,13 +1830,23 @@
     },
     "/api/voice": {
       "post": {
-        "description": "Аудио webm/opus, ogg, mp4/aac или wav, не больше 10 МБ и 60 секунд. Аудио не сохраняется. В ответе заполнен `recognized_text`.",
+        "description": "Форма с полем `audio`: webm/opus, ogg, mp4/aac, wav или mpeg, не больше 10 МБ и 60 секунд. Распознанный текст обрабатывается как реплика `/api/chat` (общий лимит 20 в минуту) и приходит в `recognized_text`. Тишина или шум — 422 `speech_not_recognized`. Аудио не сохраняется и не пишется в лог: в истории остаётся только распознанный текст.",
         "operationId": "send_voice_message",
         "requestBody": {
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_send_voice_message"
+                "properties": {
+                  "audio": {
+                    "description": "Запись голоса. `Content-Type` части: audio/webm, audio/ogg, audio/mp4, audio/aac, audio/wav или audio/mpeg (можно с параметрами, например `audio/webm;codecs=opus`).",
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "audio"
+                ],
+                "type": "object"
               }
             }
           },
@@ -1934,16 +1912,6 @@
               }
             },
             "description": "`internal_error`"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`not_implemented`"
           },
           "503": {
             "content": {

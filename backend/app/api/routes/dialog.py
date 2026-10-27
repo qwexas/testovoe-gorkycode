@@ -1,13 +1,11 @@
-"""Диалог с ассистентом: текст, история, отмена действия; голос и озвучка — позже.
-
-`/api/voice` и `/api/tts` объявлены по контракту и пока отвечают 501 (контрольная точка 4).
-"""
+"""Диалог с ассистентом: текст, голос, история, озвучка ответа, отмена действия."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Path, Query, Response, UploadFile
+from fastapi import APIRouter, Path, Query, Request, Response
 
-from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile, Dialog
+from app.api.audio_upload import VOICE_REQUEST_BODY, read_audio_upload
+from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile, Dialog, Synthesis
 from app.api.errors import error_responses
 from app.api.schemas.dialog import (
     AssistantReply,
@@ -19,11 +17,12 @@ from app.api.schemas.dialog import (
 from app.core.dialog.models import AssistantAnswer, DialogEntry
 from app.core.dialog.payloads import answer_payload
 from app.core.enums import MessageSource
-from app.core.errors import ErrorCode, FeatureNotImplementedError
+from app.core.errors import ErrorCode
 from app.storage.models import TOKEN_LENGTH
 
 DIALOG_PAGE_DEFAULT = 50
 DIALOG_PAGE_MAX = 200
+NO_STORE = {"Cache-Control": "no-store"}
 
 router = APIRouter(tags=["dialog"], responses=CURRENT_PROFILE_RESPONSES)
 
@@ -56,8 +55,11 @@ async def send_chat_message(
     name="send_voice_message",
     summary="Голосовая реплика",
     description=(
-        "Аудио webm/opus, ogg, mp4/aac или wav, не больше 10 МБ и 60 секунд. "
-        "Аудио не сохраняется. В ответе заполнен `recognized_text`."
+        "Форма с полем `audio`: webm/opus, ogg, mp4/aac, wav или mpeg, не больше 10 МБ "
+        "и 60 секунд. Распознанный текст обрабатывается как реплика `/api/chat` "
+        "(общий лимит 20 в минуту) и приходит в `recognized_text`. Тишина или шум — "
+        "422 `speech_not_recognized`. Аудио не сохраняется и не пишется в лог: "
+        "в истории остаётся только распознанный текст."
     ),
     response_model=AssistantReply,
     responses=error_responses(
@@ -68,14 +70,14 @@ async def send_chat_message(
         ErrorCode.RATE_LIMITED,
         ErrorCode.STT_UNAVAILABLE,
         ErrorCode.LLM_UNAVAILABLE,
-        ErrorCode.NOT_IMPLEMENTED,
     ),
+    openapi_extra={"requestBody": VOICE_REQUEST_BODY},
 )
 async def send_voice_message(
-    audio: Annotated[UploadFile, File(description="Запись голоса")],
-    profile: CurrentProfile,
+    request: Request, profile: CurrentProfile, dialog: Dialog
 ) -> AssistantReply:
-    raise FeatureNotImplementedError()
+    audio = await read_audio_upload(request)
+    return _to_reply_schema(await dialog.handle_voice(profile.id, audio))
 
 
 @router.get(
@@ -100,6 +102,11 @@ async def get_dialog(
     "/tts",
     name="synthesize_speech",
     summary="Озвучка ответа",
+    description=(
+        "Аудио OGG/Opus, не кэшируется. `voice` — один из голосов Silero, без него — "
+        "голос по умолчанию; неизвестный голос — 422. Лимит — 40 запросов в минуту "
+        "на профиль."
+    ),
     response_class=Response,
     responses={
         200: {
@@ -107,12 +114,15 @@ async def get_dialog(
             "content": {"audio/ogg": {"schema": {"type": "string", "format": "binary"}}},
         },
         **error_responses(
-            ErrorCode.VALIDATION_ERROR, ErrorCode.TTS_UNAVAILABLE, ErrorCode.NOT_IMPLEMENTED
+            ErrorCode.VALIDATION_ERROR, ErrorCode.RATE_LIMITED, ErrorCode.TTS_UNAVAILABLE
         ),
     },
 )
-async def synthesize_speech(body: TtsRequest, profile: CurrentProfile) -> Response:
-    raise FeatureNotImplementedError()
+async def synthesize_speech(
+    body: TtsRequest, profile: CurrentProfile, synthesis: Synthesis
+) -> Response:
+    audio = await synthesis.synthesize(profile.id, body.text, body.voice)
+    return Response(content=audio.data, media_type=audio.content_type, headers=NO_STORE)
 
 
 @router.post(

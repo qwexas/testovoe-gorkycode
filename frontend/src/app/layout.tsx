@@ -1,22 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { JetBrains_Mono, Onest } from "next/font/google";
+import { Martian_Mono } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { themeInitScript } from "@/lib/theme";
 
 import "./globals.css";
 
-// Шрифты-кандидаты с кириллицей; финальная пара выбирается на КТ2 вместе с дизайном.
-const onest = Onest({
-  variable: "--font-onest",
+/**
+ * «Консоль» (решение Q8): одна моноширинная гарнитура с осью ширины. Широкие
+ * начертания — заголовки панелей и статус, узкие — плотные таблицы. Кириллица полная.
+ */
+const martianMono = Martian_Mono({
+  variable: "--font-martian-mono",
   subsets: ["latin", "cyrillic"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin", "cyrillic"],
+  axes: ["wdth"],
   display: "swap",
 });
 
@@ -28,19 +26,15 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f3fa" },
-    { media: "(prefers-color-scheme: dark)", color: "#110d19" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f4fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0b16" },
   ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     // suppressHydrationWarning: data-theme и color-scheme ставит инлайн-скрипт до гидрации.
-    <html
-      lang="ru"
-      suppressHydrationWarning
-      className={`${onest.variable} ${jetbrainsMono.variable} h-full`}
-    >
+    <html lang="ru" suppressHydrationWarning className={`${martianMono.variable} h-full`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

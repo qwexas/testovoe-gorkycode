@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from app.config import REPOSITORY_ROOT, LLMBackend, SearchBackend, Settings
+from app.config import REPOSITORY_ROOT, LLMBackend, SearchBackend, Settings, VoiceBackend
 from app.factory import create_app
 
 OPENAPI_PATH = REPOSITORY_ROOT / "contracts" / "openapi.json"
@@ -21,6 +21,7 @@ _EXPORT_SETTINGS: dict[str, Any] = {
     "app_secret": "openapi-export-placeholder-secret-0000",
     "search_backend": SearchBackend.PLACEHOLDER,
     "llm_backend": LLMBackend.DISABLED,
+    "voice_backend": VoiceBackend.DISABLED,
     "load_history_on_startup": False,
 }
 

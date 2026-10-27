@@ -33,6 +33,8 @@ type ProfileContextValue = {
   createProfile: () => Promise<void>;
   restoreProfile: (code: string) => Promise<void>;
   deleteAllData: () => Promise<void>;
+  /** Короткое сообщение под шапкой (озвучивается экранным диктором). */
+  notify: (message: string) => void;
 };
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -106,6 +108,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       createProfile,
       restoreProfile,
       deleteAllData,
+      notify: showToast,
     }),
     [
       state.profile,
@@ -115,6 +118,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       createProfile,
       restoreProfile,
       deleteAllData,
+      showToast,
     ],
   );
 

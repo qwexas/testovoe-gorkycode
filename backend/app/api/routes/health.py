@@ -16,12 +16,13 @@ router = APIRouter(tags=["service"])
     summary="Проверка живости",
     description=(
         "Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`; "
-        "`llm: unknown` — языковая модель не подключена."
+        "`unknown` — зависимость не подключена (нет ключа LLM, `LLM_BACKEND=disabled` "
+        "или `VOICE_BACKEND=disabled`)."
     ),
     response_model=HealthResponse,
 )
 async def get_health(services: Services) -> HealthResponse:
-    report = await check_health(services.database, services.llm_probe)
+    report = await check_health(services.database, services.probes)
     return HealthResponse(
         status="ok",
         version=__version__,

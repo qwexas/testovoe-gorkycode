@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Отменить действие
-         * @description Работает 10 секунд после действия, потом — 404.
+         * @description Отменяет создание, перенос, переименование, отметку о выполнении или удаление. Сервер принимает отмену 30 секунд после действия (кнопку интерфейс показывает 10 секунд — запас на сеть). Позже, повторно или для чужого действия — 404.
          */
         post: operations["undo_action"];
         delete?: never;
@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Скачать .ics
-         * @description Все предстоящие записи профиля, файлом (attachment).
+         * @description Открытые записи профиля с датой, начиная с сегодняшнего дня, файлом `gorky.ics`. Встречи — с предупреждением за 15 минут, напоминания и задачи со временем — в момент начала, задачи на день — в 09:00.
          */
         get: operations["download_calendar"];
         put?: never;
@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Подписка на календарь
-         * @description По секретному токену, без cookie. Напоминания — с `VALARM`.
+         * @description То же, что `/api/calendar.ics`, по секретному токену из `calendar_subscription_url` — без cookie, профиль не создаётся. Неизвестный токен — 404. Лимит — 60 запросов в минуту с одного IP.
          */
         get: operations["subscribe_calendar"];
         put?: never;
@@ -75,7 +75,7 @@ export interface paths {
         put?: never;
         /**
          * Текстовая реплика
-         * @description Лимит — 20 запросов в минуту на профиль (вместе с `/api/voice`).
+         * @description Лимит — 20 запросов в минуту на профиль (вместе с `/api/voice`). Реплика пользователя сохраняется в историю до разбора: при 503 `llm_unavailable` она остаётся в истории, а ответа ассистента нет.
          */
         post: operations["send_chat_message"];
         delete?: never;
@@ -113,11 +113,14 @@ export interface paths {
         };
         /**
          * Список записей
-         * @description Если задан `q`, ищет по смыслу и сортирует по релевантности.
+         * @description Период — полуинтервал `[from, to)` по началу записи. Если задан `q`, ищет по смыслу среди записей, подходящих под остальные фильтры, и сортирует по релевантности; иначе — по времени начала, записи без даты в конце.
          */
         get: operations["list_events"];
         put?: never;
-        /** Создать запись */
+        /**
+         * Создать запись
+         * @description У встречи и напоминания обязательны дата и время. Конец (`ends_at`) — только у встречи, по умолчанию начало + 60 минут. При `has_time: false` время начала становится 00:00 по Москве.
+         */
         post: operations["create_event"];
         delete?: never;
         options?: never;
@@ -141,7 +144,7 @@ export interface paths {
         head?: never;
         /**
          * Изменить запись
-         * @description В том числе отметить выполненной: `status: "done"`.
+         * @description В том числе отметить выполненной: `status: "done"`. `null` у `starts_at` и `ends_at` стирает значение, у остальных полей — оставляет как есть. Перенос встречи без `ends_at` сохраняет её длительность.
          */
         patch: operations["update_event"];
         trace?: never;
@@ -155,7 +158,7 @@ export interface paths {
         };
         /**
          * Проверка живости
-         * @description Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`.
+         * @description Без профиля. `status` всегда `ok`, состояние зависимостей — в `checks`; `unknown` — зависимость не подключена (нет ключа LLM, `LLM_BACKEND=disabled` или `VOICE_BACKEND=disabled`).
          */
         get: operations["get_health"];
         put?: never;
@@ -201,7 +204,7 @@ export interface paths {
         put?: never;
         /**
          * Новый профиль
-         * @description Создаёт профиль и переключает на него cookie этого устройства.
+         * @description Создаёт профиль и переключает на него cookie этого устройства. Лимит — 20 новых профилей в час с одного IP (вместе с автосозданием).
          */
         post: operations["create_profile"];
         delete?: never;
@@ -239,7 +242,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Озвучка ответа */
+        /**
+         * Озвучка ответа
+         * @description Аудио OGG/Opus, не кэшируется. `voice` — один из голосов Silero, без него — голос по умолчанию; неизвестный голос — 422. Лимит — 40 запросов в минуту на профиль.
+         */
         post: operations["synthesize_speech"];
         delete?: never;
         options?: never;
@@ -258,7 +264,7 @@ export interface paths {
         put?: never;
         /**
          * Голосовая реплика
-         * @description Аудио webm/opus, ogg, mp4/aac или wav, не больше 10 МБ и 60 секунд. Аудио не сохраняется. В ответе заполнен `recognized_text`.
+         * @description Форма с полем `audio`: webm/opus, ogg, mp4/aac, wav или mpeg, не больше 10 МБ и 60 секунд. Распознанный текст обрабатывается как реплика `/api/chat` (общий лимит 20 в минуту) и приходит в `recognized_text`. Тишина или шум — 422 `speech_not_recognized`. Аудио не сохраняется и не пишется в лог: в истории остаётся только распознанный текст.
          */
         post: operations["send_voice_message"];
         delete?: never;
@@ -307,14 +313,6 @@ export interface components {
              */
             text: string;
             undo: components["schemas"]["Undo"] | null;
-        };
-        /** Body_send_voice_message */
-        Body_send_voice_message: {
-            /**
-             * Audio
-             * @description Запись голоса
-             */
-            audio: string;
         };
         /**
          * ChatMessage
@@ -629,14 +627,21 @@ export interface components {
         };
         /**
          * Undo
-         * @description Действие можно отменить до `expires_at` (окно 10 секунд).
+         * @description Действие можно отменить до `expires_at`.
+         *
+         *     Сервер принимает отмену 30 секунд; кнопку «Отменить» интерфейс показывает 10 секунд,
+         *     оставшееся время — запас на сеть и на голосовую команду «отмени».
          */
         Undo: {
-            /** Action Id */
+            /**
+             * Action Id
+             * @description Для `POST /api/actions/{action_id}/undo`
+             */
             action_id: string;
             /**
              * Expires At
              * Format: date-time
+             * @description Срок отмены на сервере: момент действия + 30 с
              */
             expires_at: string;
         };
@@ -687,8 +692,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -696,8 +701,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -716,7 +721,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Календарь iCalendar */
+            /** @description Календарь iCalendar (RFC 5545) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -725,8 +730,8 @@ export interface operations {
                     "text/calendar": string;
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -734,8 +739,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -756,7 +761,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Календарь iCalendar */
+            /** @description Календарь iCalendar (RFC 5545) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -783,8 +788,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -792,8 +797,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -852,15 +857,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
             /** @description `llm_unavailable` */
             503: {
                 headers: {
@@ -902,8 +898,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -911,8 +907,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -956,8 +952,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -965,8 +961,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1007,8 +1003,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1016,8 +1012,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1063,8 +1059,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1072,8 +1068,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1125,8 +1121,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1134,8 +1130,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1192,6 +1188,15 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
+            /** @description `rate_limited` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `internal_error` */
             500: {
                 headers: {
@@ -1246,6 +1251,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description `rate_limited` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description `internal_error` */
@@ -1350,8 +1364,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `internal_error` */
-            500: {
+            /** @description `rate_limited` */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1359,8 +1373,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `not_implemented` */
-            501: {
+            /** @description `internal_error` */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1388,7 +1402,13 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_send_voice_message"];
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Запись голоса. `Content-Type` части: audio/webm, audio/ogg, audio/mp4, audio/aac, audio/wav или audio/mpeg (можно с параметрами, например `audio/webm;codecs=opus`).
+                     */
+                    audio: string;
+                };
             };
         };
         responses: {
@@ -1439,15 +1459,6 @@ export interface operations {
             };
             /** @description `internal_error` */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description `not_implemented` */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };

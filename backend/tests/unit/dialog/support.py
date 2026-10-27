@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 
 from app.core.dialog.models import AssistantAnswer, Reply
 from app.core.dialog.service import DialogDependencies, DialogService, MessageThrottle
-from app.core.enums import EventSource, EventStatus, EventType, MessageSource
+from app.core.enums import EventSource, EventStatus, EventType, MessageSource, ServiceStatus
 from app.core.events import EventCard
 from app.core.queries import EventFilter, MeetingSlot
 from app.core.rate_limit import SlidingWindowRateLimiter
@@ -35,6 +35,7 @@ from app.storage.models import (
     EventRecord,
     UndoActionRecord,
 )
+from app.voice.interfaces import AudioClip
 
 NOW = datetime(2026, 10, 26, 12, 0, tzinfo=MOSCOW)
 """Понедельник, 26 октября 2026, полдень по Москве."""
@@ -299,6 +300,24 @@ class FakeIntentParser:
         return result
 
 
+class FakeSpeechToText:
+    """Распознавание по сценарию теста: байты записи → текст (или ошибка)."""
+
+    def __init__(self) -> None:
+        self.script: dict[bytes, str | Exception] = {}
+        self.clips: list[AudioClip] = []
+
+    async def transcribe(self, audio: AudioClip) -> str:
+        self.clips.append(audio)
+        result = self.script.get(audio.data, "")
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    async def check(self) -> ServiceStatus:
+        return ServiceStatus.OK
+
+
 class FakeClock:
     def __init__(self) -> None:
         self.now = NOW
@@ -319,6 +338,7 @@ class DialogHarness:
     clock: FakeClock
     ranker: ContainsAllRanker
     throttle: MessageThrottle
+    speech: FakeSpeechToText = field(default_factory=FakeSpeechToText)
     profile_id: UUID = field(default_factory=uuid4)
 
     @property
@@ -326,7 +346,11 @@ class DialogHarness:
         fake_storage: Any = self.storage
         search = SearchService(HashingEmbedder(), PrefixLemmatizer(), self.ranker)
         dependencies = DialogDependencies(
-            parser=self.parser, search=search, throttle=self.throttle, clock=self.clock
+            parser=self.parser,
+            search=search,
+            throttle=self.throttle,
+            speech=self.speech,
+            clock=self.clock,
         )
         return DialogService(fake_storage, dependencies)
 

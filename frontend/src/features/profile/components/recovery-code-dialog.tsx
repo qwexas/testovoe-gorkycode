@@ -28,7 +28,7 @@ export function RecoveryCodeDialog({
       >
         <p
           translate="no"
-          className="rounded-xl border border-border-strong bg-bg px-4 py-4 text-center font-mono text-lg font-medium break-words select-all"
+          className="border border-border-strong bg-bg px-4 py-4 text-center font-mono text-lg font-medium break-words select-all"
         >
           {pendingRecoveryCode}
         </p>

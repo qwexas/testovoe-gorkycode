@@ -1,5 +1,6 @@
 """Сборка приложения FastAPI: настройки, сервисы, ошибки, cookie, маршруты."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
@@ -13,18 +14,23 @@ from app.api.dependencies import AppServices
 from app.api.errors import install_error_handlers
 from app.api.router import api_router
 from app.api.session_cookie import SessionCookieMiddleware
-from app.config import LLMBackend, SearchBackend, Settings, get_settings
+from app.config import LLMBackend, SearchBackend, Settings, VoiceBackend, get_settings
+from app.core.calendar import SubscriptionThrottle
 from app.core.dialog.service import MessageThrottle
-from app.core.health import StatusProbe
+from app.core.enums import ServiceStatus
+from app.core.errors import SpeechToTextUnavailableError, TextToSpeechUnavailableError
+from app.core.health import DependencyProbes, StatusProbe
 from app.core.history import CsvProfileHistory, SeedHistoryLoader
 from app.core.history_source import HistoryEntry, read_history_file
 from app.core.profiles import ProfileOnboarding
 from app.core.recovery import RecoveryCodes
 from app.core.search import SearchService
+from app.core.speech import SynthesisThrottle
 from app.llm.errors import LLMUnavailableError
 from app.nlu.interfaces import DialogContext, Intent, IntentParser
 from app.search.placeholders import HashingEmbedder, LowercaseLemmatizer, SimilarityRanker
 from app.storage.database import Database
+from app.voice.interfaces import AudioClip, SpeechToText, TextToSpeech
 
 API_TITLE = "Горький API"
 API_DESCRIPTION = (
@@ -38,14 +44,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Создаёт приложение; без аргумента настройки читаются из окружения и `.env`."""
     settings = settings or get_settings()
     language = _build_language(settings)
-    services = _build_services(settings, language)
+    voice = _build_voice(settings)
+    services = _build_services(settings, language, voice)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if services.settings.load_history_on_startup:
             async with services.database.unit_of_work() as storage:
                 await services.history_loader.ensure_loaded(storage)
+        warm_ups = _warm_up_in_background(voice.speech_to_text, voice.text_to_speech)
         yield
+        for task in warm_ups:
+            task.cancel()
         await services.database.dispose()
         await language.close()
 
@@ -88,7 +98,105 @@ class _UnavailableIntentParser:
         raise LLMUnavailableError()
 
 
-def _build_services(settings: Settings, language: _LanguageServices) -> AppServices:
+@dataclass(frozen=True, slots=True)
+class _VoiceServices:
+    """Распознавание и синтез речи и их проверки для `/api/health` (`None` — голос выключен)."""
+
+    speech_to_text: SpeechToText
+    text_to_speech: TextToSpeech
+    stt_probe: StatusProbe | None = None
+    tts_probe: StatusProbe | None = None
+
+
+class _UnavailableSpeechToText:
+    """Распознавание без модели: любая запись — 503 `stt_unavailable`."""
+
+    async def transcribe(self, audio: AudioClip) -> str:
+        raise SpeechToTextUnavailableError()
+
+    async def check(self) -> ServiceStatus:
+        return ServiceStatus.FAIL
+
+
+class _UnavailableTextToSpeech:
+    """Синтез без модели: любая озвучка — 503 `tts_unavailable`, голосов нет."""
+
+    @property
+    def voices(self) -> Sequence[str]:
+        return ()
+
+    async def synthesize(self, text: str, voice: str | None) -> AudioClip:
+        raise TextToSpeechUnavailableError()
+
+    async def check(self) -> ServiceStatus:
+        return ServiceStatus.FAIL
+
+
+def _build_voice(settings: Settings) -> _VoiceServices:
+    """Единственное место, где выбираются модели речи (`VOICE_BACKEND`).
+
+    Если модулей Whisper / Silero ещё нет или модель не создаётся, приложение
+    работает, а `/api/voice` и `/api/tts` отвечают 503 — так же, как при сбое модели;
+    в `/api/health` такая модель — `fail`. При `disabled` проверки — `unknown`.
+    """
+    if settings.voice_backend is VoiceBackend.DISABLED:
+        return _VoiceServices(_UnavailableSpeechToText(), _UnavailableTextToSpeech())
+    speech_to_text: SpeechToText = _model_or_unavailable(
+        _whisper_speech_to_text, _UnavailableSpeechToText, "/api/voice"
+    )
+    text_to_speech: TextToSpeech = _model_or_unavailable(
+        _silero_text_to_speech, _UnavailableTextToSpeech, "/api/tts"
+    )
+    return _VoiceServices(
+        speech_to_text, text_to_speech, stt_probe=speech_to_text, tts_probe=text_to_speech
+    )
+
+
+def _warm_up_in_background(*models: object) -> list[asyncio.Task[None]]:
+    """Грузит модели речи в фоне сразу после старта, не задерживая готовность API.
+
+    Без прогрева Whisper и Silero грузятся на первой реплике (минуты при холодном кэше).
+    `warm_up()` есть у настоящих моделей и сам решает, включён ли прогрев (`*_WARM_UP_ON_STARTUP`),
+    и никогда не бросает исключений; у заглушек его нет.
+    """
+    tasks = []
+    for model in models:
+        warm_up = getattr(model, "warm_up", None)
+        if callable(warm_up):
+            tasks.append(asyncio.create_task(warm_up(), name=f"warm-up {type(model).__name__}"))
+    return tasks
+
+
+def _model_or_unavailable[Model](
+    build: Callable[[], Model], unavailable: Callable[[], Model], endpoint: str
+) -> Model:
+    """Модель речи для `endpoint` или заглушка «недоступно» с предупреждением в логе."""
+    try:
+        return build()
+    except Exception as error:  # нет модуля, зависимости или настроек — приложение работает
+        logger.warning("Модель речи для %s недоступна (%r): он отвечает 503", endpoint, error)
+        return unavailable()
+
+
+def _whisper_speech_to_text() -> SpeechToText:
+    """faster-whisper; импорт внутри — модуль может ещё отсутствовать. Модель грузится лениво."""
+    from app.voice.whisper import WhisperSpeechToText  # type: ignore[import-not-found,unused-ignore]
+
+    speech_to_text: SpeechToText = WhisperSpeechToText()
+    return speech_to_text
+
+
+def _silero_text_to_speech() -> TextToSpeech:
+    """Silero TTS; импорт внутри — модуль может ещё отсутствовать. Модель грузится лениво."""
+    from app.voice.silero import SileroTextToSpeech  # type: ignore[import-not-found,unused-ignore]
+
+    text_to_speech: TextToSpeech = SileroTextToSpeech()
+    return text_to_speech
+
+
+def _build_services(
+    settings: Settings, language: _LanguageServices, voice: _VoiceServices
+) -> AppServices:
     history = read_history_file()
     search = _build_search(settings, history)
     return AppServices(
@@ -100,7 +208,11 @@ def _build_services(settings: Settings, language: _LanguageServices) -> AppServi
         history_loader=SeedHistoryLoader(search, history),
         intent_parser=language.parser,
         message_throttle=MessageThrottle(),
-        llm_probe=language.probe,
+        speech_to_text=voice.speech_to_text,
+        text_to_speech=voice.text_to_speech,
+        synthesis_throttle=SynthesisThrottle(),
+        subscription_throttle=SubscriptionThrottle(),
+        probes=DependencyProbes(llm=language.probe, stt=voice.stt_probe, tts=voice.tts_probe),
     )
 
 

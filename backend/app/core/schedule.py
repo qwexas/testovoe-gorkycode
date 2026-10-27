@@ -51,6 +51,11 @@ def settle_schedule(event_type: EventType, schedule: Schedule) -> Schedule:
     return with_end
 
 
+def moscow_now() -> datetime:
+    """Текущий момент по Москве."""
+    return datetime.now(MOSCOW)
+
+
 def start_of_day(moment: datetime) -> datetime:
     """Полночь по Москве того дня, на который приходится `moment`."""
     return datetime.combine(moment.astimezone(MOSCOW).date(), time.min, tzinfo=MOSCOW)

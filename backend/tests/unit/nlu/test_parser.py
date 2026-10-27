@@ -202,6 +202,52 @@ async def test_reschedule_keeps_current_day_of_record_apart_from_new_time() -> N
     assert intent.when == When(time=dt.time(16, 0))
 
 
+MONDAY_MORNING = dt.datetime(2026, 10, 26, 9, 30, tzinfo=MOSCOW)
+NEXT_MONDAY = dt.date(2026, 11, 2)
+
+
+async def test_reschedule_to_todays_weekday_without_time_is_next_week() -> None:
+    """В понедельник «перенеси на понедельник» — не сегодня: со старым временем это прошлое."""
+    intent = await parse(
+        {"action": "reschedule", "query": "встреча с Иваном", "date": "mon"},
+        text="Перенеси встречу с Иваном на понедельник",
+        context=DialogContext(now=MONDAY_MORNING),
+    )
+
+    assert intent.when == When(date=NEXT_MONDAY)
+
+
+async def test_reschedule_to_todays_weekday_with_time_ahead_is_today() -> None:
+    intent = await parse(
+        {"action": "reschedule", "query": "встреча с Иваном", "date": "mon", "time": "17:00"},
+        text="Перенеси встречу с Иваном на понедельник на 17:00",
+        context=DialogContext(now=MONDAY_MORNING),
+    )
+
+    assert intent.when == When(date=MONDAY_MORNING.date(), time=dt.time(17, 0))
+
+
+async def test_create_on_todays_weekday_without_time_is_next_week() -> None:
+    intent = await parse(
+        {"action": "create", "event_type": "task", "title": "отправить отчет", "date": "mon"},
+        text="В понедельник нужно отправить отчет",
+        context=DialogContext(now=MONDAY_MORNING),
+    )
+
+    assert intent.when == When(date=NEXT_MONDAY)
+
+
+async def test_create_on_todays_weekday_with_passed_time_is_next_week() -> None:
+    intent = await parse(
+        {"action": "create", "event_type": "meeting", "title": "планёрка", "date": "mon"}
+        | {"time": "09:00"},
+        text="Поставь планёрку в понедельник в 9:00",
+        context=DialogContext(now=MONDAY_MORNING),
+    )
+
+    assert intent.when == When(date=NEXT_MONDAY, time=dt.time(9, 0))
+
+
 async def test_reschedule_without_description_means_record_in_context() -> None:
     intent = await parse({"action": "reschedule", "date": "fri"})
 

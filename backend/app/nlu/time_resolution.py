@@ -7,8 +7,10 @@
 - «утром» 09:00, «днём» / «в обед» 13:00, «вечером» 19:00;
 - «в 3» без уточнения: часы 1-7 — дневные (15:00), «в 9 вечера» — 21:00;
 - «через N часов / минут» — сейчас + N, вверх до ближайших 5 минут;
-- «в пятницу» — ближайшая пятница; если сегодня пятница — сегодня, пока названное
-  время не прошло (см. `upcoming_weekday`); «в следующую пятницу» — пятница следующей недели;
+- «в пятницу» — ближайшая пятница. Если сегодня пятница, новая дата (создание, перенос,
+  ответ на уточнение) — сегодня, только когда названо время и оно ещё впереди, иначе пятница
+  через неделю (см. `upcoming_weekday`); в списке и при поиске записи — сегодня
+  (`nearest_weekday`); «в следующую пятницу» — пятница следующей недели;
 - «до конца недели» — воскресенье 23:59; «на следующей неделе» — только неделя (`week_of`);
 - периоды списков — полуинтервалы `[начало, конец)`: день, неделя пн-вс, выходные, месяц.
 """
@@ -159,17 +161,24 @@ def week_start(day: dt.date) -> dt.date:
     return day - dt.timedelta(days=day.weekday())
 
 
-def upcoming_weekday(now: dt.datetime, weekday: int, at: dt.time | None = None) -> dt.date:
-    """Ближайший будущий день недели: «в пятницу».
+def nearest_weekday(today: dt.date, weekday: int) -> dt.date:
+    """Сегодня или ближайший следующий такой день недели: «что у меня в пятницу»,
+    «удали встречу в пятницу» — запись может стоять и на сегодня."""
+    return today + dt.timedelta(days=(weekday - today.weekday()) % DAYS_IN_WEEK)
 
-    Если сегодня этот день, выбирается сегодня, пока названное время `at` не прошло
-    (без времени — весь день). Ошибка «сегодня вместо через неделю» видна сразу в
-    подтверждении и безобидна, а обратная — пропущенная встреча сегодня.
+
+def upcoming_weekday(now: dt.datetime, weekday: int, at: dt.time | None = None) -> dt.date:
+    """Новая дата по дню недели: «перенеси на пятницу», «встреча в пятницу в 15:00».
+
+    Если сегодня этот день, выбирается сегодня, только когда названо время `at` и оно ещё
+    впереди. Без времени — тот же день следующей недели: про сегодняшний день говорят
+    «сегодня», а «перенеси на понедельник», сказанное в понедельник, иначе переносило
+    запись на сегодня — со старым временем, то есть в прошлое.
     """
     current = in_moscow(now)
     today = current.date()
-    day = today + dt.timedelta(days=(weekday - today.weekday()) % DAYS_IN_WEEK)
-    if day == today and at is not None and at <= current.time():
+    day = nearest_weekday(today, weekday)
+    if day == today and (at is None or at <= current.time()):
         day += dt.timedelta(days=DAYS_IN_WEEK)
     return day
 
@@ -242,7 +251,9 @@ def resolve_day(
         weekday = WEEKDAY_KINDS[kind]
         if scope is TimeScope.PAST:
             return recent_weekday(today, weekday)
-        return upcoming_weekday(now, weekday, at if scope is TimeScope.FUTURE else None)
+        if scope is TimeScope.FUTURE:
+            return upcoming_weekday(now, weekday, at)
+        return nearest_weekday(today, weekday)
     if kind in NEXT_WEEKDAY_KINDS:
         return weekday_next_week(today, NEXT_WEEKDAY_KINDS[kind])
     match kind:

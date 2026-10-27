@@ -34,14 +34,14 @@ export function DialogContent({
         className={cn(
           "fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
           "max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain",
-          "rounded-2xl border border-border bg-surface p-6 text-fg shadow-2xl",
+          "border border-border-strong bg-surface p-6 text-fg",
           "motion-safe:data-[state=open]:animate-dialog-in",
           className,
         )}
         {...(description ? {} : { "aria-describedby": undefined })}
         {...props}
       >
-        <RadixDialog.Title className="pr-10 text-lg leading-snug font-semibold text-balance">
+        <RadixDialog.Title className="pr-10 text-lg leading-snug font-semibold text-balance [font-stretch:112.5%]">
           {title}
         </RadixDialog.Title>
         {description ? (

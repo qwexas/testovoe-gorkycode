@@ -8,7 +8,7 @@ import pytest
 
 from app.config import LLMBackend
 from app.core.enums import ServiceStatus
-from app.core.health import check_health
+from app.core.health import DependencyProbes, check_health
 from app.factory import create_app
 from app.llm.errors import LLMUnavailableError
 from app.nlu.interfaces import DialogContext, IntentParser
@@ -70,7 +70,7 @@ def test_configured_gigachat_builds_llm_parser_and_probe(monkeypatch: pytest.Mon
     services = create_app(settings).state.services
 
     assert isinstance(services.intent_parser, LLMIntentParser)
-    assert isinstance(services.llm_probe, GigaChatClient)
+    assert isinstance(services.probes.llm, GigaChatClient)
 
 
 class FixedProbe:
@@ -85,7 +85,7 @@ class FixedProbe:
 async def test_health_reports_llm_probe(status: ServiceStatus) -> None:
     database = Database(UNREACHABLE_DATABASE_URL)
 
-    report = await check_health(database, FixedProbe(status))
+    report = await check_health(database, DependencyProbes(llm=FixedProbe(status)))
 
     assert (report.db, report.llm) == (ServiceStatus.FAIL, status)
     await database.dispose()

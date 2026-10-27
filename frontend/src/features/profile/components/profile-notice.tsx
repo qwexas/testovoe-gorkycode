@@ -1,68 +1,69 @@
 "use client";
 
-import { MAIN_CONTENT_ID } from "@/components/skip-link";
-import { Button } from "@/components/ui/button";
-import { FormError } from "@/components/ui/form-error";
+import { tty } from "@/components/ui/tty";
 import { useAsyncAction } from "@/hooks/use-async-action";
+import { cn } from "@/lib/cn";
 
 import { useProfile } from "../profile-context";
 
-/** Сообщение в основной зоне, когда работать не с чем: данные удалены или профиль не загрузился. */
-export function ProfileNotice() {
+/**
+ * Строка в логе сессии, когда работать не с чем: данные удалены или профиль не
+ * загрузился. Вместо истории — что случилось и одна команда, чтобы продолжить.
+ */
+export function ProfileNotice({ onRecovered }: { onRecovered?: () => void }) {
   const { profile, createProfile, reload } = useProfile();
   const create = useAsyncAction(createProfile);
   const retry = useAsyncAction(reload);
 
   if (profile.status === "deleted") {
     return (
-      <section
-        aria-labelledby="profile-notice-title"
-        className="rounded-2xl border border-border bg-surface p-5"
-      >
-        <h2 id="profile-notice-title" className="font-semibold">
-          Данные удалены
-        </h2>
-        <p className="mt-1 text-sm text-pretty text-fg-muted">
-          Профиль, задачи, встречи и история диалога стёрты с сервера. Чтобы продолжить, создайте
-          новый профиль или войдите по коду через меню «Профиль».
+      <div className="grid justify-items-start gap-1 pl-[3ch]">
+        <p className={cn(tty.ok, "text-pretty")}>
+          <span aria-hidden="true">✓ </span>
+          Данные удалены: профиль, задачи, встречи и история диалога стёрты с сервера.
         </p>
-        <FormError message={create.error?.message ?? null} />
-        <Button
-          variant="primary"
-          className="mt-4"
-          aria-busy={create.pending || undefined}
-          onClick={() => {
-            if (!create.pending) void create.run();
+        <p className={cn(tty.muted, "text-pretty")}>
+          Чтобы продолжить, создайте новый профиль или войдите по коду в меню профиля внизу экрана.
+        </p>
+        {create.error ? (
+          <p role="alert" className={tty.danger}>
+            {create.error.message}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          aria-disabled={create.pending || undefined}
+          onClick={async () => {
+            if (create.pending) return;
+            if (await create.run()) onRecovered?.();
           }}
+          className={cn(tty.btn, "-ml-1.5")}
         >
-          {create.pending ? "Создаём профиль…" : "Создать профиль"}
-        </Button>
-      </section>
+          {create.pending ? "создаю профиль…" : "создать профиль"}
+        </button>
+      </div>
     );
   }
 
   if (profile.status === "failed") {
     return (
-      <section
-        aria-labelledby="profile-notice-title"
-        className="rounded-2xl border border-border bg-surface p-5"
-      >
-        <h2 id="profile-notice-title" className="font-semibold">
-          Профиль не загрузился
-        </h2>
-        <p className="mt-1 text-sm text-pretty text-fg-muted">{profile.error.message}</p>
-        <Button
-          className="mt-4"
-          aria-busy={retry.pending || undefined}
+      <div className="grid justify-items-start gap-1 pl-[3ch]">
+        <p className={cn(tty.danger, "text-pretty")}>
+          <span aria-hidden="true">✗ </span>
+          Профиль не загрузился. {profile.error.message}
+        </p>
+        <button
+          type="button"
+          aria-disabled={retry.pending || undefined}
           onClick={async () => {
             if (retry.pending) return;
-            // При успехе блок исчезнет вместе с кнопкой — переносим фокус в основную зону.
-            if (await retry.run()) document.getElementById(MAIN_CONTENT_ID)?.focus();
+            if (await retry.run()) onRecovered?.();
           }}
+          className={cn(tty.btn, "-ml-1.5")}
         >
-          {retry.pending ? "Загружаем…" : "Загрузить снова"}
-        </Button>
-      </section>
+          {retry.pending ? "загружаю…" : "загрузить снова"}
+        </button>
+      </div>
     );
   }
 

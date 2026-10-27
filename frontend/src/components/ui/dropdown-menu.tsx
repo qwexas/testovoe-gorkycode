@@ -33,8 +33,8 @@ export function DropdownMenuContent({
         align={align}
         collisionPadding={collisionPadding}
         className={cn(
-          "z-50 min-w-56 rounded-xl border border-border bg-surface p-1.5 text-fg shadow-xl",
-          "max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto",
+          "z-50 min-w-56 border border-border-strong bg-surface p-1 text-fg shadow-lg",
+          "max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto overscroll-contain",
           "motion-safe:data-[state=open]:animate-menu-in",
           className,
         )}
@@ -47,7 +47,7 @@ export function DropdownMenuContent({
 // outline-hidden — прозрачная обводка: в режиме высокой контрастности она становится видимой
 // и показывает выделенный пункт, когда фоновая подсветка пропадает.
 const ITEM_CLASSES =
-  "relative flex min-h-10 cursor-default items-center gap-3 rounded-lg px-3 text-sm outline-hidden select-none " +
+  "relative flex min-h-10 cursor-default items-center gap-3 px-3 text-sm outline-hidden select-none " +
   "data-disabled:pointer-events-none data-disabled:opacity-50 " +
   "data-highlighted:bg-accent-fill data-highlighted:text-on-accent";
 

@@ -7,19 +7,13 @@ import { cn } from "@/lib/cn";
 import type { HealthChecks } from "@/types/api";
 
 import { Tooltip } from "./ui/tooltip";
+import { tty } from "./ui/tty";
 
 type Tone = "neutral" | "success" | "warning" | "danger";
 
-const TONE_CLASSES: Record<Tone, string> = {
-  neutral: "text-fg-muted",
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-};
-
 /**
- * Пиксельные глифы 5×5: у каждого статуса своя форма, а не только цвет (WCAG 1.4.1) —
- * на узком экране текст статуса скрыт и остаётся только глиф. «#» — закрашенный пиксель.
+ * Пиксельные глифы 5×5: у каждого статуса своя форма (WCAG 1.4.1) — в статусной строке
+ * глиф одного цвета с текстом, а на узком экране текст скрыт. «#» — закрашенный пиксель.
  */
 const TONE_GLYPHS: Record<Tone, readonly string[]> = {
   // полый квадрат — проверка идёт
@@ -44,7 +38,7 @@ function StatusGlyph({ tone }: { tone: Tone }) {
       viewBox="0 0 5 5"
       aria-hidden="true"
       shapeRendering="crispEdges"
-      className={cn("shrink-0", TONE_CLASSES[tone])}
+      className="shrink-0"
     >
       {glyphPixels(TONE_GLYPHS[tone]).map(({ x, y }) => (
         <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />
@@ -69,23 +63,23 @@ const CHECK_VALUES: Record<HealthChecks[keyof HealthChecks], string> = {
 function describe(health: ServerHealth): { label: string; tone: Tone; details: string[] } {
   switch (health.status) {
     case "checking":
-      return { label: "Проверяем сервер…", tone: "neutral", details: [] };
+      return { label: "проверяю сервер", tone: "neutral", details: [] };
     case "offline":
-      return { label: "Сервер недоступен", tone: "danger", details: [health.error.message] };
+      return { label: "сервер недоступен", tone: "danger", details: [health.error.message] };
     case "online":
     case "degraded": {
       const details = (Object.keys(CHECK_LABELS) as Array<keyof HealthChecks>).map(
         (key) => `${CHECK_LABELS[key]}: ${CHECK_VALUES[health.health.checks[key]]}`,
       );
       return health.status === "online"
-        ? { label: "Сервер работает", tone: "success", details }
-        : { label: "Сервер работает с перебоями", tone: "warning", details };
+        ? { label: "сервер работает", tone: "success", details }
+        : { label: "сервер с перебоями", tone: "warning", details };
     }
   }
 }
 
-/** Индикатор статуса сервера в шапке. Нажатие — проверить ещё раз. */
-export function ServerStatus() {
+/** Статус сервера — сегмент статусной строки. Нажатие — проверить ещё раз. */
+export function ServerStatus({ className }: { className?: string }) {
   const { health, isChecking, recheck } = useServerHealth();
   const { label, tone, details } = describe(health);
 
@@ -100,6 +94,7 @@ export function ServerStatus() {
   return (
     <>
       <Tooltip
+        side="top"
         content={
           <>
             {details.length > 0 ? (
@@ -119,10 +114,10 @@ export function ServerStatus() {
           type="button"
           onClick={recheck}
           aria-busy={isChecking || undefined}
-          className="inline-flex h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 font-mono text-xs text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg aria-busy:cursor-progress"
+          className={cn(tty.tab, "aria-busy:cursor-progress", className)}
         >
           <StatusGlyph tone={tone} />
-          <span className="sr-only sm:not-sr-only">{label}</span>
+          <span className="sr-only xl:not-sr-only">{label}</span>
           <span className="sr-only">. Проверить снова</span>
         </button>
       </Tooltip>

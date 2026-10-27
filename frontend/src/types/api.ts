@@ -15,5 +15,8 @@ export type ErrorResponse = Schemas["ErrorResponse"];
 
 export type CalendarEvent = Schemas["Event"];
 export type EventType = Schemas["EventType"];
+export type EventStatus = Schemas["EventStatus"];
 export type AssistantReply = Schemas["AssistantReply"];
 export type ChatMessage = Schemas["ChatMessage"];
+export type Pending = Schemas["Pending"];
+export type Period = Schemas["Period"];

@@ -6,10 +6,10 @@ export function StatusToast({ message }: { message: string | null }) {
   return (
     <div
       role="status"
-      className="pointer-events-none fixed inset-x-0 top-20 z-50 flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4"
     >
       {message ? (
-        <p className="pointer-events-auto max-w-md rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-pretty text-fg shadow-xl">
+        <p className="pointer-events-auto max-w-md border border-border-strong bg-surface px-4 py-3 text-sm text-pretty text-fg shadow-lg">
           {message}
         </p>
       ) : null}

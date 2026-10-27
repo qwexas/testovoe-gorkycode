@@ -17,12 +17,14 @@ from app.core.dialog.undo import UndoLog
 from app.core.enums import MessageRole, MessageSource
 from app.core.errors import TooManyMessagesError
 from app.core.events import EventCard, EventEditor
-from app.core.rate_limit import SlidingWindowRateLimiter
-from app.core.schedule import MOSCOW
+from app.core.rate_limit import Throttle
+from app.core.schedule import MOSCOW, moscow_now
 from app.core.search import SearchService
+from app.core.speech import recognize_speech
 from app.nlu.interfaces import ContextEvent, DialogContext, IntentParser
 from app.storage.database import UnitOfWork
 from app.storage.models import ChatMessageRecord
+from app.voice.interfaces import AudioClip, SpeechToText
 
 MESSAGES_PER_WINDOW = 20
 MESSAGE_WINDOW_SECONDS = 60
@@ -30,28 +32,12 @@ MESSAGE_WINDOW_SECONDS = 60
 Clock = Callable[[], datetime]
 
 
-def moscow_now() -> datetime:
-    """Текущий момент по Москве."""
-    return datetime.now(MOSCOW)
-
-
-class MessageThrottle:
+class MessageThrottle(Throttle):
     """Не больше `MESSAGES_PER_WINDOW` реплик в минуту на профиль (текст и голос вместе)."""
 
-    def __init__(self, limiter: SlidingWindowRateLimiter | None = None) -> None:
-        self._limiter = limiter or SlidingWindowRateLimiter(
-            max_hits=MESSAGES_PER_WINDOW, window_seconds=MESSAGE_WINDOW_SECONDS
-        )
-
-    def admit(self, profile_id: UUID) -> None:
-        """Учитывает реплику профиля.
-
-        Raises:
-            TooManyMessagesError: Лимит реплик в минуту исчерпан.
-        """
-        decision = self._limiter.hit(str(profile_id))
-        if not decision.allowed:
-            raise TooManyMessagesError(decision.retry_after_seconds)
+    max_hits = MESSAGES_PER_WINDOW
+    window_seconds = MESSAGE_WINDOW_SECONDS
+    rejection = TooManyMessagesError
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +47,7 @@ class DialogDependencies:
     parser: IntentParser
     search: SearchService
     throttle: MessageThrottle
+    speech: SpeechToText
     clock: Clock = field(default=moscow_now)
 
 
@@ -70,6 +57,7 @@ class DialogService:
     def __init__(self, storage: UnitOfWork, dependencies: DialogDependencies) -> None:
         self._storage = storage
         self._parser = dependencies.parser
+        self._speech = dependencies.speech
         self._throttle = dependencies.throttle
         self._clock = dependencies.clock
         self._undo = UndoLog(storage, EventEditor(storage, dependencies.search))
@@ -86,19 +74,23 @@ class DialogService:
             DomainError: Разбор реплики не удался (`llm_unavailable`).
         """
         self._throttle.admit(profile_id)
-        now = self._clock()
-        state = DialogState.from_record(await self._storage.dialog_states.get(profile_id))
-        await self._save_user_message(profile_id, text)
-        focus = await self._focus_cards(profile_id, state.focus_ids)
-        intent = await self._parser.parse(text, _parser_context(now, state, focus))
-        turn = Turn(profile_id=profile_id, now=now, pending=state.pending, focus=focus)
-        outcome = await self._router.route(turn, intent)
-        recognized_text = text if source is MessageSource.VOICE else None
-        answer = await self._save_answer(profile_id, outcome.reply, recognized_text)
-        next_state = state.after_turn(text, outcome)
-        await self._storage.dialog_states.save(next_state.to_record(profile_id))
-        await self._storage.commit()
-        return answer
+        return await self._answer(profile_id, text, source)
+
+    async def handle_voice(self, profile_id: UUID, audio: AudioClip) -> AssistantAnswer:
+        """Голосовая реплика: распознаёт речь и отвечает, как на текст (`source=voice`).
+
+        Лимит реплик общий с текстом и учитывается до распознавания: модель речи
+        дорогая. В историю попадает только распознанный текст, аудио не сохраняется (Q35).
+
+        Raises:
+            TooManyMessagesError: Профиль превысил лимит реплик в минуту.
+            SpeechNotRecognizedError: В записи нет речи.
+            DomainError: Запись не подходит (`audio_unsupported`, `audio_too_large`),
+                распознавание или LLM недоступны (`stt_unavailable`, `llm_unavailable`).
+        """
+        self._throttle.admit(profile_id)
+        text = await recognize_speech(self._speech, audio)
+        return await self._answer(profile_id, text, MessageSource.VOICE)
 
     async def undo_action(self, profile_id: UUID, action_id: str) -> AssistantAnswer:
         """Отменяет действие по кнопке «Отменить»; ответ попадает в историю.
@@ -128,6 +120,21 @@ class DialogService:
             )
             for message in messages
         ]
+
+    async def _answer(self, profile_id: UUID, text: str, source: MessageSource) -> AssistantAnswer:
+        now = self._clock()
+        state = DialogState.from_record(await self._storage.dialog_states.get(profile_id))
+        await self._save_user_message(profile_id, text)
+        focus = await self._focus_cards(profile_id, state.focus_ids)
+        intent = await self._parser.parse(text, _parser_context(now, state, focus))
+        turn = Turn(profile_id=profile_id, now=now, pending=state.pending, focus=focus)
+        outcome = await self._router.route(turn, intent)
+        recognized_text = text if source is MessageSource.VOICE else None
+        answer = await self._save_answer(profile_id, outcome.reply, recognized_text)
+        next_state = state.after_turn(text, outcome)
+        await self._storage.dialog_states.save(next_state.to_record(profile_id))
+        await self._storage.commit()
+        return answer
 
     async def _save_user_message(self, profile_id: UUID, text: str) -> None:
         message = ChatMessageRecord(profile_id=profile_id, role=MessageRole.USER, text=text)

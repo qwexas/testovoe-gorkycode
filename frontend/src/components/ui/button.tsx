@@ -30,7 +30,7 @@ export function buttonClasses({
   className,
 }: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}): string {
   return cn(
-    "inline-flex shrink-0 touch-manipulation items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap transition-colors select-none",
+    "inline-flex shrink-0 touch-manipulation items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors select-none",
     "disabled:cursor-not-allowed disabled:opacity-50 aria-busy:cursor-progress",
     VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],

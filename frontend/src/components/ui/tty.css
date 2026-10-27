@@ -1,0 +1,473 @@
+/*
+ * Терминальные примитивы «Консоли» (решение Q8): панели tmux, кнопки в скобках, таблицы
+ * вывода, статусная строка. Цвета — токены из globals.css, проверенные на WCAG AA.
+ * Классы глобальные с префиксом tty-: CSS-модули конфликтуют с загрузчиком Tailwind.
+ */
+
+/* Слой components: утилиты Tailwind (hidden, отступы) перекрывают эти правила. */
+@layer components {
+  .tty-root {
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  /* ── Панели tmux: рамка и заголовок, врезанный в верхнюю линию ─────────────── */
+
+  .tty-pane {
+    position: relative;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .tty-paneTitle {
+    position: absolute;
+    top: -0.8em;
+    left: 0.75rem;
+    z-index: 1;
+    padding-inline: 0.5rem;
+    background: var(--bg);
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-stretch: 112.5%;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+
+  /* ── Лог сессии: в светлой теме — бумага с полосами и перфорацией ───────────── */
+
+  .tty-paper {
+    background-image:
+      radial-gradient(circle at 50% 12px, var(--hole) 0 4px, transparent 4.5px),
+      radial-gradient(circle at 50% 12px, var(--hole) 0 4px, transparent 4.5px),
+      repeating-linear-gradient(to bottom, var(--band) 0 48px, transparent 48px 96px);
+    background-size:
+      20px 24px,
+      20px 24px,
+      100% 96px;
+    background-position:
+      left 0 top 0,
+      right 0 top 0,
+      0 0;
+    background-repeat: repeat-y, repeat-y, repeat;
+    background-attachment: local, local, local;
+  }
+
+  .tty-logText {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .tty-time {
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+  }
+
+  .tty-prompt {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .tty-fg {
+    color: var(--fg);
+  }
+
+  .tty-muted {
+    color: var(--fg-muted);
+  }
+
+  .tty-accent {
+    color: var(--accent);
+  }
+
+  .tty-ok {
+    color: var(--success);
+  }
+
+  .tty-wait {
+    color: var(--wait);
+  }
+
+  .tty-danger {
+    color: var(--danger);
+  }
+
+  .tty-strong {
+    font-weight: 650;
+  }
+
+  .tty-wide {
+    font-stretch: 112.5%;
+  }
+
+  /* Плашка «ждёт ответа»: янтарная левая метка у вопроса ассистента. */
+  .tty-question {
+    background: var(--wait-soft);
+    box-shadow: inset 3px 0 0 var(--wait);
+  }
+
+  /* Строка о сработавшем напоминании: та же метка, но в цвет акцента. */
+  .tty-alarm {
+    background: var(--accent-soft);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  /* ── Кнопки: в квадратных скобках, при наведении — инверсия, как в TUI ──────── */
+
+  .tty-btn {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.375rem;
+    padding-inline: 0.375rem;
+    border: 1px solid transparent;
+    color: var(--accent);
+    font-weight: 600;
+    text-align: start;
+    cursor: pointer;
+    transition-property: background-color, color;
+    transition-duration: 120ms;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tty-btn::before {
+    content: "[";
+    color: var(--fg-muted);
+  }
+
+  .tty-btn::after {
+    content: "]";
+    color: var(--fg-muted);
+  }
+
+  @media (hover: hover) {
+    .tty-btn:not([aria-disabled="true"]):hover {
+      background: var(--accent-fill);
+      color: var(--on-accent);
+    }
+
+    .tty-btn:not([aria-disabled="true"]):hover::before,
+    .tty-btn:not([aria-disabled="true"]):hover::after {
+      color: var(--on-accent);
+    }
+  }
+
+  .tty-btn:focus-visible {
+    background: var(--accent-fill);
+    color: var(--on-accent);
+  }
+
+  .tty-btn:focus-visible::before,
+  .tty-btn:focus-visible::after {
+    color: var(--on-accent);
+  }
+
+  /* Части подписи внутри кнопки (название, время) при инверсии берут её цвет. */
+  .tty-btn:focus-visible > * {
+    color: inherit;
+  }
+
+  @media (hover: hover) {
+    .tty-btn:not([aria-disabled="true"]):hover > * {
+      color: inherit;
+    }
+  }
+
+  .tty-btn[aria-disabled="true"] {
+    cursor: progress;
+    opacity: 0.6;
+  }
+
+  /* Подсказка-команда: вместо скобок — приглашение «$», как у строки ввода. */
+  .tty-btnCmd::before {
+    content: "$";
+    color: var(--fg-muted);
+  }
+
+  .tty-btnCmd::after {
+    content: none;
+  }
+
+  .tty-btnDanger {
+    color: var(--danger);
+  }
+
+  @media (hover: hover) {
+    .tty-btnDanger:not([aria-disabled="true"]):hover {
+      background: var(--danger-fill);
+    }
+  }
+
+  .tty-btnDanger:focus-visible {
+    background: var(--danger-fill);
+  }
+
+  /* Главная кнопка — запись голоса: залита всегда. */
+  .tty-mic {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-inline: 0.875rem;
+    border: 1px solid transparent;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-weight: 700;
+    font-stretch: 100%;
+    white-space: nowrap;
+    cursor: pointer;
+    transition-property: background-color, scale;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (hover: hover) {
+    .tty-mic:hover {
+      background: var(--accent-fill-hover);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .tty-mic:not([aria-disabled="true"]):active,
+    .tty-btn:not([aria-disabled="true"]):active {
+      scale: 0.96;
+    }
+  }
+
+  .tty-mic[data-recording] {
+    background: var(--danger-fill);
+  }
+
+  .tty-mic[aria-disabled="true"] {
+    cursor: progress;
+    opacity: 0.6;
+  }
+
+  .tty-recDot {
+    width: 0.625rem;
+    height: 0.625rem;
+    background: currentColor;
+  }
+
+  .tty-mic[data-recording] .tty-recDot {
+    border-radius: 0;
+  }
+
+  .tty-mic:not([data-recording]) .tty-recDot {
+    border-radius: 50%;
+  }
+
+  /* ── Строка ввода ─────────────────────────────────────────────────────────── */
+
+  /* Граница строки ввода контрастнее рамок панелей (WCAG 1.4.11, 3:1). */
+  .tty-promptRow {
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface);
+  }
+
+  .tty-input {
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    color: var(--fg);
+    caret-color: var(--accent);
+    font-size: 1rem;
+    outline: none;
+  }
+
+  .tty-input::placeholder {
+    color: var(--fg-muted);
+  }
+
+  /* Фокус в поле ввода показывает вся строка: обводка поля внутри строки терялась бы. */
+  .tty-promptRow:has(.tty-input:focus-visible) {
+    box-shadow: inset 0 0 0 2px var(--focus);
+  }
+
+  /* ── Таблица вывода команды ───────────────────────────────────────────────── */
+
+  .tty-table {
+    border-collapse: collapse;
+  }
+
+  .tty-table th {
+    padding: 0 1.5ch 0.125rem 0;
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: start;
+    white-space: nowrap;
+  }
+
+  .tty-table td {
+    padding: 0.125rem 1.5ch 0.125rem 0;
+    vertical-align: baseline;
+  }
+
+  .tty-rowDone td {
+    color: var(--fg-muted);
+  }
+
+  .tty-rowNext td {
+    background: var(--accent-soft);
+  }
+
+  /* ── Лента дня ────────────────────────────────────────────────────────────── */
+
+  .tty-nowLine {
+    display: flex;
+    align-items: center;
+    gap: 0.75ch;
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .tty-nowLine::before,
+  .tty-nowLine::after {
+    content: "";
+    height: 0;
+    flex: 1;
+    border-top: 1px dashed var(--accent);
+  }
+
+  .tty-nowLine::before {
+    flex: 0 0 2ch;
+  }
+
+  .tty-fresh {
+    background: var(--accent-soft);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .tty-fresh {
+      animation: tty-fresh-in 900ms ease-out both;
+    }
+  }
+
+  @keyframes tty-fresh-in {
+    from {
+      background: var(--accent-fill);
+      color: var(--on-accent);
+    }
+  }
+
+  .tty-struck {
+    text-decoration: line-through;
+    text-decoration-thickness: from-font;
+  }
+
+  /* ── Статусная строка tmux ────────────────────────────────────────────────── */
+
+  .tty-statusBar {
+    background: var(--status-bg);
+    color: var(--status-fg);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+
+  .tty-statusBar :focus-visible {
+    outline-color: var(--status-fg);
+    outline-offset: -2px;
+  }
+
+  .tty-brandSeg {
+    background: var(--status-deep);
+    font-weight: 700;
+    font-stretch: 112.5%;
+  }
+
+  .tty-tab {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.5ch;
+    padding-inline: 0.75rem;
+    color: var(--status-fg);
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tty-tab[aria-selected="true"],
+  .tty-tab[data-state="open"] {
+    background: var(--status-deep);
+    font-weight: 700;
+  }
+
+  @media (hover: hover) {
+    .tty-tab:hover {
+      background: var(--status-deep);
+    }
+  }
+
+  .tty-kbd {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    background: var(--status-deep);
+    font-weight: 700;
+  }
+
+  .tty-choice {
+    display: inline-flex;
+    min-height: 1.75rem;
+    align-items: center;
+    padding-inline: 0.5rem;
+    cursor: pointer;
+  }
+
+  .tty-choice[data-checked] {
+    background: var(--status-deep);
+    font-weight: 700;
+  }
+
+  .tty-choice:has(:focus-visible) {
+    outline: 2px solid var(--status-fg);
+    outline-offset: -2px;
+  }
+
+  .tty-toggle {
+    display: inline-flex;
+    min-height: 1.75rem;
+    align-items: center;
+    gap: 0.5ch;
+    padding-inline: 0.5rem;
+    color: var(--status-fg);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tty-bigState {
+    font-size: clamp(1.5rem, 1.1rem + 1.2vw, 2.125rem);
+    font-stretch: 112.5%;
+    font-weight: 750;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+
+  @media (max-width: 40rem) {
+    .tty-root {
+      font-stretch: 75%;
+    }
+
+    .tty-bigState {
+      font-size: 1.25rem;
+    }
+
+    .tty-logText {
+      font-size: 0.875rem;
+    }
+  }
+
+  .tty-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}

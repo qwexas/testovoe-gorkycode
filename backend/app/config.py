@@ -33,6 +33,15 @@ class LLMBackend(StrEnum):
     """Без языковой модели: `/api/chat` отвечает 503 `llm_unavailable` — для тестов."""
 
 
+class VoiceBackend(StrEnum):
+    """Чем распознавать и озвучивать речь."""
+
+    REAL = "real"
+    """Whisper и Silero из `app.voice`; если модели нет — `/api/voice` и `/api/tts` отвечают 503."""
+    DISABLED = "disabled"
+    """Без моделей речи: `/api/voice` и `/api/tts` отвечают 503 — для тестов и выгрузки OpenAPI."""
+
+
 class Settings(BaseSettings):
     """Конфигурация бэкенда.
 
@@ -67,6 +76,10 @@ class Settings(BaseSettings):
     llm_backend: LLMBackend = Field(
         default=LLMBackend.GIGACHAT,
         description="`gigachat` — разбор реплик GigaChat; `disabled` — без LLM (тесты)",
+    )
+    voice_backend: VoiceBackend = Field(
+        default=VoiceBackend.REAL,
+        description="`real` — Whisper и Silero; `disabled` — без моделей речи (тесты)",
     )
     load_history_on_startup: bool = Field(
         default=True,

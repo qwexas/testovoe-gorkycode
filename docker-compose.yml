@@ -35,6 +35,8 @@ services:
       # Веса моделей (эмбеддинги, позже Whisper и Silero) живут в томе, а не в образе:
       # первая загрузка ~2–3 ГБ, дальше — из кэша.
       EMBEDDING_CACHE_DIR: /models
+      STT_CACHE_DIR: /models/whisper
+      TTS_CACHE_DIR: /models/silero
       HF_HOME: /models/hf
       TORCH_HOME: /models/torch
     volumes:

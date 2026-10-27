@@ -10,16 +10,19 @@ from fastapi.security import APIKeyCookie
 from app.api.errors import error_responses
 from app.api.session_cookie import SESSION_COOKIE_NAME, issue_session_cookie
 from app.config import Settings
+from app.core.calendar import CalendarExport, SubscriptionThrottle
 from app.core.dialog.service import DialogDependencies, DialogService, MessageThrottle
 from app.core.errors import ErrorCode
 from app.core.events import EventService
-from app.core.health import StatusProbe
+from app.core.health import DependencyProbes
 from app.core.history import SeedHistoryLoader
 from app.core.profiles import ProfileCard, ProfileOnboarding, ProfileService
 from app.core.recovery import RecoveryCodes
 from app.core.search import SearchService
+from app.core.speech import SpeechSynthesis, SynthesisThrottle
 from app.nlu.interfaces import IntentParser
 from app.storage.database import Database, UnitOfWork
+from app.voice.interfaces import SpeechToText, TextToSpeech
 
 UNKNOWN_CLIENT = "unknown"
 
@@ -46,7 +49,11 @@ class AppServices:
     history_loader: SeedHistoryLoader
     intent_parser: IntentParser
     message_throttle: MessageThrottle
-    llm_probe: StatusProbe | None
+    speech_to_text: SpeechToText
+    text_to_speech: TextToSpeech
+    synthesis_throttle: SynthesisThrottle
+    subscription_throttle: SubscriptionThrottle
+    probes: DependencyProbes
 
 
 def get_services(request: Request) -> AppServices:
@@ -97,11 +104,28 @@ def get_dialog_service(storage: Storage, services: Services) -> DialogService:
         parser=services.intent_parser,
         search=services.search,
         throttle=services.message_throttle,
+        speech=services.speech_to_text,
     )
     return DialogService(storage, dependencies)
 
 
 Dialog = Annotated[DialogService, Depends(get_dialog_service)]
+
+
+def get_speech_synthesis(services: Services) -> SpeechSynthesis:
+    """Озвучка ответов с лимитом на профиль."""
+    return SpeechSynthesis(services.text_to_speech, services.synthesis_throttle)
+
+
+Synthesis = Annotated[SpeechSynthesis, Depends(get_speech_synthesis)]
+
+
+def get_calendar_export(storage: Storage, services: Services) -> CalendarExport:
+    """Экспорт календаря в транзакции текущего запроса."""
+    return CalendarExport(storage, services.subscription_throttle)
+
+
+CalendarFeed = Annotated[CalendarExport, Depends(get_calendar_export)]
 SessionToken = Annotated[str | None, Security(session_cookie_scheme)]
 
 

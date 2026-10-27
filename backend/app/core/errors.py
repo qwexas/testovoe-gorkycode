@@ -79,6 +79,67 @@ class TooManyMessagesError(TooManyAttemptsError):
     message_template = "Слишком много запросов. Попробуйте снова через {minutes} мин."
 
 
+class TooManySpeechRequestsError(TooManyAttemptsError):
+    """Профиль запросил слишком много озвучек за минуту (`/api/tts`)."""
+
+    message_template = "Слишком много запросов на озвучку. Попробуйте снова через {minutes} мин."
+
+
+class TooManyCalendarRequestsError(TooManyAttemptsError):
+    """С одного адреса слишком часто запрашивают подписку на календарь."""
+
+    message_template = "Слишком много запросов календаря. Попробуйте снова через {minutes} мин."
+
+
+class AudioUnsupportedError(DomainError):
+    """Запись в формате, который не распознаётся."""
+
+    code = ErrorCode.AUDIO_UNSUPPORTED
+    default_message = "Не получилось прочитать запись. Подойдёт webm, ogg, mp4, wav или mp3."
+
+
+class AudioTooLargeError(DomainError):
+    """Запись больше 10 МБ или длиннее 60 секунд."""
+
+    code = ErrorCode.AUDIO_TOO_LARGE
+    default_message = "Запись слишком длинная: не больше минуты и 10 МБ."
+
+
+class SpeechNotRecognizedError(DomainError):
+    """В записи не нашлось речи: тишина, шум или неразборчиво."""
+
+    code = ErrorCode.SPEECH_NOT_RECOGNIZED
+    default_message = "Не расслышал, повторите, пожалуйста."
+
+
+class SpeechToTextUnavailableError(DomainError):
+    """Распознавание речи не работает: модель не загрузилась или упала."""
+
+    code = ErrorCode.STT_UNAVAILABLE
+    default_message = "Распознавание речи сейчас недоступно. Напишите, пожалуйста, текстом."
+
+
+class TextToSpeechUnavailableError(DomainError):
+    """Озвучка не работает: модель не загрузилась или упала."""
+
+    code = ErrorCode.TTS_UNAVAILABLE
+    default_message = "Озвучка сейчас недоступна, ответ можно прочитать."
+
+
+class UnknownVoiceError(DomainError):
+    """Запрошен голос, которого нет у синтезатора речи."""
+
+    code = ErrorCode.VALIDATION_ERROR
+    default_message = "Такого голоса нет."
+
+
+class CalendarNotFoundError(DomainError):
+    """По ссылке подписки нет календаря: токен неверный или профиль удалён."""
+
+    code = ErrorCode.NOT_FOUND
+    default_message = "Календарь не найден. Возьмите новую ссылку в настройках профиля."
+
+
 class UndoUnavailableError(DomainError):
     """Действие нельзя отменить: окно отмены прошло, действие уже отменено или чужое."""
 
