@@ -15,7 +15,8 @@ DEFAULT_BEAM_SIZE = 5
 DEFAULT_STT_CPU_THREADS = 8
 SILERO_VOICES = ("xenia", "baya", "aidar")
 """Голоса Silero v4_ru, из которых выбирают на слух (Q38)."""
-DEFAULT_VOICE = SILERO_VOICES[0]
+DEFAULT_VOICE = "baya"
+"""Выбран владельцем на слух 27.10 (Q38)."""
 
 SileroSampleRate = Literal[8000, 24000, 48000]
 """Частоты, которые умеет Silero v4_ru."""
@@ -69,7 +70,7 @@ class TextToSpeechSettings(BaseSettings):
         env_prefix="TTS_", env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore"
     )
 
-    voice: str = Field(default=DEFAULT_VOICE, description="Голос по умолчанию: xenia, baya, aidar")
+    voice: str = Field(default=DEFAULT_VOICE, description="Голос по умолчанию: baya, xenia, aidar")
     cache_dir: Path | None = Field(
         default=None, description="Каталог файла модели; пусто — `TORCH_HOME/hub/silero`"
     )
