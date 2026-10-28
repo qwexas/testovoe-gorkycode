@@ -95,11 +95,8 @@ def _matching(cards: Sequence[EventCard], target: TargetRef) -> list[EventCard]:
         for card in typed
         if (start is None or (card.starts_at is not None and start <= card.starts_at))
         and (end is None or (card.starts_at is not None and card.starts_at < end))
-        and (
-            target.when is None
-            or target.when.time is None
-            or _starts_exactly_at(card, target.when.time)
-        )
+        and (target.when is None or target.when.time is None
+             or _starts_exactly_at(card, target.when.time))
     ]
 
 
