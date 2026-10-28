@@ -13,6 +13,9 @@ from app.core.queries import EventFilter
 from app.core.schedule import MOSCOW
 from app.nlu.interfaces import Action, Intent, TargetRef, When
 
+MOMENT_LIST_LIMIT = 100
+"""Сколько записей брать при поиске по дню и времени: список идёт по времени начала,
+так что ближайшие не отрезаются."""
 DAYS_PER_WEEK = 7
 OPEN_ONLY_ACTIONS = frozenset({Action.RESCHEDULE, Action.COMPLETE})
 """Переносят и отмечают невыполненное; если такого нет — ищем среди всех записей."""
@@ -113,7 +116,7 @@ class TargetFinder:
         return await self._list_at(criteria, when)
 
     async def _list_at(self, criteria: EventFilter, when: When) -> list[EventCard]:
-        cards = await self._reader.list_events(criteria, TARGET_SEARCH_LIMIT)
+        cards = await self._reader.list_events(criteria, MOMENT_LIST_LIMIT)
         if when.time is None:
             return cards
         return [card for card in cards if _starts_exactly_at(card, when.time)]
