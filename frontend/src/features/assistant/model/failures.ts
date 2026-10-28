@@ -51,13 +51,13 @@ export function describeRequestFailure(
         actions: [{ type: "type" }],
       };
     case "validation_error":
-      return via === "voice"
-        ? {
-            text: "Не расслышал: запись пустая или повреждена. Скажите ещё раз или напишите текстом.",
-            kind: "not-heard",
-            actions: RECORD_AGAIN,
-          }
-        : { text: error.message, kind: "error", actions: [] };
+      // Голосовая команда после распознавания тоже проходит проверку даты и других полей.
+      // Ошибки декодирования и распознавания имеют коды audio_* или speech_not_recognized.
+      return {
+        text: error.message,
+        kind: "error",
+        actions: via === "voice" ? RECORD_AGAIN : [],
+      };
     case "stt_unavailable":
       return {
         text: "Распознавание речи сейчас не работает. Напишите текстом — так я пойму.",

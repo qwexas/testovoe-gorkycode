@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from app.core.enums import EventStatus, EventType, PendingExpectation
-from app.core.errors import ErrorCode
+from app.core.errors import ErrorCode, EventValidationError
 from app.core.schedule import MOSCOW
 from app.llm.errors import LLMUnavailableError
 from app.llm.interfaces import LLMMessage
@@ -186,7 +186,10 @@ async def test_search_period_in_past_month() -> None:
 
 
 async def test_reschedule_pronoun_points_to_context() -> None:
-    intent = await parse({"action": "reschedule", "about_last": True, "date": "tomorrow"})
+    intent = await parse(
+        {"action": "reschedule", "about_last": True, "date": "tomorrow"},
+        text="Перенеси её на завтра",
+    )
 
     assert intent.target == TargetRef(last=True)
     assert intent.when == When(date=TOMORROW)
@@ -249,13 +252,13 @@ async def test_create_on_todays_weekday_with_passed_time_is_next_week() -> None:
 
 
 async def test_reschedule_without_description_means_record_in_context() -> None:
-    intent = await parse({"action": "reschedule", "date": "fri"})
+    intent = await parse({"action": "reschedule", "date": "fri"}, text="Перенеси на пятницу")
 
     assert intent.target is not None
     assert intent.target.last
 
 
-async def test_query_with_title_of_focused_record_means_that_record() -> None:
+async def test_query_with_title_of_focused_record_still_searches() -> None:
     context = DialogContext(now=NOW, focus=(MEETING_WITH_IVAN,))
 
     intent = await parse(
@@ -265,7 +268,7 @@ async def test_query_with_title_of_focused_record_means_that_record() -> None:
     )
 
     assert intent.target is not None
-    assert intent.target.last
+    assert not intent.target.last
 
 
 async def test_delete_by_description_and_day() -> None:
@@ -289,6 +292,135 @@ async def test_complete_by_description() -> None:
 
     assert intent.action is Action.COMPLETE
     assert intent.target == TargetRef(last=False, query="позвонить Ивану")
+
+
+@pytest.mark.parametrize("about_last", [True, False])
+@pytest.mark.parametrize("query", ["проверить этот отчёт", "Созвон с партнёром", ""])
+async def test_description_with_demonstrative_is_not_a_context_reference(
+    about_last: bool,
+    query: str,
+) -> None:
+    intent = await parse(
+        {
+            "action": "complete",
+            "about_last": about_last,
+            "query": query,
+        },
+        text="Отметь задачу проверить этот отчёт",
+        context=DialogContext(
+            now=NOW,
+            focus=(MEETING_WITH_IVAN,),
+        ),
+    )
+
+    expected = "проверить этот отчёт" if query == "проверить этот отчёт" else "проверить отчёт"
+    assert intent.target == TargetRef(query=expected)
+
+
+@pytest.mark.parametrize(
+    "action", ["create", "reschedule", "answer", "delete", "rename", "complete", "list", "search"]
+)
+async def test_invalid_date_is_rejected_before_dialog_defaults(action: str) -> None:
+    with pytest.raises(EventValidationError):
+        await parse(
+            {
+                "action": action,
+                "date": "exact",
+                "date_value": "31.02",
+                "time": "15:00",
+                "title": "Отчёт",
+                "query": "отчёт",
+            },
+            text="Отчёт 31.02 в 15:00",
+        )
+
+
+@pytest.mark.parametrize("clock", ["06:30", "6:30"])
+@pytest.mark.parametrize("source_clock", ["06:30", "06.30", "06 ч 30", "06ч30", "06 : 30"])
+async def test_explicit_morning_survives_model_normalization(
+    clock: str,
+    source_clock: str,
+) -> None:
+    intent = await parse(
+        {
+            "action": "create",
+            "event_type": "reminder",
+            "title": "Проверить счётчик",
+            "date": "tomorrow",
+            "time": clock,
+        },
+        text=f"Напомни завтра в {source_clock} проверить счётчик",
+    )
+
+    assert intent.when == When(date=TOMORROW, time=dt.time(6, 30))
+
+
+@pytest.mark.parametrize(
+    ("source_date", "source_clock", "model_clock", "expected_time"),
+    [
+        ("06 ноября", "6", "6:00", dt.time(18)),
+        ("на 06 ноября", "6", "6:00", dt.time(18)),
+        ("к 06 ноября", "6", "6:00", dt.time(18)),
+        ("06 ноября 2026 года", "6", "6:00", dt.time(18)),
+        ("06.11.2026", "6:11", "6:11", dt.time(18, 11)),
+        ("к 06/11/2026", "6", "6:00", dt.time(18)),
+        ("2026-11-06", "6", "6:00", dt.time(18)),
+        ("06.11", "6:11", "6:11", dt.time(18, 11)),
+        ("06 ноября", "06:30", "6:30", dt.time(6, 30)),
+        ("06 ноября", "06.30", "6:30", dt.time(6, 30)),
+        ("06 ноября", "06 ч 30", "6:30", dt.time(6, 30)),
+        ("06 ноября", "06.05", "6:05", dt.time(6, 5)),
+        ("06 ноября", "06", "6:00", dt.time(6)),
+    ],
+)
+async def test_date_numbers_cannot_supply_clock_leading_zero(
+    source_date: str,
+    source_clock: str,
+    model_clock: str,
+    expected_time: dt.time,
+) -> None:
+    intent = await parse(
+        {
+            "action": "create",
+            "event_type": "reminder",
+            "title": "Проверить счётчик",
+            "date": "exact",
+            "date_value": "06.11.2026",
+            "time": model_clock,
+        },
+        text=f"Напомни {source_date} в {source_clock} проверить счётчик",
+    )
+
+    assert intent.when == When(date=dt.date(2026, 11, 6), time=expected_time)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Отметь последнюю выполненной",
+        "Отметь последний выполненным",
+        "Перенеси последнюю задачу на завтра",
+        "Перенеси последний созвон на завтра",
+    ],
+)
+@pytest.mark.parametrize("about_last", [True, False])
+async def test_explicit_last_reference_uses_context(text: str, about_last: bool) -> None:
+    intent = await parse({"action": "complete", "about_last": about_last}, text=text)
+    assert intent.target == TargetRef(last=True)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Отметь задачу проверить последний отчёт",
+        "Отметь последний отчёт по бюджету",
+    ],
+)
+async def test_last_inside_description_does_not_use_context(text: str) -> None:
+    intent = await parse({"action": "complete", "about_last": True}, text=text)
+    assert intent.target is not None
+    assert not intent.target.last
+    assert "отчёт" in intent.target.query
 
 
 async def test_rename_takes_new_title() -> None:

@@ -48,6 +48,10 @@ OBJECT_PRONOUNS = frozenset({"её", "ее", "его", "неё", "нее", "не
 """«Перенеси её», «удали его». Перед существительным это притяжательное: «его команда»."""
 DEMONSTRATIVES = frozenset({"эту", "этот", "эта", "этой", "этого", "это"})
 """«Удали эту встречу», «отметь это»."""
+LAST_REFERENCES = frozenset(
+    {"последнюю", "последний", "последнее", "последняя", "последней", "последнего"}
+)
+"""«Отметь последнюю выполненной»; внутри описания «проверить последний отчёт» — не ссылка."""
 POSSESSED_PARTS_OF_SPEECH = frozenset({"NOUN", "ADJF"})
 _EVENT_TYPE_WORD = re.compile(
     r"\b(?:встреч|созвон|совещан|планёрк|планерк|переговор|митинг|задач|напомина|напомн)",
@@ -65,7 +69,7 @@ def user_description(model_query: str | None, text: str) -> str | None:
     («отметь её выполненной»).
     """
     if model_query is None:
-        return None
+        return _content_words(text)
     query_lemmas = set(_lemmatizer().lemmas(model_query))
     if not query_lemmas:
         return model_query
@@ -88,11 +92,26 @@ def names_record_by_pronoun(text: str) -> bool:
     словами реплики дало бы мусор: «нет, лучше перенеси её…» → «лучше».
     """
     tokens = [token.lower() for token in _TOKEN.findall(text)]
-    return any(
-        token in DEMONSTRATIVES
-        or (token in OBJECT_PRONOUNS and not _starts_noun_phrase(tokens[index + 1 : index + 2]))
-        for index, token in enumerate(tokens)
-    )
+    for index, token in enumerate(tokens):
+        if (
+            token not in DEMONSTRATIVES
+            and token not in OBJECT_PRONOUNS
+            and token not in LAST_REFERENCES
+        ):
+            continue
+        # Внутри названия («проверить этот отчёт», «позвонить ей») это не ссылка на запись.
+        if any(_is_content(word) for word in tokens[:index]):
+            continue
+        if token in LAST_REFERENCES:
+            # Самостоятельное описание после «последний» тоже важнее фокуса.
+            return not any(
+                _is_content(word) and not names_event_type(word) for word in tokens[index + 1 :]
+            )
+        if token in DEMONSTRATIVES and (index == 0 or not _is_preposition(tokens[index - 1])):
+            return True
+        if token in OBJECT_PRONOUNS and not _starts_noun_phrase(tokens[index + 1 : index + 2]):
+            return True
+    return False
 
 
 def names_moment(text: str) -> bool:
@@ -109,11 +128,55 @@ def _content_words(text: str) -> str | None:
     """Слова реплики от первого значимого до последнего: «звонок Ивану» из «Отметь звонок
     Ивану как сделанный». Предлоги между значимыми словами остаются: «встречу с Иваном»."""
     tokens = _TOKEN.findall(text)
-    content = [index for index, token in enumerate(tokens) if _is_content(token)]
+    temporal = _temporal_indices(tokens)
+    content = [
+        index for index, token in enumerate(tokens) if index not in temporal and _is_content(token)
+    ]
     if not content:
         return None
-    span = tokens[content[0] : content[-1] + 1]
-    return " ".join(token for token in span if _is_content(token) or _is_preposition(token))
+    return " ".join(
+        token
+        for index, token in enumerate(tokens)
+        if content[0] <= index <= content[-1]
+        and index not in temporal
+        and (_is_content(token) or _is_preposition(token))
+    )
+
+
+def _temporal_indices(tokens: list[str]) -> set[int]:
+    """«Следующую» в «на следующую неделю», числительные в «через два дня» — часть даты."""
+    temporal: set[int] = set()
+    for index, token in enumerate(tokens):
+        unit = bool(set(_lemmatizer().lemmas(token)) & {"день", "сутки", "час", "минута"})
+        if not names_moment(token) and not (
+            unit
+            and index > 0
+            and (tokens[index - 1].lower() == "через" or _time_modifier(tokens[index - 1]))
+        ):
+            continue
+        temporal.add(index)
+        previous = index - 1
+        while previous >= 0 and _time_modifier(tokens[previous]):
+            temporal.add(previous)
+            previous -= 1
+    return temporal
+
+
+def _time_modifier(token: str) -> bool:
+    parsed = shared_morph_analyzer().parse(token.lower())[0]
+    return (
+        parsed.tag.POS == "NUMR"
+        or "Anum" in parsed.tag
+        or parsed.normal_form
+        in {
+            "следующий",
+            "прошлый",
+            "этот",
+            "текущий",
+            "ближайший",
+            "предстоящий",
+        }
+    )
 
 
 def _is_content(token: str) -> bool:

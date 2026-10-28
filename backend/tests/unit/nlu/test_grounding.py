@@ -48,8 +48,23 @@ def test_pronoun_only_reply_has_no_description(text: str) -> None:
     assert user_description("Созвон с партнёром", text) is None
 
 
-def test_no_model_description_stays_empty() -> None:
-    assert user_description(None, "Отметь звонок Ивану") is None
+def test_missing_model_description_is_recovered_from_user_words() -> None:
+    assert user_description(None, "Отметь звонок Ивану") == "звонок Ивану"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Перенеси на следующую неделю",
+        "Перенеси через два дня",
+        "Перенеси через день",
+        "Перенеси на следующий четверг",
+        "Перенеси на этой неделе",
+        "Перенеси на 06:30",
+    ],
+)
+def test_time_only_command_does_not_invent_description(text: str) -> None:
+    assert user_description(None, text) is None
 
 
 def test_description_of_only_stop_words_is_kept() -> None:
@@ -124,6 +139,10 @@ def test_record_named_by_pronoun(text: str) -> None:
         "Отметь звонок Ивану как сделанный",
         "Удали встречу с Иваном и его командой",
         "Перенеси встречу с Ольгой и её помощником на пятницу",
+        "Удали задачу проверить этот отчёт",
+        "Удали задачу про этот отчёт",
+        "Перенеси на этот четверг созвон с Иваном",
+        "Отметь задачу позвонить ей",
     ],
 )
 def test_no_record_pronoun(text: str) -> None:
