@@ -76,11 +76,13 @@ def _unhandled(extraction: Extraction, text: str) -> str | None:
     """Остальные команды реплики: по глаголам-командам или из `rest`, если он сказан.
 
     Слова самой реплики надёжнее пересказа модели, поэтому сначала — `other_commands`.
+    Название и описание записи первой команды — её содержание, а не следующая команда.
     """
     rest = _clean(extraction.rest)
     if rest is not None and not spoken_in(rest, text):
         rest = None
-    return other_commands(text) or rest
+    record = f"{extraction.title} {extraction.query}"
+    return other_commands(text, record) or rest
 
 
 def _create_fields(utterance: _Utterance) -> IntentFields:

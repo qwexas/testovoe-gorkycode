@@ -19,6 +19,9 @@
    два повелительных глагола-команды («перенеси», «удали», «создай»…) и между ними есть
    слова, всё со второго глагола — остальные команды (`other_commands`). Инфинитив —
    содержание записи, а не команда: «поставь задачу добавить отчёт» — одна команда.
+   Повелительный глагол в названии записи — тоже содержание: в кавычках («создай задачу
+   «удали старые файлы»»), после двоеточия («поставь задачу: найди подрядчика») или
+   в названии, которое выделила модель.
 """
 
 import itertools
@@ -66,6 +69,9 @@ MAX_FRONTED_WORDS = 3
 LINKING_WORDS = frozenset({"и", "а", "ещё", "еще", "потом", "затем", "также", "плюс"})
 """Связки между командами: «…, а потом удали Y» — остальное начинается с «удали»."""
 TRAILING_PUNCTUATION = " \t\n.,!?;:«»\"'"
+RECORD_PREFIX_WORDS = 2
+"""Сколько первых слов команды сверять с названием записи: «найди подрядчика» — название
+«Найти подрядчика», а «удали встречу» при названии «Удали старые файлы» — команда."""
 _WORD = re.compile(r"[а-яёa-z0-9]+", re.IGNORECASE)
 
 
@@ -97,17 +103,24 @@ def asks_to_change(text: str) -> bool:
     return not CHANGE_VERBS.isdisjoint(_lemmas(_words(text)))
 
 
-def other_commands(text: str) -> str | None:
+def other_commands(text: str, record: str = "") -> str | None:
     """Вторая и следующие команды реплики словами пользователя; `None` — команда одна.
 
     «Перенеси планёрку на 11 и удали встречу с Петром» → «удали встречу с Петром».
     Дополнение перед глаголом остаётся с ним, если команды разделены запятой: «удали
     встречу с Петром, а созвон перенеси на завтра» → «созвон перенеси на завтра».
     Глаголы подряд («нет, отмени, перенеси её») — одна команда: у первой нет содержания.
+    `record` — название или описание записи первой команды: глагол из него — не команда.
     """
-    commands = [match for match in _WORD.finditer(text) if _is_command(match.group())]
+    record_forms = frozenset().union(*(_normal_forms(word) for word in _words(record)))
+    commands = [
+        match
+        for match in _WORD.finditer(text)
+        if _is_command(match.group()) and not _quoted(text, match.start())
+    ]
     for first, second in itertools.pairwise(commands):
-        if _WORD.search(text, first.end(), second.start()) is None:
+        between = text[first.end() : second.start()]
+        if _WORD.search(between) is None or between.rstrip().endswith(":"):
             continue
         start = text.rfind(",", first.end(), second.start()) + 1
         fronted = _WORD.findall(text, start, second.start())
@@ -116,7 +129,9 @@ def other_commands(text: str) -> str | None:
         words = text[start:].split()
         while words and words[0].lower() in LINKING_WORDS:
             words.pop(0)
-        return " ".join(words).strip(TRAILING_PUNCTUATION) or None
+        rest = " ".join(words).strip(TRAILING_PUNCTUATION)
+        if rest and not _names_record(rest, record_forms):
+            return rest
     return None
 
 
@@ -135,6 +150,27 @@ def _is_command(word: str) -> bool:
     return any(
         parse.tag.mood == IMPERATIVE and normalize_yo(str(parse.normal_form)) in COMMAND_VERBS
         for parse in shared_morph_analyzer().parse(word.lower())
+    )
+
+
+def _quoted(text: str, position: int) -> bool:
+    """Стоит ли `position` внутри кавычек: «…» или "…"."""
+    opened = text.count("«", 0, position) > text.count("»", 0, position)
+    return opened or text.count('"', 0, position) % 2 == 1
+
+
+def _names_record(rest: str, record_forms: frozenset[str]) -> bool:
+    """Начало «команды» совпадает с названием записи: это её содержание, а не команда.
+
+    Сверяются все разборы слова: первый разбор «удали» — не «удалить».
+    """
+    words = _words(rest)[:RECORD_PREFIX_WORDS]
+    return bool(record_forms) and all(_normal_forms(word) & record_forms for word in words)
+
+
+def _normal_forms(word: str) -> frozenset[str]:
+    return frozenset(
+        normalize_yo(str(parse.normal_form)) for parse in shared_morph_analyzer().parse(word)
     )
 
 

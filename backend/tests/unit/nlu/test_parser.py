@@ -309,6 +309,17 @@ async def test_second_command_from_model_rest_is_unhandled() -> None:
     assert intent.unhandled == "создай задачу купить билеты"
 
 
+async def test_command_in_title_is_not_unhandled() -> None:
+    """«Найди подрядчика» — название задачи, а не вторая команда."""
+    intent = await parse(
+        {"action": "create", "event_type": "task", "title": "Найти подрядчика"},
+        text="Поставь задачу найди подрядчика",
+    )
+
+    assert intent.title == "Найти подрядчика"
+    assert intent.unhandled is None
+
+
 async def test_invented_rest_is_ignored() -> None:
     intent = await parse(
         {

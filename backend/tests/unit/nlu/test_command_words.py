@@ -160,6 +160,30 @@ def test_single_command(text: str) -> None:
     assert other_commands(text) is None
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Поставь задачу: найди подрядчика",
+        "Создай задачу «удали старые файлы»",
+        'Создай задачу "удали старые файлы"',
+        "Напомни сказать Ивану: перенеси релиз",
+    ],
+)
+def test_command_in_title_is_content(text: str) -> None:
+    """Глагол в кавычках или после двоеточия — название записи, а не вторая команда."""
+    assert other_commands(text) is None
+
+
+def test_command_in_model_title_is_content() -> None:
+    assert other_commands("Создай напоминание удали кэш в пятницу", "Удалить кэш") is None
+
+
+def test_command_after_quoted_title_is_split_off() -> None:
+    text = "Создай задачу «удали старые файлы» и удали встречу с Петром"
+
+    assert other_commands(text, "Удали старые файлы") == "удали встречу с Петром"
+
+
 def test_creation_over_change_forgets_record_time() -> None:
     extraction = reschedule(query="встреча с Иваном", target_time="10:00", time="12:00")
 
