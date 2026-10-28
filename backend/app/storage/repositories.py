@@ -16,6 +16,7 @@ from sqlalchemy import (
     inspect,
     literal,
     or_,
+    and_,
     select,
     text,
 )
@@ -409,12 +410,34 @@ def _with_seed_index[Statement: Select[Any]](statement: Statement) -> Statement:
 
 def _filter_conditions(criteria: EventFilter) -> list[ColumnElement[bool]]:
     conditions = [EventRecord.profile_id == criteria.profile_id]
+
+    date_conditions = []
+
     if criteria.period_start is not None:
-        conditions.append(EventRecord.starts_at >= criteria.period_start)
+        date_conditions.append(EventRecord.starts_at >= criteria.period_start)
+
     if criteria.period_end is not None:
-        conditions.append(EventRecord.starts_at < criteria.period_end)
+        date_conditions.append(EventRecord.starts_at < criteria.period_end)
+
+    if date_conditions:
+        date_filter = and_(*date_conditions)
+
+        if criteria.include_undated:
+            date_filter = or_(
+                date_filter,
+                and_(
+                    EventRecord.starts_at.is_(None),
+                    EventRecord.type == EventType.TASK,
+                    EventRecord.status == EventStatus.OPEN,
+                ),
+            )
+
+        conditions.append(date_filter)
+
     if criteria.event_types is not None:
         conditions.append(EventRecord.type.in_(criteria.event_types))
+
     if criteria.status is not None:
         conditions.append(EventRecord.status == criteria.status)
+
     return conditions

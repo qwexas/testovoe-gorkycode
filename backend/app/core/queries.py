@@ -25,6 +25,7 @@ class EventFilter:
     period_end: datetime | None = None
     event_types: frozenset[EventType] | None = None
     status: EventStatus | None = None
+    include_undated: bool = False
 
 
 @dataclass(frozen=True, slots=True)

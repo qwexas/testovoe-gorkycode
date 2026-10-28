@@ -40,7 +40,6 @@ def today_period(now: datetime) -> Period:
     start = start_of_day(now)
     return Period(start=start, end=start + timedelta(days=1), label=TODAY_LABEL)
 
-
 class ListingFlow:
     """Записи за период с текстовой сводкой."""
 
@@ -50,18 +49,32 @@ class ListingFlow:
     async def run(self, turn: Turn, intent: Intent) -> Outcome:
         """Сводка и записи за период из разбора (по умолчанию — сегодня)."""
         period = intent.period or today_period(turn.now)
+        today = today_period(turn.now)
+
+        include_undated = (
+            period.start == today.start
+            and period.end == today.end
+            and intent.event_type in (None, EventType.TASK)
+        )
+
         criteria = EventFilter(
             profile_id=turn.profile_id,
             period_start=period.start,
             period_end=period.end,
             event_types=asked_types(intent.event_type),
             status=intent.status,
+            include_undated=include_undated,
         )
+
         events = await self._reader.list_events(criteria, LIST_LIMIT)
         text = phrases.list_summary(events, period, turn.now, intent.event_type)
         reply = Reply(ReplyKind.LIST, text, events=events, period=period)
-        return Outcome(reply, focus=tuple(card.id for card in events), peer_focus=True)
 
+        return Outcome(
+            reply,
+            focus=tuple(card.id for card in events),
+            peer_focus=True,
+        )
 
 @dataclass(frozen=True, slots=True)
 class _Answer:
