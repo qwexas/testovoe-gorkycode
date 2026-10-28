@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.core.errors import EventValidationError
 from app.core.schedule import MOSCOW
 from app.nlu.expressions import DateExpression, DateKind, DayPart, TimeExpression
 from app.nlu.interfaces import Period, TimeScope, When
@@ -89,6 +90,54 @@ def test_twenty_four_hour_time_is_kept() -> None:
 
 def test_minutes_survive_afternoon_shift() -> None:
     assert clock_time("2:30", DayPart.NONE) == at(14, 30)
+
+
+@pytest.mark.parametrize("clock", ["06:30", "06.30", "06 ч 30"])
+def test_explicit_morning_clock_keeps_leading_zero(clock: str) -> None:
+    assert clock_time(clock, DayPart.NONE) == at(6, 30)
+
+
+@pytest.mark.parametrize(
+    ("scope", "expected"),
+    [
+        (TimeScope.PAST, dt.date(2024, 2, 29)),
+        (TimeScope.FUTURE, dt.date(2028, 2, 29)),
+        (TimeScope.ANY, dt.date(2028, 2, 29)),
+    ],
+)
+def test_leap_day_outside_adjacent_years(scope: TimeScope, expected: dt.date) -> None:
+    assert calendar_date("29.02", dt.date(2026, 10, 28), scope) == expected
+
+
+def test_leap_day_skips_non_leap_century() -> None:
+    assert calendar_date("29.02", dt.date(2099, 1, 1), TimeScope.FUTURE) == dt.date(2104, 2, 29)
+    assert calendar_date("29.02", dt.date(2101, 1, 1), TimeScope.PAST) == dt.date(2096, 2, 29)
+
+
+@pytest.mark.parametrize("today", [dt.date.min, dt.date.max])
+def test_calendar_search_respects_supported_years(today: dt.date) -> None:
+    assert calendar_date("29.02", today, TimeScope.ANY) is not None
+
+
+@pytest.mark.parametrize("clock", ["", "15:00"])
+@pytest.mark.parametrize("scope", list(TimeScope))
+def test_invalid_date_cannot_turn_into_missing_date(clock: str, scope: TimeScope) -> None:
+    expression = DateExpression(DateKind.EXACT, "31.02")
+    with pytest.raises(EventValidationError):
+        resolve_when(expression, TimeExpression(clock), TUESDAY_NOON, scope)
+    with pytest.raises(EventValidationError):
+        resolve_period(expression, TUESDAY_NOON, scope)
+
+
+@pytest.mark.parametrize("days", ["999999999", "1000000000", "9" * 5000, "3000000"])
+def test_excessive_days_raise_validation_error(days: str) -> None:
+    with pytest.raises(EventValidationError):
+        resolve_when(DateExpression(DateKind.IN_DAYS, days), TimeExpression(), TUESDAY_NOON)
+
+
+def test_excessive_relative_minutes_raise_validation_error() -> None:
+    with pytest.raises(EventValidationError):
+        moment_after(TUESDAY_NOON, 10**100)
 
 
 @pytest.mark.parametrize("clock", ["3", "3.00", "3 ч 00"])

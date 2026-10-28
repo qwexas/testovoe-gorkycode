@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta
 from app.core.dialog.models import Turn
 from app.core.dialog.relevance import asked_types, near_best
 from app.core.enums import EventStatus, EventType
+from app.core.errors import EventValidationError
 from app.core.events import EventCard, EventService, ScoredCard
 from app.core.queries import EventFilter
 from app.core.schedule import MOSCOW
@@ -47,38 +48,56 @@ class TargetFinder:
         """
         target = intent.target or TargetRef(last=True)
         if target.last or not target.query:
-            return TargetLookup(_referenced(turn, target.event_type), query=None)
+            return TargetLookup(_referenced(turn, target), query=None)
         found = await self._search(turn, intent.action, target, target.query)
-        exact = _prefer_exact_time(found, target.when)
-        return TargetLookup(_narrow(exact, turn.focus), query=target.query)
+        return TargetLookup(_narrow(found, turn.focus), query=target.query)
 
     async def _search(
         self, turn: Turn, action: Action, target: TargetRef, query: str
     ) -> list[ScoredCard]:
         start, end = _day_bounds(target.when)
-        criteria = EventFilter(profile_id=turn.profile_id, period_start=start, period_end=end)
+        criteria = EventFilter(
+            profile_id=turn.profile_id,
+            period_start=start,
+            period_end=end,
+            event_types=asked_types(target.event_type),
+        )
         if action in OPEN_ONLY_ACTIONS:
             open_criteria = replace(criteria, status=EventStatus.OPEN)
-            found = await self._search_with(open_criteria, query, target.event_type)
+            found = await self._search_with(open_criteria, query, target)
             if found:
                 return found
-        return await self._search_with(criteria, query, target.event_type)
+        return await self._search_with(criteria, query, target)
 
     async def _search_with(
-        self, criteria: EventFilter, query: str, event_type: EventType | None
+        self, criteria: EventFilter, query: str, target: TargetRef
     ) -> list[ScoredCard]:
-        return await self._reader.search_scored(
-            criteria, query, TARGET_SEARCH_LIMIT, preferred_type=event_type
+        found = await self._reader.search_scored(
+            criteria, query, TARGET_SEARCH_LIMIT, preferred_type=target.event_type
         )
+        return _prefer_exact_time(found, target.when)
 
 
-def _referenced(turn: Turn, event_type: EventType | None) -> tuple[EventCard, ...]:
+def _referenced(turn: Turn, target: TargetRef) -> tuple[EventCard, ...]:
     """На что указывает «её / эту встречу»: записи ответа-списка или одна запись фокуса."""
-    peers = _of_type(turn.peers, event_type)
-    if peers:
-        return tuple(peers)
-    card = _from_focus(turn.focus, event_type)
+    if turn.peers:
+        return tuple(_matching(turn.peers, target))
+    card = _from_focus(_matching(turn.focus, target), target.event_type)
     return () if card is None else (card,)
+
+
+def _matching(cards: Sequence[EventCard], target: TargetRef) -> list[EventCard]:
+    """Явные ограничения действуют и для записей из контекста."""
+    start, end = _day_bounds(target.when)
+    typed = _of_type(cards, target.event_type)
+    return [
+        card
+        for card in typed
+        if (start is None or (card.starts_at is not None and start <= card.starts_at))
+        and (end is None or (card.starts_at is not None and card.starts_at < end))
+        and (target.when is None or target.when.time is None
+             or _starts_exactly_at(card, target.when.time))
+    ]
 
 
 def _of_type(cards: Sequence[EventCard], event_type: EventType | None) -> list[EventCard]:
@@ -91,7 +110,7 @@ def _from_focus(focus: Sequence[EventCard], event_type: EventType | None) -> Eve
     typed = _of_type(focus, event_type)
     if typed:
         return typed[0]
-    return focus[0] if focus else None
+    return None  # if !focus - перейти в уточнение
 
 
 def _day_bounds(when: When | None) -> tuple[datetime | None, datetime | None]:
@@ -99,10 +118,17 @@ def _day_bounds(when: When | None) -> tuple[datetime | None, datetime | None]:
     if when is None:
         return None, None
     if when.date is not None:
-        return _midnight(when.date), _midnight(when.date + timedelta(days=1))
+        return _midnight(when.date), _period_end(when.date, 1)
     if when.week_of is not None:
-        return _midnight(when.week_of), _midnight(when.week_of + timedelta(days=DAYS_PER_WEEK))
+        return _midnight(when.week_of), _period_end(when.week_of, DAYS_PER_WEEK)
     return None, None
+
+
+def _period_end(day: date, days: int) -> datetime:
+    try:
+        return _midnight(day + timedelta(days=days))
+    except OverflowError as error:
+        raise EventValidationError("Дата выходит за допустимый диапазон.") from error
 
 
 def _midnight(day: date) -> datetime:
@@ -114,7 +140,7 @@ def _prefer_exact_time(found: list[ScoredCard], when: When | None) -> list[Score
     if when is None or when.time is None:
         return found
     exact = [item for item in found if _starts_exactly_at(item.card, when.time)]
-    return exact or found
+    return exact  # изменить на строгий ( if (exact) ? return exact : exeption - не найдено)
 
 
 def _starts_exactly_at(card: EventCard, moment: time) -> bool:

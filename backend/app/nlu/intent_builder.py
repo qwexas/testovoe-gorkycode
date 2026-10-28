@@ -6,7 +6,7 @@
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from app.core.enums import EventStatus, EventType
@@ -21,7 +21,12 @@ from app.nlu.grounding import (
 )
 from app.nlu.interfaces import Action, DialogContext, Intent, TargetRef, TimeScope, When
 from app.nlu.schema import EventTypeName, Extraction, StatusName
-from app.nlu.time_resolution import narrow_to_day_part, resolve_period, resolve_when
+from app.nlu.time_resolution import (
+    narrow_to_day_part,
+    preserve_leading_zero,
+    resolve_period,
+    resolve_when,
+)
 from app.nlu.time_scope import search_time_scope
 
 TRIMMED_PUNCTUATION = " \t\n.,!?;:«»\"'"
@@ -156,7 +161,7 @@ def _new_when(utterance: _Utterance) -> When | None:
     """Новые день и время: при создании, переносе, ответе на уточнение — только будущие."""
     extraction = utterance.extraction
     return resolve_when(
-        extraction.date_expression, extraction.time_expression, utterance.context.now
+        extraction.date_expression, _time_expression(utterance), utterance.context.now
     )
 
 
@@ -165,10 +170,16 @@ def _record_when(utterance: _Utterance) -> When | None:
     extraction = utterance.extraction
     return resolve_when(
         extraction.date_expression,
-        extraction.time_expression,
+        _time_expression(utterance),
         utterance.context.now,
         TimeScope.ANY,
     )
+
+
+def _time_expression(utterance: _Utterance) -> TimeExpression:
+    """Возвращаем ведущий ноль из текста, если извлечение нормализовало «06:30» в «6:30»."""
+    expression = utterance.extraction.time_expression
+    return replace(expression, clock=preserve_leading_zero(expression.clock, utterance.text))
 
 
 def _target(utterance: _Utterance, when: When | None, new_title: str | None = None) -> TargetRef:
@@ -177,27 +188,23 @@ def _target(utterance: _Utterance, when: When | None, new_title: str | None = No
     Описание, день и тип записи берутся из ответа модели, только если они есть в самой
     реплике: модель иногда подставляет название, тип и дату записи из фокуса.
     Запись из контекста (`last=True`), если она названа местоимением («перенеси её»), не
-    описана вовсе («перенеси на завтра») или описание совпадает с первой записью в фокусе.
+    описана вовсе («перенеси на завтра»). Названное описание всегда запускает поиск.
     При переименовании новое название — не описание записи («переименуй её в …»).
     """
     extraction = utterance.extraction
     text = utterance.text
     query = None
-    if not (extraction.about_last or names_record_by_pronoun(text)):
+    if not names_record_by_pronoun(text):
         query = user_description(_clean(extraction.query), text)
     if query is not None and new_title is not None and same_record(query, new_title):
         query = None
-    last = query is None or _names_focus(query, utterance.context)
+    last = query is None
     return TargetRef(
         last=last,
         query=query,
         event_type=_event_type(extraction) if names_event_type(text) else None,
         when=when if names_moment(text) else None,
     )
-
-
-def _names_focus(query: str, context: DialogContext) -> bool:
-    return bool(context.focus) and same_record(query, context.focus[0].title)
 
 
 def _event_type(extraction: Extraction) -> EventType | None:

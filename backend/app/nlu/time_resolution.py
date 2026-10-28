@@ -21,6 +21,7 @@ import datetime as dt
 import re
 from calendar import monthrange
 
+from app.core.errors import EventValidationError
 from app.core.schedule import MOSCOW
 from app.nlu.expressions import (
     NEXT_WEEKDAY_KINDS,
@@ -76,9 +77,17 @@ WEEKDAYS_ACCUSATIVE = (
     "воскресенье",
 )
 
-_CLOCK = re.compile(r"^\s*(\d{1,2})(?:\s*[:.ч]\s*(\d{1,2}))?\s*$")
+_CLOCK_PATTERN = r"(\d{1,2})(?:\s*[:.ч]\s*(\d{1,2}))?"
+_CLOCK = re.compile(rf"^\s*{_CLOCK_PATTERN}\s*$")
+_CLOCK_IN_TEXT = re.compile(rf"(?<!\w){_CLOCK_PATTERN}(?!\w)")
 _DAY_MONTH = re.compile(r"^\s*(\d{1,2})[./-](\d{1,2})(?:[./-](\d{4}))?\s*$")
 _ISO_DATE = re.compile(r"^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$")
+_NUMERIC_DATE_IN_TEXT = re.compile(
+    r"(?<!\w)(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{4}"
+    r"|\d{1,2}[/-]\d{1,2})(?!\w)"
+)
+_MONTH_AFTER_NUMBER = re.compile(r"\s+(?:" + "|".join(MONTHS_GENITIVE) + r")\b", re.IGNORECASE)
+_TIME_PREPOSITION = re.compile(r"\b(?:в|во|к)\s*$", re.IGNORECASE)
 
 DAY_LABELS: dict[DateKind, str] = {
     DateKind.TODAY: "сегодня",
@@ -153,7 +162,54 @@ def round_up_to_five_minutes(moment: dt.datetime) -> dt.datetime:
 
 def moment_after(now: dt.datetime, minutes: int) -> dt.datetime:
     """«Через N минут / часов»: сейчас + N с округлением вверх до 5 минут."""
-    return round_up_to_five_minutes(in_moscow(now) + dt.timedelta(minutes=minutes))
+    try:
+        return round_up_to_five_minutes(in_moscow(now) + dt.timedelta(minutes=minutes))
+    except OverflowError as error:
+        raise EventValidationError("Слишком большой интервал времени.") from error
+
+
+def preserve_leading_zero(clock: str, text: str) -> str:
+    """Восстанавливает «06:30», даже если извлечение нормализовало «06.30» в «6:30».
+
+    Числа должны совпасть: исходное время выбора записи не подменяет новое время переноса.
+    Грамматика общая с `clock_time`: двоеточие, точка, «ч», пробелы и час без минут.
+    Части дат исключаются; отдельный час и неоднозначное «06.05» требуют контекста времени.
+    """
+    normalized = _CLOCK.fullmatch(clock)
+    if normalized is None:
+        return clock
+    hour, minute = int(normalized.group(1)), int(normalized.group(2) or 0)
+    date_spans = [match.span() for match in _NUMERIC_DATE_IN_TEXT.finditer(text)]
+    for original in _CLOCK_IN_TEXT.finditer(text):
+        if not _is_clock_mention(original, text, date_spans):
+            continue
+        source_hour = original.group(1)
+        source_minute = int(original.group(2) or 0)
+        if (
+            len(source_hour) == 2
+            and source_hour.startswith("0")
+            and int(source_hour) == hour
+            and source_minute == minute
+        ):
+            return f"{source_hour}:{source_minute:02d}"
+    return clock
+
+
+def _is_clock_mention(match: re.Match[str], text: str, date_spans: list[tuple[int, int]]) -> bool:
+    if any(start < match.end() and match.start() < end for start, end in date_spans):
+        return False
+    if _MONTH_AFTER_NUMBER.match(text, match.end()):
+        return False
+    before, after = text[: match.start()], text[match.end() :]
+    time_context = _TIME_PREPOSITION.search(before) is not None or (
+        not before.strip() and not after.strip(" \t\n.,!?;")
+    )
+    # «06» может быть числом месяца, а «06.05» — датой. «06:05» и «06 ч 05» однозначны.
+    possible_date = _DAY_MONTH.fullmatch(match.group())
+    ambiguous = match.group(2) is None or (
+        possible_date is not None and 1 <= int(possible_date.group(2)) <= 12
+    )
+    return not ambiguous or time_context
 
 
 def clock_time(clock: str, day_part: DayPart) -> dt.time | None:
@@ -170,6 +226,9 @@ def clock_time(clock: str, day_part: DayPart) -> dt.time | None:
         hour = 0
     if hour > 23 or minute > 59:
         return None
+    explicit_morning = len(match.group(1)) == 2 and match.group(1).startswith("0")
+    if explicit_morning and day_part is DayPart.NONE:
+        return dt.time(hour, minute)
     return dt.time(_hour_in_day_part(hour, day_part), minute)
 
 
@@ -238,15 +297,30 @@ def calendar_date(exact: str, today: dt.date, scope: TimeScope) -> dt.date | Non
     day, month, year = parsed
     if year is not None:
         return _safe_date(year, month, day)
-    candidates = [
-        candidate
-        for candidate in (_safe_date(today.year + shift, month, day) for shift in (-1, 0, 1))
-        if candidate is not None
-    ]
+    # 2000 — високосный: отличаем невозможное 31.02 от допустимого 29.02 без года.
+    if _safe_date(2000, month, day) is None:
+        return None
+    future = next(
+        (
+            candidate
+            for year in range(today.year, dt.MAXYEAR + 1)
+            if (candidate := _safe_date(year, month, day)) is not None and candidate >= today
+        ),
+        None,
+    )
+    past = next(
+        (
+            candidate
+            for year in range(today.year, dt.MINYEAR - 1, -1)
+            if (candidate := _safe_date(year, month, day)) is not None and candidate <= today
+        ),
+        None,
+    )
     if scope is TimeScope.FUTURE:
-        return min((c for c in candidates if c >= today), default=None)
+        return future
     if scope is TimeScope.PAST:
-        return max((c for c in candidates if c <= today), default=None)
+        return past
+    candidates = [candidate for candidate in (past, future) if candidate is not None]
     return min(candidates, key=lambda candidate: abs((candidate - today).days), default=None)
 
 
@@ -261,7 +335,20 @@ def _parse_calendar_date(exact: str) -> tuple[int, int, int | None] | None:
 
 def _positive_number(text: str) -> int | None:
     stripped = text.strip()
-    return int(stripped) if stripped.isdecimal() and int(stripped) > 0 else None
+    if not stripped.isdecimal():
+        return None
+    significant = stripped.lstrip("0")
+    if len(significant) > len(str(dt.date.max.toordinal())):
+        raise EventValidationError("Слишком большое число дней.")
+    number = int(significant or "0")
+    return number if number > 0 else None
+
+
+def _add_days(day: dt.date, days: int) -> dt.date:
+    ordinal = day.toordinal() + days
+    if not dt.date.min.toordinal() <= ordinal <= dt.date.max.toordinal():
+        raise EventValidationError("Дата выходит за допустимый диапазон.")
+    return dt.date.fromordinal(ordinal)
 
 
 def _safe_date(year: int, month: int, day: int) -> dt.date | None:
@@ -293,16 +380,19 @@ def resolve_day(
         case DateKind.TODAY:
             return today
         case DateKind.TOMORROW:
-            return today + dt.timedelta(days=1)
+            return _add_days(today, 1)
         case DateKind.AFTER_TOMORROW:
-            return today + dt.timedelta(days=2)
+            return _add_days(today, 2)
         case DateKind.YESTERDAY:
-            return today - dt.timedelta(days=1)
+            return _add_days(today, -1)
         case DateKind.EXACT:
-            return calendar_date(expression.value, today, scope)
+            day = calendar_date(expression.value, today, scope)
+            if day is None:
+                raise EventValidationError("Некорректная дата. Укажите существующую дату.")
+            return day
         case DateKind.IN_DAYS:
             days = _positive_number(expression.value)
-            return None if days is None else today + dt.timedelta(days=days)
+            return None if days is None else _add_days(today, days)
         case _:
             return None
 
@@ -353,7 +443,7 @@ def resolve_period(
         return None
     return Period(
         start=_midnight(day),
-        end=_midnight(day + dt.timedelta(days=1)),
+        end=_midnight(_add_days(day, 1)),
         label=DAY_LABELS.get(kind) or day_label(day),
     )
 
