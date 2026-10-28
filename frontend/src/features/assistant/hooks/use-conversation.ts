@@ -51,12 +51,14 @@ export type Conversation = {
 export function useConversation({ profileId, onReply }: Options): Conversation {
   const [state, dispatch] = useReducer(conversationReducer, initialConversation);
   const onReplyRef = useRef(onReply);
+  const profileRef = useRef(profileId);
   const sendingRef = useRef(false);
   const [historyVersion, bumpHistory] = useReducer((value: number) => value + 1, 0);
   const firstId = useRef<number | null>(null);
 
   useEffect(() => {
     onReplyRef.current = onReply;
+    profileRef.current = profileId;
   });
 
   useEffect(() => {
@@ -87,9 +89,10 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
     };
   }, [profileId, historyVersion]);
 
-  const fail = useCallback((copy: FailureCopy, userKey?: string) => {
+  const fail = useCallback((owner: string, copy: FailureCopy, userKey?: string) => {
     dispatch({
       type: "failed",
+      profileId: owner,
       notice: createNotice(copy.text, "error", copy.actions),
       failure: copy.kind,
       userKey,
@@ -123,13 +126,14 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
         const reply = await sendChat(text);
         dispatch({
           type: "replied",
+          profileId,
           reply,
           at: nowIso(),
           undoUntil: reply.undo ? performance.now() + UNDO_WINDOW_MS : null,
         });
-        onReplyRef.current(reply, "text");
+        if (profileRef.current === profileId) onReplyRef.current(reply, "text");
       } catch (cause) {
-        fail(describeRequestFailure(apiErrorFromException(cause), "text", text), key);
+        fail(profileId, describeRequestFailure(apiErrorFromException(cause), "text", text), key);
       } finally {
         sendingRef.current = false;
       }
@@ -151,14 +155,15 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
         const recognized = reply.recognized_text?.trim();
         dispatch({
           type: "replied",
+          profileId,
           reply,
           at: nowIso(),
           recognized: recognized ? { key: localKey("voice"), text: recognized } : undefined,
           undoUntil: reply.undo ? performance.now() + UNDO_WINDOW_MS : null,
         });
-        onReplyRef.current(reply, "voice");
+        if (profileRef.current === profileId) onReplyRef.current(reply, "voice");
       } catch (cause) {
-        fail(describeRequestFailure(apiErrorFromException(cause), "voice", null));
+        fail(profileId, describeRequestFailure(apiErrorFromException(cause), "voice", null));
       } finally {
         sendingRef.current = false;
       }
@@ -166,21 +171,24 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
     [profileId, fail, notReady],
   );
 
-  const undo = useCallback(async (messageId: number, actionId: string) => {
-    dispatch({ type: "undo_started", messageId });
-    try {
-      const reply = await undoAction(actionId);
-      dispatch({ type: "replied", reply, at: nowIso(), undoUntil: null });
-      onReplyRef.current(reply, "undo");
-    } catch (cause) {
-      const copy = describeUndoFailure(apiErrorFromException(cause));
-      dispatch({
-        type: "notice",
-        notice: createNotice(copy.text, "error", copy.actions),
-        failure: copy.kind,
-      });
-    }
-  }, []);
+  const undo = useCallback(
+    async (messageId: number, actionId: string) => {
+      dispatch({ type: "undo_started", messageId });
+      try {
+        const reply = await undoAction(actionId);
+        dispatch({ type: "replied", profileId, reply, at: nowIso(), undoUntil: null });
+        if (profileRef.current === profileId) onReplyRef.current(reply, "undo");
+      } catch (cause) {
+        const copy = describeUndoFailure(apiErrorFromException(cause));
+        dispatch({
+          type: "notice",
+          notice: createNotice(copy.text, "error", copy.actions),
+          failure: copy.kind,
+        });
+      }
+    },
+    [profileId],
+  );
 
   const loadOlder = useCallback(async () => {
     const beforeId = firstId.current;
@@ -188,7 +196,12 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
     dispatch({ type: "older_loading" });
     try {
       const messages = await fetchDialog(beforeId);
-      dispatch({ type: "older_loaded", messages, hasOlder: messages.length >= DIALOG_PAGE });
+      dispatch({
+        type: "older_loaded",
+        profileId,
+        messages,
+        hasOlder: messages.length >= DIALOG_PAGE,
+      });
     } catch (cause) {
       dispatch({ type: "older_failed" });
       const error = apiErrorFromException(cause);
@@ -197,7 +210,7 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
         notice: createNotice(`Более ранние реплики не загрузились. ${error.message}`),
       });
     }
-  }, []);
+  }, [profileId]);
 
   const addFailure = useCallback((copy: FailureCopy) => {
     dispatch({
