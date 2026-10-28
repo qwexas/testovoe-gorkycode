@@ -205,6 +205,124 @@ async def test_reschedule_keeps_current_day_of_record_apart_from_new_time() -> N
     assert intent.when == When(time=dt.time(16, 0))
 
 
+async def test_reschedule_keeps_old_time_apart_from_new_time() -> None:
+    intent = await parse(
+        {
+            "action": "reschedule",
+            "event_type": "meeting",
+            "query": "встреча с Иваном",
+            "target_time": "15:00",
+            "time": "17:00",
+        },
+        text="Перенеси встречу с Иваном в 15:00 на 17:00",
+    )
+
+    assert intent.target == TargetRef(
+        last=False,
+        query="встреча с Иваном",
+        event_type=EventType.MEETING,
+        when=When(time=dt.time(15, 0)),
+    )
+    assert intent.when == When(time=dt.time(17, 0))
+
+
+async def test_reschedule_old_day_and_time_and_new_day_and_time() -> None:
+    """Запись описана только типом и временем — ищется по дню и времени, не по «встрече»."""
+    intent = await parse(
+        {
+            "action": "reschedule",
+            "event_type": "meeting",
+            "query": "встреча",
+            "target_date": "tomorrow",
+            "target_time": "10:00",
+            "date": "fri",
+            "time": "12:00",
+        },
+        text="Перенеси завтрашнюю встречу в 10 на пятницу в 12",
+    )
+
+    assert intent.target == TargetRef(
+        last=False,
+        query=None,
+        event_type=EventType.MEETING,
+        when=When(date=TOMORROW, time=dt.time(10, 0)),
+    )
+    assert intent.when == When(date=FRIDAY, time=dt.time(12, 0))
+
+
+async def test_reschedule_old_time_with_leading_zero_is_morning() -> None:
+    intent = await parse(
+        {"action": "reschedule", "query": "созвон", "target_time": "6:30", "time": "9:00"},
+        text="Перенеси созвон с 06:30 на 9:00",
+    )
+
+    assert intent.target is not None and intent.target.when == When(time=dt.time(6, 30))
+
+
+async def test_reschedule_takes_new_duration() -> None:
+    intent = await parse(
+        {
+            "action": "reschedule",
+            "query": "встреча с Иваном",
+            "time": "17:00",
+            "duration_minutes": 30,
+        },
+        text="Перенеси встречу с Иваном на 17:00 на полчаса",
+    )
+
+    assert intent.when == When(time=dt.time(17, 0))
+    assert intent.duration_minutes == 30
+
+
+async def test_single_command_leaves_nothing_unhandled() -> None:
+    intent = await parse(
+        {"action": "reschedule", "query": "встреча с Иваном", "time": "17:00"},
+        text="Перенеси встречу с Иваном на 17:00",
+    )
+
+    assert intent.unhandled is None
+
+
+async def test_second_command_by_verbs_is_unhandled() -> None:
+    """Модель не выписала вторую команду в `rest` — её находят глаголы реплики."""
+    intent = await parse(
+        {"action": "reschedule", "query": "планёрка", "time": "11:00"},
+        text="Перенеси планёрку на 11 и удали встречу с Петром",
+    )
+
+    assert intent.action is Action.RESCHEDULE
+    assert intent.unhandled == "удали встречу с Петром"
+
+
+async def test_second_command_from_model_rest_is_unhandled() -> None:
+    intent = await parse(
+        {
+            "action": "create",
+            "event_type": "meeting",
+            "title": "Встреча с Иваном",
+            "rest": "создай задачу купить билеты",
+        },
+        text="Создай встречу с Иваном и задачу купить билеты",
+    )
+
+    assert intent.title == "Встреча с Иваном"
+    assert intent.unhandled == "создай задачу купить билеты"
+
+
+async def test_invented_rest_is_ignored() -> None:
+    intent = await parse(
+        {
+            "action": "create",
+            "event_type": "task",
+            "title": "Купить хлеб",
+            "rest": "позвонить маме",
+        },
+        text="Напомни купить хлеб",
+    )
+
+    assert intent.unhandled is None
+
+
 MONDAY_MORNING = dt.datetime(2026, 10, 26, 9, 30, tzinfo=MOSCOW)
 NEXT_MONDAY = dt.date(2026, 11, 2)
 

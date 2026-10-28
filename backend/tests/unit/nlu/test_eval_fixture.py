@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -149,3 +150,30 @@ def test_compare_accepts_any_listed_variant(lemmatizer: MorphLemmatizer) -> None
     for date, ok in ((None, True), (dt.date(2026, 10, 29), True), (dt.date(2026, 10, 27), False)):
         intent = Intent(action=Action.RESCHEDULE, text="", when=When(date=date, time=dt.time(17)))
         assert compare(intent, expected, lemmatizer)["when.date"] is ok
+
+
+def test_compare_old_and_new_moment_and_unhandled(lemmatizer: MorphLemmatizer) -> None:
+    """F11: прежние и новые день и время переноса и остальные команды реплики."""
+    cases = {case.case_id: case for case in load_cases(FIXTURE_PATH)}
+    moved = Intent(
+        action=Action.RESCHEDULE,
+        text=cases["mod-09"].text,
+        target=TargetRef(
+            last=False,
+            event_type=EventType.MEETING,
+            when=When(date=dt.date(2026, 10, 28), time=dt.time(10, 0)),
+        ),
+        when=When(date=dt.date(2026, 10, 30), time=dt.time(12, 0)),
+    )
+    split = Intent(
+        action=Action.RESCHEDULE,
+        text=cases["multi-01"].text,
+        target=TargetRef(last=False, query="планёрка"),
+        when=When(time=dt.time(11, 0)),
+        unhandled="удали встречу с Петром",
+    )
+    lost = replace(split, unhandled=None)
+
+    assert all(compare(moved, cases["mod-09"].expected, lemmatizer).values())
+    assert all(compare(split, cases["multi-01"].expected, lemmatizer).values())
+    assert not compare(lost, cases["multi-01"].expected, lemmatizer)["unhandled"]

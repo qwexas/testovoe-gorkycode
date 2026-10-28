@@ -25,11 +25,13 @@ FOCUS_TIE_MARGIN = 0.015
 class TargetLookup:
     """Подходящие записи по убыванию уместности.
 
-    `query` — что искали; `None` — команда ссылалась на запись из контекста («её»).
+    `query` — что искали; `None` — команда ссылалась на запись из контекста («её»)
+    или описала её только днём и временем — тогда они в `moment`.
     """
 
     candidates: Sequence[EventCard]
     query: str | None
+    moment: When | None = None
 
 
 class TargetFinder:
@@ -43,8 +45,13 @@ class TargetFinder:
 
         После ответа-списка («Что у меня сегодня?» → два напоминания) «её» неоднозначно:
         кандидаты — все записи того ответа (подходящего типа), и ассистент переспросит.
+        Ссылка без описания, но с днём и временем («завтрашнюю встречу в 10») — записи
+        названного типа в это время (`_at_moment`).
         """
         target = intent.target or TargetRef(last=True)
+        if not target.last and not target.query and target.when is not None:
+            at_moment = await self._at_moment(turn, intent.action, target, target.when)
+            return TargetLookup(at_moment, query=None, moment=target.when)
         if target.last or not target.query:
             return TargetLookup(_referenced(turn, target), query=None)
         found = await self._search(turn, intent.action, target, target.query)
@@ -79,6 +86,37 @@ class TargetFinder:
             criteria, query, None, preferred_type=target.event_type
         )
         return _prefer_exact_time(found, target.when)
+
+    async def _at_moment(
+        self, turn: Turn, action: Action, target: TargetRef, when: When
+    ) -> list[EventCard]:
+        """Записи названного типа в названные день и время, по времени начала.
+
+        Названо время — только записи ровно в это время, как и при поиске по описанию:
+        другая запись того же дня не подменяет названную. Время без дня ищется с сегодняшнего
+        дня: «перенеси встречу в 15» — о ближайшей, а не о встрече годичной давности.
+        """
+        start, end = _day_bounds(when)
+        if start is None:
+            start = _midnight(turn.today)
+        criteria = EventFilter(
+            profile_id=turn.profile_id,
+            period_start=start,
+            period_end=end,
+            event_types=asked_types(target.event_type),
+        )
+        if action in OPEN_ONLY_ACTIONS:
+            open_criteria = replace(criteria, status=EventStatus.OPEN)
+            found = await self._list_at(open_criteria, when)
+            if found:
+                return found
+        return await self._list_at(criteria, when)
+
+    async def _list_at(self, criteria: EventFilter, when: When) -> list[EventCard]:
+        cards = await self._reader.list_events(criteria, TARGET_SEARCH_LIMIT)
+        if when.time is None:
+            return cards
+        return [card for card in cards if _starts_exactly_at(card, when.time)]
 
 
 def _referenced(turn: Turn, target: TargetRef) -> tuple[EventCard, ...]:

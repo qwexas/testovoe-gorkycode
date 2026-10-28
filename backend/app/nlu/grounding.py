@@ -79,6 +79,18 @@ def user_description(model_query: str | None, text: str) -> str | None:
     return _content_words(text)
 
 
+def spoken_in(phrase: str, text: str) -> bool:
+    """Сказана ли фраза модели в реплике: больше половины её лемм есть в `text`.
+
+    Так проверяются остальные команды (`rest`), которые модель выписала из реплики.
+    """
+    phrase_lemmas = set(_lemmatizer().lemmas(phrase))
+    if not phrase_lemmas:
+        return False
+    covered = len(phrase_lemmas.intersection(_lemmatizer().lemmas(text))) / len(phrase_lemmas)
+    return covered > MIN_QUERY_COVERAGE
+
+
 def same_record(description: str, title: str) -> bool:
     """Описание называет запись: «встречу с Иваном» и «Встреча с Иваном» — одна запись."""
     description_lemmas = set(_lemmatizer().lemmas(description))

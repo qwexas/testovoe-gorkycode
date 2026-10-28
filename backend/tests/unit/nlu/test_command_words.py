@@ -7,6 +7,7 @@ from app.nlu.command_words import (
     asks_to_create,
     creation_over_change,
     is_generic_title,
+    other_commands,
 )
 from app.nlu.expressions import DateKind
 from app.nlu.interfaces import Action
@@ -127,3 +128,42 @@ def test_generic_titles(title: str) -> None:
 def test_real_titles(title: str) -> None:
     """«Созвон», «Планёрка» — уже содержание: формат встречи, а не просто тип."""
     assert not is_generic_title(title)
+
+
+@pytest.mark.parametrize(
+    ("text", "rest"),
+    [
+        ("Перенеси планёрку на 11 и удали встречу с Петром", "удали встречу с Петром"),
+        ("Отмени встречу и поставь новую на пятницу", "поставь новую на пятницу"),
+        ("Перенеси созвон на 17, а потом удали задачу", "удали задачу"),
+        ("Удали встречу с Петром, а созвон перенеси на завтра", "созвон перенеси на завтра"),
+        ("Создай задачу купить хлеб и создай задачу купить молоко", "создай задачу купить молоко"),
+    ],
+)
+def test_other_commands_are_split_off(text: str, rest: str) -> None:
+    assert other_commands(text) == rest
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Перенеси встречу с Иваном на 17:00 на полчаса",
+        "Поставь задачу добавить отчёт",
+        "Напомни купить хлеб и молоко",
+        "нет, отмени, перенеси её на пятницу",
+        "не удаляй, сдвинь её на 17:00",
+        "Создай встречу с Иваном и задачу купить билеты",
+    ],
+)
+def test_single_command(text: str) -> None:
+    """Инфинитив — содержание записи; «создай A и B» без второго глагола ловит модель (`rest`)."""
+    assert other_commands(text) is None
+
+
+def test_creation_over_change_forgets_record_time() -> None:
+    extraction = reschedule(query="встреча с Иваном", target_time="10:00", time="12:00")
+
+    created = creation_over_change(extraction, "Поставь встречу с Иваном на 12")
+
+    assert created.action is Action.CREATE
+    assert created.target_time == ""

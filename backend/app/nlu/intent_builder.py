@@ -1,8 +1,10 @@
 """Перевод извлечённого моделью (`Extraction`) в `Intent` из контракта.
 
 Здесь считаются даты и периоды (через `app.nlu.time_resolution`) и раскладываются поля
-по действию: у переноса «когда» — новое время, а день из `target_date` описывает запись;
-у удаления названный день описывает удаляемую запись и т. д.
+по действию: у переноса «когда» — новые день и время, а `target_date` и `target_time`
+описывают запись там, где она стоит сейчас; у удаления названный день описывает удаляемую
+запись и т. д. Остальные команды реплики («…и удали встречу с Петром») попадают
+в `Intent.unhandled`: выполняется только первая.
 """
 
 from collections.abc import Callable
@@ -10,13 +12,14 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from app.core.enums import EventStatus, EventType
-from app.nlu.command_words import creation_over_change, is_generic_title
+from app.nlu.command_words import creation_over_change, is_generic_title, other_commands
 from app.nlu.expressions import TimeExpression
 from app.nlu.grounding import (
     names_event_type,
     names_moment,
     names_record_by_pronoun,
     same_record,
+    spoken_in,
     user_description,
 )
 from app.nlu.interfaces import Action, DialogContext, Intent, TargetRef, TimeScope, When
@@ -30,6 +33,8 @@ from app.nlu.time_resolution import (
 from app.nlu.time_scope import search_time_scope
 
 TRIMMED_PUNCTUATION = " \t\n.,!?;:«»\"'"
+SHORT_WORD_LENGTH = 2
+"""Предлоги «в», «на», «с» не мешают описанию быть «только типом»: «встреча в 10»."""
 
 EVENT_TYPES = {
     EventTypeName.TASK: EventType.TASK,
@@ -59,7 +64,23 @@ def build_intent(extraction: Extraction, text: str, context: DialogContext) -> I
     extraction = creation_over_change(extraction, text)
     fields_for = _FIELDS_BY_ACTION.get(extraction.action, _no_fields)
     utterance = _Utterance(extraction, text, context)
-    return Intent(action=extraction.action, text=text, **fields_for(utterance))
+    return Intent(
+        action=extraction.action,
+        text=text,
+        unhandled=_unhandled(extraction, text),
+        **fields_for(utterance),
+    )
+
+
+def _unhandled(extraction: Extraction, text: str) -> str | None:
+    """Остальные команды реплики: по глаголам-командам или из `rest`, если он сказан.
+
+    Слова самой реплики надёжнее пересказа модели, поэтому сначала — `other_commands`.
+    """
+    rest = _clean(extraction.rest)
+    if rest is not None and not spoken_in(rest, text):
+        rest = None
+    return other_commands(text) or rest
 
 
 def _create_fields(utterance: _Utterance) -> IntentFields:
@@ -106,12 +127,19 @@ def _search_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _reschedule_fields(utterance: _Utterance) -> IntentFields:
+    """Прежние день и время (`target_*`) ищут запись, новые (`date`, `time`) — куда её деть.
+
+    Длительность — новая длительность встречи; не названа — остаётся прежней.
+    """
     extraction = utterance.extraction
-    record_day = resolve_when(
-        extraction.target_date_expression, TimeExpression(), utterance.context.now, TimeScope.ANY
+    record_moment = resolve_when(
+        extraction.target_date_expression,
+        _with_leading_zero(extraction.target_time_expression, utterance.text),
+        utterance.context.now,
+        TimeScope.ANY,
     )
     return {
-        "target": _target(utterance, record_day),
+        "target": _target(utterance, record_moment),
         "when": _new_when(utterance),
         "duration_minutes": _positive(extraction.duration_minutes),
     }
@@ -177,9 +205,13 @@ def _record_when(utterance: _Utterance) -> When | None:
 
 
 def _time_expression(utterance: _Utterance) -> TimeExpression:
+    """Названное время с ведущим нулём из реплики (`_with_leading_zero`)."""
+    return _with_leading_zero(utterance.extraction.time_expression, utterance.text)
+
+
+def _with_leading_zero(expression: TimeExpression, text: str) -> TimeExpression:
     """Возвращаем ведущий ноль из текста, если извлечение нормализовало «06:30» в «6:30»."""
-    expression = utterance.extraction.time_expression
-    return replace(expression, clock=preserve_leading_zero(expression.clock, utterance.text))
+    return replace(expression, clock=preserve_leading_zero(expression.clock, text))
 
 
 def _target(utterance: _Utterance, when: When | None, new_title: str | None = None) -> TargetRef:
@@ -189,22 +221,35 @@ def _target(utterance: _Utterance, when: When | None, new_title: str | None = No
     реплике: модель иногда подставляет название, тип и дату записи из фокуса.
     Запись из контекста (`last=True`), если она названа местоимением («перенеси её»), не
     описана вовсе («перенеси на завтра»). Названное описание всегда запускает поиск.
+    Запись, описанная только типом и временем («перенеси завтрашнюю встречу в 10 на 12»),
+    ищется по дню и времени: `query` пустой, `last=False`, `when` — где она стоит сейчас.
     При переименовании новое название — не описание записи («переименуй её в …»).
     """
     extraction = utterance.extraction
     text = utterance.text
-    query = None
-    if not names_record_by_pronoun(text):
-        query = user_description(_clean(extraction.query), text)
+    pronoun = names_record_by_pronoun(text)
+    query = None if pronoun else user_description(_clean(extraction.query), text)
     if query is not None and new_title is not None and same_record(query, new_title):
         query = None
-    last = query is None
+    moment = when if names_moment(text) else None
+    if query is not None and moment is not None and _names_only_type(query):
+        query = None
+    by_moment = query is None and moment is not None and not pronoun
+    last = query is None and not by_moment
     return TargetRef(
         last=last,
         query=query,
         event_type=_event_type(extraction) if names_event_type(text) else None,
-        when=when if names_moment(text) else None,
+        when=moment,
     )
+
+
+def _names_only_type(query: str) -> bool:
+    """«Встреча», «завтрашняя встреча в 10» — тип и время записи, без её содержания."""
+    words = [
+        word for word in query.split() if len(word) > SHORT_WORD_LENGTH and not names_moment(word)
+    ]
+    return not words or is_generic_title(" ".join(words))
 
 
 def _event_type(extraction: Extraction) -> EventType | None:

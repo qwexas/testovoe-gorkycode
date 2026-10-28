@@ -476,9 +476,20 @@ _CHOICE_VERBS: Final[Mapping[Action, str]] = MappingProxyType(
 )
 
 
+NOTHING_AT_MOMENT = (
+    "Не нашёл записи в названное время. Назовите её — например: «Перенеси встречу с Иваном"
+    " на завтра»."
+)
+
+
 def target_not_found(query: str) -> str:
     """Поиск цели команды ничего не дал."""
     return f"Не нашёл ничего похожего на «{query}». Попробуйте сказать иначе."
+
+
+def unhandled_commands(rest: str) -> str:
+    """Остальные команды реплики: выполняется только первая, их нужно повторить отдельно."""
+    return f"А «{rest}» пока не сделал: выполняю по одной команде — скажите это отдельно."
 
 
 def _choice_verb(action: Action, noun: Noun) -> str:

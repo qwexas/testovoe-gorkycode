@@ -81,7 +81,18 @@ class DialogRouter:
         )
 
     async def route(self, turn: Turn, intent: Intent) -> Outcome:
-        """Ответ ассистента на реплику."""
+        """Ответ ассистента на реплику.
+
+        Выполняется одна команда — первая. Остальные команды реплики (`intent.unhandled`)
+        не теряются молча: ответ называет их и просит повторить отдельно.
+        """
+        outcome = await self._route(turn, intent)
+        if intent.unhandled is None:
+            return outcome
+        text = f"{outcome.reply.text} {phrases.unhandled_commands(intent.unhandled)}"
+        return replace(outcome, reply=replace(outcome.reply, text=text))
+
+    async def _route(self, turn: Turn, intent: Intent) -> Outcome:
         if turn.pending is not None and _moves_pending_record(intent, turn.pending):
             return await self._answer(turn, replace(intent, action=Action.ANSWER), turn.pending)
         follow_up = self._follow_ups.get(intent.action)
@@ -95,7 +106,7 @@ class DialogRouter:
         lookup = await self._targets.find(turn, intent)
         candidates = lookup.candidates
         if not candidates:
-            return Outcome.say(_nothing_to_change(lookup.query))
+            return Outcome.say(_nothing_to_change(lookup))
         if len(candidates) == 1:
             return await self._changes.apply(turn, intent, candidates[0])
         return _offer_choice(intent, lookup, turn.now)
@@ -185,7 +196,8 @@ def _moves_pending_record(intent: Intent, pending: PendingStep) -> bool:
     """«А перенеси её на послезавтра», пока запись ещё создаётся (уточнение или конфликт).
 
     «Её» здесь — создаваемая запись: новое время — это ответ на вопрос, а не перенос другой
-    записи (иначе при конфликте переехала бы мешающая встреча).
+    записи (иначе при конфликте переехала бы мешающая встреча). Запись, описанная днём
+    и временем («перенеси завтрашнюю встречу в 10…»), — уже существующая, не создаваемая.
     """
     target = intent.target
     return (
@@ -193,13 +205,15 @@ def _moves_pending_record(intent: Intent, pending: PendingStep) -> bool:
         and intent.action is Action.RESCHEDULE
         and intent.when is not None
         and not intent.when.is_empty
-        and (target is None or target.last or not target.query)
+        and (target is None or target.last or not (target.query or target.when))
     )
 
 
-def _nothing_to_change(query: str | None) -> str:
+def _nothing_to_change(lookup: TargetLookup) -> str:
     """Ссылка «её» без контекста — непонятно о чём; поиск без результата — не нашёл."""
-    return phrases.TARGET_UNCLEAR if query is None else phrases.target_not_found(query)
+    if lookup.query is not None:
+        return phrases.target_not_found(lookup.query)
+    return phrases.TARGET_UNCLEAR if lookup.moment is None else phrases.NOTHING_AT_MOMENT
 
 
 def _offer_choice(intent: Intent, lookup: TargetLookup, now: datetime) -> Outcome:
@@ -221,7 +235,7 @@ def _offer_choice(intent: Intent, lookup: TargetLookup, now: datetime) -> Outcom
     )
     text = (
         question.question
-        if lookup.query is None
+        if lookup.query is None and lookup.moment is None
         else phrases.choice_text(intent.action, noun, shown=len(options), total=len(candidates))
     )
     ids = tuple(card.id for card in options)

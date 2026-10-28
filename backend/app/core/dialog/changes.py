@@ -1,8 +1,9 @@
 """Изменение найденной записи: перенос, переименование, отметка о выполнении, удаление.
 
 Перенос, переименование и отметка выполняются сразу и возвращают кнопку отмены;
-удаление всегда переспрашивается (Q33). Перенос встречи сохраняет её длительность
-и проверяет пересечение с другими встречами.
+удаление всегда переспрашивается (Q33). Перенос встречи сохраняет её длительность,
+если новая не названа («перенеси на 17:00 на полчаса»), и проверяет пересечение
+с другими встречами.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
@@ -27,7 +28,7 @@ from app.core.dialog.rules import (
 )
 from app.core.dialog.undo import RestoreDeleted, RevertChanges, StoredOperation, UndoLog
 from app.core.enums import EventStatus, EventType, PendingExpectation, ReplyKind
-from app.core.events import EventCard, EventChanges, EventEditor
+from app.core.events import KEEP, EventCard, EventChanges, EventEditor
 from app.core.queries import MeetingSlot
 from app.core.schedule import Schedule
 from app.nlu.interfaces import Action, Intent, When
@@ -69,7 +70,7 @@ class ChangeFlow:
         question = reschedule_question(target, intent.when, turn.today)
         if question is not None:
             return Outcome.clarify(PendingStep(question, intent, target_id=target.id))
-        schedule = rescheduled_schedule(target, intent.when or When(), turn.now)
+        schedule = _new_schedule(target, intent, turn)
         conflicts = await self._meeting_conflicts(turn, target, schedule)
         if conflicts:
             resolved = replace(intent, when=resolved_when(schedule))
@@ -77,7 +78,7 @@ class ChangeFlow:
         return await self._move(turn, target, schedule)
 
     async def _reschedule_confirmed(self, turn: Turn, intent: Intent, target: EventCard) -> Outcome:
-        schedule = rescheduled_schedule(target, intent.when or When(), turn.now)
+        schedule = _new_schedule(target, intent, turn)
         return await self._move(turn, target, schedule)
 
     async def _meeting_conflicts(
@@ -88,13 +89,17 @@ class ChangeFlow:
         slot = MeetingSlot(
             profile_id=turn.profile_id,
             starts_at=schedule.starts_at,
-            ends_at=schedule.starts_at + meeting_duration(target),
+            ends_at=schedule.ends_at or schedule.starts_at + meeting_duration(target),
             ignored_event_id=target.id,
         )
         return await self._conflicts.find(slot)
 
     async def _move(self, turn: Turn, target: EventCard, schedule: Schedule) -> Outcome:
-        changes = EventChanges(starts_at=schedule.starts_at, has_time=schedule.has_time)
+        changes = EventChanges(
+            starts_at=schedule.starts_at,
+            has_time=schedule.has_time,
+            ends_at=KEEP if schedule.ends_at is None else schedule.ends_at,
+        )
         card, ticket = await self._change(turn, target, changes)
         reply = Reply(
             ReplyKind.CONFIRMATION,
@@ -154,6 +159,11 @@ class ChangeFlow:
 
     async def _record(self, turn: Turn, operation: StoredOperation) -> UndoTicket:
         return await self._undo.record(turn.profile_id, operation, turn.now)
+
+
+def _new_schedule(target: EventCard, intent: Intent, turn: Turn) -> Schedule:
+    """Куда переносится запись; `ends_at` задан, только если названа новая длительность."""
+    return rescheduled_schedule(target, intent.when or When(), turn.now, intent.duration_minutes)
 
 
 def _confirm_move_despite_conflicts(

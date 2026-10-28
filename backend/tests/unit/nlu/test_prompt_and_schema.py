@@ -28,6 +28,8 @@ def test_record_description_comes_before_new_values() -> None:
 
     assert order.index("query") < order.index("new_title")
     assert order.index("target_date") < order.index("date")
+    assert order.index("target_time") < order.index("time")
+    assert order[-1] == "rest"
 
 
 def test_schema_lists_every_date_kind() -> None:

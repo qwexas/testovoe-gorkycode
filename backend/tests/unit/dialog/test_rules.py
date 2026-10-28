@@ -152,6 +152,24 @@ class TestReschedule:
 
         assert schedule.starts_at == at(SUNDAY, 10)
 
+    def test_named_duration_sets_new_end(self, demo: EventCard) -> None:
+        schedule = rescheduled_schedule(demo, When(time=time(17)), NOW, duration_minutes=30)
+
+        assert (schedule.starts_at, schedule.ends_at) == (at(TOMORROW, 17), at(TOMORROW, 17, 30))
+
+    def test_without_duration_end_is_left_to_editor(self, demo: EventCard) -> None:
+        """Пустой `ends_at` — «не менять длительность»: редактор сдвинет конец с началом."""
+        schedule = rescheduled_schedule(demo, When(time=time(17)), NOW)
+
+        assert schedule.ends_at is None
+
+    def test_duration_does_not_apply_to_task(self) -> None:
+        task = card(EventType.TASK, "Отчёт", at(TOMORROW, 10))
+
+        schedule = rescheduled_schedule(task, When(time=time(17)), NOW, duration_minutes=30)
+
+        assert schedule.ends_at is None
+
 
 @pytest.mark.parametrize(
     ("raw", "expected"),

@@ -14,8 +14,14 @@
    встречу?». Заглушками считаются названия типов и общие слова — «встреча», «задача»,
    «напоминание», «дело», «событие», «запись», «мероприятие», в том числе с «новый».
    «Созвон», «планёрка», «совещание» — уже содержание (формат встречи), их оставляем.
+3. **Несколько команд.** «Перенеси планёрку на 11 и удали встречу с Петром»: `Intent`
+   описывает одну команду, и модель не всегда выписывает остальные в `rest`. Если в реплике
+   два повелительных глагола-команды («перенеси», «удали», «создай»…) и между ними есть
+   слова, всё со второго глагола — остальные команды (`other_commands`). Инфинитив —
+   содержание записи, а не команда: «поставь задачу добавить отчёт» — одна команда.
 """
 
+import itertools
 import re
 
 from app.nlu.expressions import DateKind
@@ -41,11 +47,25 @@ CHANGE_VERBS = frozenset(
         "перепланировать",
     }
 )  # fmt: skip
+OTHER_COMMAND_VERBS = frozenset(
+    {
+        "удалить", "убрать", "отменить", "отметить", "переименовать", "найти", "показать",
+    }
+)  # fmt: skip
+"""Команды-глаголы, кроме создания и переноса: вместе с ними — признак отдельной команды."""
+COMMAND_VERBS = CREATE_VERBS | CHANGE_VERBS | OTHER_COMMAND_VERBS
+IMPERATIVE = "impr"
 GENERIC_TITLE_WORDS = frozenset(
     {"встреча", "задача", "напоминание", "дело", "событие", "запись", "мероприятие", "новый"}
 )
 """Слова, из которых не складывается название: тип записи и общие слова."""
 
+MAX_FRONTED_WORDS = 3
+"""Сколько слов между запятой и глаголом считать его дополнением: «, а созвон перенеси».
+Длиннее — это перечисление внутри первой команды: «с Иваном, Петром на 17 и удали…»."""
+LINKING_WORDS = frozenset({"и", "а", "ещё", "еще", "потом", "затем", "также", "плюс"})
+"""Связки между командами: «…, а потом удали Y» — остальное начинается с «удали»."""
+TRAILING_PUNCTUATION = " \t\n.,!?;:«»\"'"
 _WORD = re.compile(r"[а-яёa-z0-9]+", re.IGNORECASE)
 
 
@@ -61,6 +81,7 @@ def creation_over_change(extraction: Extraction, text: str) -> Extraction:
             "title": extraction.title or extraction.query,
             "query": "",
             "target_date": DateKind.NONE,
+            "target_time": "",
         }
     )
 
@@ -76,6 +97,29 @@ def asks_to_change(text: str) -> bool:
     return not CHANGE_VERBS.isdisjoint(_lemmas(_words(text)))
 
 
+def other_commands(text: str) -> str | None:
+    """Вторая и следующие команды реплики словами пользователя; `None` — команда одна.
+
+    «Перенеси планёрку на 11 и удали встречу с Петром» → «удали встречу с Петром».
+    Дополнение перед глаголом остаётся с ним, если команды разделены запятой: «удали
+    встречу с Петром, а созвон перенеси на завтра» → «созвон перенеси на завтра».
+    Глаголы подряд («нет, отмени, перенеси её») — одна команда: у первой нет содержания.
+    """
+    commands = [match for match in _WORD.finditer(text) if _is_command(match.group())]
+    for first, second in itertools.pairwise(commands):
+        if _WORD.search(text, first.end(), second.start()) is None:
+            continue
+        start = text.rfind(",", first.end(), second.start()) + 1
+        fronted = _WORD.findall(text, start, second.start())
+        if not start or len(fronted) > MAX_FRONTED_WORDS:
+            start = second.start()
+        words = text[start:].split()
+        while words and words[0].lower() in LINKING_WORDS:
+            words.pop(0)
+        return " ".join(words).strip(TRAILING_PUNCTUATION) or None
+    return None
+
+
 def is_generic_title(title: str) -> bool:
     """«Встреча», «Новая задача» — не название, а тип записи."""
     words = _words(title)
@@ -84,6 +128,14 @@ def is_generic_title(title: str) -> bool:
 
 def _words(text: str) -> list[str]:
     return [normalize_yo(word.lower()) for word in _WORD.findall(text)]
+
+
+def _is_command(word: str) -> bool:
+    """Повелительная форма глагола-команды: «перенеси», «удали», «создай»."""
+    return any(
+        parse.tag.mood == IMPERATIVE and normalize_yo(str(parse.normal_form)) in COMMAND_VERBS
+        for parse in shared_morph_analyzer().parse(word.lower())
+    )
 
 
 def _lemmas(words: list[str]) -> list[str]:

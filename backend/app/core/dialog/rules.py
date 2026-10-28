@@ -131,9 +131,19 @@ def reschedule_question(card: EventCard, when: When | None, today: date) -> Pend
     return None
 
 
-def rescheduled_schedule(card: EventCard, when: When, now: datetime) -> Schedule:
-    """Новое время записи: названное время — на прежний день, названный день — в прежнее время."""
-    return _moment(when, card, now)
+def rescheduled_schedule(
+    card: EventCard, when: When, now: datetime, duration_minutes: int | None = None
+) -> Schedule:
+    """Новое время записи: названное время — на прежний день, названный день — в прежнее время.
+
+    Названная длительность встречи («перенеси на 17:00 на полчаса») задаёт новый конец;
+    без неё `ends_at` пустой — редактор сдвигает конец вместе с началом, длительность прежняя.
+    У задач и напоминаний конца нет, длительность к ним не относится.
+    """
+    schedule = _moment(when, card, now)
+    if card.type is not EventType.MEETING or not duration_minutes or schedule.starts_at is None:
+        return schedule
+    return replace(schedule, ends_at=schedule.starts_at + timedelta(minutes=duration_minutes))
 
 
 def _moment(when: When, current: EventCard | None, now: datetime) -> Schedule:

@@ -3,7 +3,8 @@
 Прогоняет `tests/fixtures/parser_eval.json` через `LLMIntentParser` последовательно
 (у физлиц один поток) и считает:
 - долю полностью верных разборов — все ожидаемые поля совпали;
-- точность по полям: action, event_type, when.date, when.time, period, target, title и др.;
+- точность по полям: action, event_type, when.date, when.time, period, target, title,
+  unhandled (остальные команды реплики) и др.;
 - задержку разбора p50 / p95.
 Отдельно — по отложенной проверке (`holdout`): по этим случаям промпт не подгонялся.
 Конфигурация как в приложении: основная модель и запасная (`GIGACHAT_FALLBACK_MODEL`) для
@@ -73,6 +74,7 @@ FIELD_ORDER = (
     "status",
     "choice_index",
     "duration_minutes",
+    "unhandled",
 )
 
 
@@ -302,9 +304,9 @@ def compare(
                 checks["period"] = _same_period(intent.period, value)
             case "target":
                 checks["target"] = _same_target(intent, value, lemmatizer)
-            case "title" | "query" if value is None:
+            case "title" | "query" | "unhandled" if value is None:
                 checks[key] = getattr(intent, key) is None
-            case "title" | "query":
+            case "title" | "query" | "unhandled":
                 checks[key] = _same_text(getattr(intent, key), value, lemmatizer)
             case _:
                 checks[key] = _plain(getattr(intent, key)) == value

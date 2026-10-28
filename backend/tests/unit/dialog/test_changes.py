@@ -398,6 +398,206 @@ class TestReschedule:
         assert reply.kind is ReplyKind.CONFIRMATION
 
 
+class TestRescheduleOldAndNewMoment:
+    """F11: прежние день и время ищут запись, новые — куда её перенести."""
+
+    async def test_old_time_picks_record_new_time_moves_it(self, dialog: DialogHarness) -> None:
+        at_ten = await dialog.add_event(EventType.MEETING, "Созвон", at(TOMORROW, 10))
+        at_three = await dialog.add_event(EventType.MEETING, "Созвон", at(TOMORROW, 15))
+
+        reply = await dialog.say(
+            move(
+                "Перенеси завтрашний созвон в 15:00 на 17:00",
+                about("созвон", when=When(date=TOMORROW, time=time(15))),
+                time=time(17),
+            )
+        )
+
+        assert reply.events[0].id == at_three.id
+        assert dialog.event(at_three.id).starts_at == at(TOMORROW, 17)
+        assert dialog.event(at_ten.id).starts_at == at(TOMORROW, 10)
+
+    async def test_record_named_only_by_day_and_time(self, dialog: DialogHarness) -> None:
+        """«Перенеси завтрашнюю встречу в 10 на пятницу в 12» — без названия записи."""
+        at_ten = await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 10))
+        other = await dialog.add_event(EventType.MEETING, "Планёрка", at(TOMORROW, 15))
+        await dialog.add_event(EventType.TASK, "Отчёт", at(TOMORROW, 10))
+
+        reply = await dialog.say(
+            move(
+                "Перенеси завтрашнюю встречу в 10 на пятницу в 12",
+                TargetRef(event_type=EventType.MEETING, when=When(date=TOMORROW, time=time(10))),
+                date=FRIDAY,
+                time=time(12),
+            )
+        )
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+        assert reply.events[0].id == at_ten.id
+        assert dialog.event(at_ten.id).starts_at == at(FRIDAY, 12)
+        assert dialog.event(other.id).starts_at == at(TOMORROW, 15)
+
+    async def test_nothing_at_named_moment_changes_nothing(self, dialog: DialogHarness) -> None:
+        meeting = await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 11))
+
+        reply = await dialog.say(
+            move(
+                "Перенеси завтрашнюю встречу в 10 на 12",
+                TargetRef(event_type=EventType.MEETING, when=When(date=TOMORROW, time=time(10))),
+                time=time(12),
+            )
+        )
+
+        assert reply.kind is ReplyKind.INFO
+        assert reply.text.startswith("Не нашёл записи в названное время.")
+        assert dialog.event(meeting.id).starts_at == at(TOMORROW, 11)
+
+    async def test_several_at_named_moment_are_offered(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 10))
+        await dialog.add_event(EventType.MEETING, "Планёрка", at(TOMORROW, 10))
+
+        reply = await dialog.say(
+            move(
+                "Перенеси встречу в 10 на 12",
+                TargetRef(event_type=EventType.MEETING, when=When(time=time(10))),
+                time=time(12),
+            )
+        )
+
+        assert reply.kind is ReplyKind.CHOICE
+        assert reply.text == "Нашёл 2 встречи. Какую перенести?"
+
+
+class TestRescheduleDuration:
+    """F11: названная при переносе длительность меняет конец встречи."""
+
+    async def test_named_duration_is_applied(self, dialog: DialogHarness) -> None:
+        meeting = await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 15))
+
+        reply = await dialog.say(
+            change(
+                Action.RESCHEDULE,
+                "Перенеси демо на 17:00 на полчаса",
+                target=about("демо"),
+                when=When(time=time(17)),
+                duration_minutes=30,
+            )
+        )
+
+        record = dialog.event(meeting.id)
+        assert (record.starts_at, record.ends_at) == (at(TOMORROW, 17), at(TOMORROW, 17, 30))
+        assert reply.text == "Перенёс встречу «Демо» на завтра, 27 октября, в 17:00."
+        assert reply.events[0].ends_at == at(TOMORROW, 17, 30)
+
+    async def test_without_duration_original_is_kept(self, dialog: DialogHarness) -> None:
+        meeting = await dialog.add_event(
+            EventType.MEETING, "Демо", at(TOMORROW, 15), ends_at=at(TOMORROW, 17)
+        )
+
+        await dialog.say(move("Перенеси демо на пятницу", about("демо"), date=FRIDAY))
+
+        record = dialog.event(meeting.id)
+        assert (record.starts_at, record.ends_at) == (at(FRIDAY, 15), at(FRIDAY, 17))
+
+    async def test_shorter_meeting_does_not_conflict_after_its_end(
+        self, dialog: DialogHarness
+    ) -> None:
+        await dialog.add_event(EventType.MEETING, "Планёрка", at(TOMORROW, 17, 30))
+        await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 10))
+
+        reply = await dialog.say(
+            change(
+                Action.RESCHEDULE,
+                "Перенеси демо на 17:00 на полчаса",
+                target=about("демо"),
+                when=When(time=time(17)),
+                duration_minutes=30,
+            )
+        )
+
+        assert reply.kind is ReplyKind.CONFIRMATION
+
+    async def test_conflict_confirmation_keeps_new_duration(self, dialog: DialogHarness) -> None:
+        await dialog.add_event(EventType.MEETING, "Планёрка", at(TOMORROW, 17, 15))
+        demo = await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 10))
+
+        asked = await dialog.say(
+            change(
+                Action.RESCHEDULE,
+                "Перенеси демо на 17:00 на полчаса",
+                target=about("демо"),
+                when=When(time=time(17)),
+                duration_minutes=30,
+            )
+        )
+        await dialog.say(simple(Action.CONFIRM, "да"))
+
+        assert asked.kind is ReplyKind.CONFIRM_REQUEST
+        record = dialog.event(demo.id)
+        assert (record.starts_at, record.ends_at) == (at(TOMORROW, 17), at(TOMORROW, 17, 30))
+
+    async def test_undo_restores_previous_duration(self, dialog: DialogHarness) -> None:
+        meeting = await dialog.add_event(EventType.MEETING, "Демо", at(TOMORROW, 15))
+
+        await dialog.say(
+            change(
+                Action.RESCHEDULE,
+                "Перенеси демо на 17:00 на полчаса",
+                target=about("демо"),
+                when=When(time=time(17)),
+                duration_minutes=30,
+            )
+        )
+        await dialog.say(simple(Action.UNDO, "отмени"))
+
+        record = dialog.event(meeting.id)
+        assert (record.starts_at, record.ends_at) == (at(TOMORROW, 15), at(TOMORROW, 16))
+
+
+class TestSeveralCommands:
+    """F11: выполняется первая команда, остальные честно называются, а не теряются."""
+
+    async def test_rest_of_phrase_is_named_in_reply(self, dialog: DialogHarness) -> None:
+        planning = await dialog.add_event(EventType.MEETING, "Планёрка", at(TOMORROW, 10))
+        petr = await dialog.add_event(EventType.MEETING, "Встреча с Петром", at(TOMORROW, 15))
+
+        reply = await dialog.say(
+            change(
+                Action.RESCHEDULE,
+                "Перенеси планёрку на 11 и удали встречу с Петром",
+                target=about("планёрка"),
+                when=When(time=time(11)),
+                unhandled="удали встречу с Петром",
+            )
+        )
+
+        assert reply.text == (
+            "Перенёс встречу «Планёрка» на завтра, 27 октября, в 11:00. "
+            "А «удали встречу с Петром» пока не сделал: выполняю по одной команде — "
+            "скажите это отдельно."
+        )
+        assert dialog.event(planning.id).starts_at == at(TOMORROW, 11)
+        assert dialog.event(petr.id) is not None
+        assert dialog.state is not None and dialog.state.recent[-1]["text"] == reply.text
+
+    async def test_rest_is_named_with_question_too(self, dialog: DialogHarness) -> None:
+        reply = await dialog.say(
+            Intent(
+                Action.CREATE,
+                "Создай встречу и задачу купить билеты",
+                event_type=EventType.MEETING,
+                unhandled="задачу купить билеты",
+            )
+        )
+
+        assert reply.kind is ReplyKind.CLARIFICATION
+        assert reply.text.endswith(
+            "А «задачу купить билеты» пока не сделал: выполняю по одной "
+            "команде — скажите это отдельно."
+        )
+        assert reply.pending is not None and reply.pending.question == "Как назвать встречу?"
+
+
 class TestRenameCompleteDelete:
     async def test_rename_asks_new_title(self, dialog: DialogHarness) -> None:
         await dialog.add_event(EventType.TASK, "Отчёт")
