@@ -71,12 +71,13 @@ export type ConversationAction =
   | { type: "history_loaded"; profileId: string; messages: ChatMessage[]; hasOlder: boolean }
   | { type: "history_failed"; profileId: string }
   | { type: "older_loading" }
-  | { type: "older_loaded"; messages: ChatMessage[]; hasOlder: boolean }
+  | { type: "older_loaded"; profileId: string | null; messages: ChatMessage[]; hasOlder: boolean }
   | { type: "older_failed" }
   | { type: "user_sent"; entry: UserEntry }
   | { type: "voice_sending" }
   | {
       type: "replied";
+      profileId: string | null;
       reply: AssistantReply;
       at: string;
       /** Для голоса: распознанная реплика пользователя. */
@@ -85,6 +86,7 @@ export type ConversationAction =
     }
   | {
       type: "failed";
+      profileId: string | null;
       notice: NoticeEntry;
       failure: FailureKind;
       /** Реплика, на которую ответа не было. */
@@ -212,6 +214,7 @@ export function conversationReducer(
     case "older_loading":
       return { ...state, loadingOlder: true };
     case "older_loaded":
+      if (action.profileId !== state.profileId) return state;
       return {
         ...state,
         entries: merge(action.messages.map(entryFromMessage), state.entries),
@@ -230,6 +233,7 @@ export function conversationReducer(
     case "voice_sending":
       return { ...state, activity: { name: "sending", via: "voice" }, failure: null };
     case "replied": {
+      if (action.profileId !== state.profileId) return state;
       const { reply, at, recognized } = action;
       const added: LogEntry[] = [];
       if (recognized) {
@@ -262,6 +266,7 @@ export function conversationReducer(
       };
     }
     case "failed":
+      if (action.profileId !== state.profileId) return state;
       return {
         ...state,
         entries: [
