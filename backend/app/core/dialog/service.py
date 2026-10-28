@@ -122,9 +122,11 @@ class DialogService:
         ]
 
     async def _answer(self, profile_id: UUID, text: str, source: MessageSource) -> AssistantAnswer:
+        await self._save_user_message(profile_id, text)
+        await self._storage.profiles.lock(profile_id)
+
         now = self._clock()
         state = DialogState.from_record(await self._storage.dialog_states.get(profile_id))
-        await self._save_user_message(profile_id, text)
         focus = await self._focus_cards(profile_id, state.focus_ids)
         intent = await self._parser.parse(text, _parser_context(now, state, focus))
         peer_ids = set(state.peer_ids)

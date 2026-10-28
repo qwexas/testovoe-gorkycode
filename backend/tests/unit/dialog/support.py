@@ -231,6 +231,15 @@ class FakeUndoRepository:
         for action_id in expired:
             del self.actions[action_id]
 
+from uuid import UUID
+
+
+class FakeProfiles:
+    """Заглушка репозитория профилей для модульных тестов."""
+
+    async def lock(self, profile_id: UUID) -> None:
+        pass
+
 
 class FakeStorage:
     def __init__(self) -> None:
@@ -239,12 +248,15 @@ class FakeStorage:
         self.dialog_states = FakeDialogStateRepository()
         self.undo_actions = FakeUndoRepository()
         self.commits = 0
+        self.profiles = FakeProfiles()
 
     async def flush(self) -> None:
         """В памяти отправлять нечего."""
 
     async def commit(self) -> None:
         self.commits += 1
+    async def lock(self, profile_id: UUID) -> None:
+        pass
 
 
 # --- Поиск без модели -------------------------------------------------------------------------

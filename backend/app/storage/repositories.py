@@ -9,6 +9,7 @@ from sqlalchemy import (
     ColumnElement,
     Select,
     Uuid,
+    and_,
     case,
     delete,
     func,
@@ -16,7 +17,6 @@ from sqlalchemy import (
     inspect,
     literal,
     or_,
-    and_,
     select,
     text,
 )
@@ -105,6 +105,19 @@ class ProfileRepository:
     async def delete(self, profile_id: UUID) -> None:
         """Удаляет профиль; записи, диалог и сессии удаляются каскадом в базе."""
         await self._session.execute(delete(ProfileRecord).where(ProfileRecord.id == profile_id))
+
+    async def lock(self, profile_id: UUID) -> None:
+        """Блокирует профиль до завершения текущей транзакции."""
+        statement = (
+        select(ProfileRecord.id)
+        .where(ProfileRecord.id == profile_id)
+        .with_for_update()
+        )
+
+        result = await self._session.execute(statement)
+
+        if result.scalar_one_or_none() is None:
+            raise ValueError(f"Profile not found: {profile_id}")
 
 
 class EventRepository:
