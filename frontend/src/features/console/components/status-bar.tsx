@@ -60,8 +60,8 @@ function MobileMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button ref={triggerRef} type="button" className={cn(tty.tab, "lg:hidden")}>
-          меню
+        <button ref={triggerRef} type="button" className={cn(tty.btn, "min-h-11 lg:hidden")}>
+          меню <span aria-hidden="true">▴</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" className="w-72">
@@ -105,7 +105,7 @@ function ProfileMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button ref={triggerRef} type="button" className={cn(tty.tab, "max-lg:hidden")}>
+        <button ref={triggerRef} type="button" className={tty.btn}>
           профиль <span aria-hidden="true">▴</span>
         </button>
       </DropdownMenuTrigger>
@@ -113,6 +113,14 @@ function ProfileMenu({
         <ProfileMenuItems openDialog={openDialog} trigger={triggerRef} />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function Sep() {
+  return (
+    <span aria-hidden="true" className={cn(tty.sep, "max-lg:hidden")}>
+      │
+    </span>
   );
 }
 
@@ -149,8 +157,10 @@ export function StatusBar({
   };
 
   return (
-    <footer className={cn(tty.statusBar, "flex shrink-0 items-stretch")}>
-      <p className={cn(tty.brandSeg, "flex items-center px-3 max-sm:hidden")} translate="no">
+    <footer
+      className={cn(tty.statusBar, "mx-2 mt-1 mb-2 flex shrink-0 items-stretch sm:mx-4 sm:mb-4")}
+    >
+      <p className={cn(tty.paneTitle, tty.brand)} translate="no">
         горький
       </p>
       <div role="tablist" aria-label="Окна" className="flex lg:hidden">
@@ -171,45 +181,56 @@ export function StatusBar({
           </button>
         ))}
       </div>
-      <p className="hidden items-center gap-4 px-4 xl:flex">
-        <span>
+      <p className="hidden h-11 min-w-0 flex-1 flex-wrap items-center gap-x-5 overflow-hidden px-4 text-fg-muted xl:flex">
+        <span className="flex h-11 items-center gap-[1ch] whitespace-nowrap">
           <kbd className={tty.kbd}>{hotkey}</kbd> говорить
         </span>
-        <span>
+        <span className="flex h-11 items-center gap-[1ch] whitespace-nowrap">
           <kbd className={tty.kbd}>Enter</kbd> отправить
         </span>
-        <span>
+        <span className="flex h-11 items-center gap-[1ch] whitespace-nowrap">
           <kbd className={tty.kbd}>Esc</kbd> отменить запись
         </span>
       </p>
-      <div className="ml-auto flex items-center pr-1 lg:pr-2">
-        <ServerStatus />
-        <label className={cn(tty.toggle, "max-lg:hidden")}>
+      <div className="ml-auto flex shrink-0 items-center pr-1">
+        <ServerStatus className="text-fg-muted" />
+        <Sep />
+        <label className={cn(tty.toggle, "mx-1 max-lg:hidden")}>
           <input
             type="checkbox"
             checked={speakReplies}
             onChange={(event) => onSpeakChange(event.target.checked)}
-            className="size-4 accent-(--status-deep)"
+            className="sr-only"
           />
+          <span aria-hidden="true" className={tty.check}>
+            {speakReplies ? "[x]" : "[ ]"}
+          </span>
           <span>{SPEAK_LABEL}</span>
         </label>
+        <Sep />
         <ThemeChoice
-          className="hidden items-center lg:flex"
+          className="mx-1 hidden items-center gap-0.5 lg:flex"
           legendClassName="sr-only"
           optionClassName={tty.choice}
         />
-        <ProfileMenu openDialog={openDialog} />
+        <Sep />
+        <div className="mx-1 max-lg:hidden">
+          <ProfileMenu openDialog={openDialog} />
+        </div>
         <MobileMenu
           speakReplies={speakReplies}
           onSpeakChange={onSpeakChange}
           openDialog={openDialog}
         />
         {now ? (
-          <p className="px-2 whitespace-nowrap max-lg:hidden">
-            <time dateTime={now.toISOString()}>
-              {formatTime(now)} {formatShortWeekday(now)} {formatDayMonth(now)}
-            </time>
-          </p>
+          <>
+            <Sep />
+            <p className="px-3 whitespace-nowrap text-fg-muted max-lg:hidden">
+              <time dateTime={now.toISOString()}>
+                {formatTime(now)} {formatShortWeekday(now)} {formatDayMonth(now)}
+              </time>
+            </p>
+          </>
         ) : null}
       </div>
       {dialogs}

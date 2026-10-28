@@ -28,14 +28,14 @@ export function SpherePane({
         <AsciiSphere
           mode={sphere}
           levelRef={assistant.levelRef}
-          className="h-24 w-32 shrink-0 sm:h-36 sm:w-52 lg:h-52 lg:w-80"
+          className="h-24 w-32 shrink-0 sm:h-36 sm:w-52 lg:h-44 lg:w-64 xl:h-52 xl:w-80"
         />
         <div className="grid min-w-0 flex-1 gap-1.5">
           <p
             role="status"
             className={cn(
               tty.bigState,
-              "text-balance",
+              "min-w-0 text-balance break-words",
               sphere === "error" && tty.danger,
               sphere === "waiting" && tty.wait,
             )}
@@ -49,7 +49,7 @@ export function SpherePane({
           />
           <p className={cn(tty.muted, "text-xs text-pretty sm:text-sm")}>{assistant.subline}</p>
           {upcoming ? (
-            <p className="text-xs text-pretty sm:text-sm lg:hidden">
+            <p className="line-clamp-2 text-xs text-pretty sm:text-sm lg:hidden">
               <span className={tty.muted}>дальше: </span>
               {upcoming}
             </p>

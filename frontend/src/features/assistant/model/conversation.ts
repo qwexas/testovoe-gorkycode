@@ -133,7 +133,7 @@ export const initialConversation: ConversationState = {
   changedIds: [],
 };
 
-export function entryFromMessage(message: ChatMessage): LogEntry {
+export function entryFromMessage(message: ChatMessage, answered = true): LogEntry {
   if (message.role === "user") {
     return {
       kind: "user",
@@ -141,7 +141,7 @@ export function entryFromMessage(message: ChatMessage): LogEntry {
       text: message.text,
       createdAt: message.created_at,
       via: null,
-      failed: false,
+      failed: !answered,
     };
   }
   return {
@@ -167,6 +167,12 @@ function assistantEntry(reply: AssistantReply, at: string): AssistantEntry {
   };
 }
 
+function entriesFromHistory(messages: ChatMessage[], nextRole?: ChatMessage["role"]): LogEntry[] {
+  return messages.map((message, index) =>
+    entryFromMessage(message, (messages[index + 1]?.role ?? nextRole) === "assistant"),
+  );
+}
+
 /** Склеивает реплики без повторов по ключу, сохраняя порядок. */
 function merge(first: LogEntry[], second: LogEntry[]): LogEntry[] {
   const seen = new Set<string>();
@@ -189,7 +195,7 @@ export function conversationReducer(
 ): ConversationState {
   switch (action.type) {
     case "history_loaded": {
-      const history = action.messages.map(entryFromMessage);
+      const history = entriesFromHistory(action.messages);
       if (state.profileId !== action.profileId) {
         return {
           ...initialConversation,
@@ -213,14 +219,17 @@ export function conversationReducer(
         : { ...initialConversation, profileId: action.profileId, history: "failed" };
     case "older_loading":
       return { ...state, loadingOlder: true };
-    case "older_loaded":
+    case "older_loaded": {
       if (action.profileId !== state.profileId) return state;
+      const firstLoaded = state.entries.find((entry) => entry.key.startsWith("m"));
+      const nextRole = firstLoaded && (firstLoaded.kind === "assistant" ? "assistant" : "user");
       return {
         ...state,
-        entries: merge(action.messages.map(entryFromMessage), state.entries),
+        entries: merge(entriesFromHistory(action.messages, nextRole), state.entries),
         hasOlder: action.hasOlder,
         loadingOlder: false,
       };
+    }
     case "older_failed":
       return { ...state, loadingOlder: false };
     case "user_sent":

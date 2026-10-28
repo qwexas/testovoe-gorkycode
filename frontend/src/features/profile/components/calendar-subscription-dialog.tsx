@@ -25,6 +25,7 @@ export function CalendarSubscriptionDialog({
         title="Подписка на календарь"
         description="Добавьте ссылку в календарь на телефоне или компьютере: задачи, встречи и напоминания появятся там и будут обновляться сами."
         onCloseAutoFocus={onCloseAutoFocus}
+        className="sm:max-w-lg"
       >
         <TextField
           label="Ссылка для подписки"
