@@ -13,8 +13,6 @@ from app.core.queries import EventFilter
 from app.core.schedule import MOSCOW
 from app.nlu.interfaces import Action, Intent, TargetRef, When
 
-TARGET_SEARCH_LIMIT = 50
-"""Сколько записей просить у поиска: повторы одного названия не должны вытеснить остальные."""
 DAYS_PER_WEEK = 7
 OPEN_ONLY_ACTIONS = frozenset({Action.RESCHEDULE, Action.COMPLETE})
 """Переносят и отмечают невыполненное; если такого нет — ищем среди всех записей."""
@@ -72,8 +70,13 @@ class TargetFinder:
     async def _search_with(
         self, criteria: EventFilter, query: str, target: TargetRef
     ) -> list[ScoredCard]:
+        """Все подходящие записи, без предела выдачи.
+
+        Варианты выбора — самые актуальные по времени (`router.CHOICE_LIMIT`): предел по
+        оценке до этого выбора отрезал бы ближайшую из многих одинаковых записей.
+        """
         found = await self._reader.search_scored(
-            criteria, query, TARGET_SEARCH_LIMIT, preferred_type=target.event_type
+            criteria, query, None, preferred_type=target.event_type
         )
         return _prefer_exact_time(found, target.when)
 

@@ -49,16 +49,21 @@ class SearchService:
         query: str,
         find_candidates: CandidateFinder,
         *,
-        limit: int,
+        limit: int | None,
         preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
         """Лучшие записи по запросу, по убыванию релевантности; пусто — ничего похожего.
 
-        `preferred_type` — тип записи из разбора запроса: мягкий бонус в ранжировании.
+        `limit=None` — все подходящие записи: выбирающему по времени предел выдачи по оценке
+        отрезал бы ближайшую из многих одинаковых. `preferred_type` — тип записи из разбора
+        запроса: мягкий бонус в ранжировании.
         """
         query_vector = await self._embedder.embed_query(query)
         query_lemmas = self._lemmatizer.lemmas(query)
         candidates = await find_candidates(query_vector, query_lemmas)
         return self._ranker.rank(
-            query_lemmas, candidates, limit=limit, preferred_type=preferred_type
+            query_lemmas,
+            candidates,
+            limit=len(candidates) if limit is None else limit,
+            preferred_type=preferred_type,
         )

@@ -45,6 +45,20 @@ async def test_search_gives_finder_query_vector_and_lemmas(search: SearchService
     assert [result.event_id for result in ranked] == [2, 3]
 
 
+async def test_search_without_limit_returns_all_relevant(search: SearchService) -> None:
+    async def find_candidates(
+        vector: Sequence[float], lemmas: Sequence[str]
+    ) -> list[SearchCandidate]:
+        return [
+            SearchCandidate(event_id=number, lemmas=["отчёт"], similarity=0.9)
+            for number in range(60)
+        ]
+
+    ranked = await search.search("Отчёт", find_candidates, limit=None)
+
+    assert len(ranked) == 60
+
+
 def app_search(backend: SearchBackend) -> SearchService:
     settings = make_settings(
         UNREACHABLE_DATABASE_URL, search_backend=backend, load_history_on_startup=False

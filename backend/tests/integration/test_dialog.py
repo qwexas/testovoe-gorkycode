@@ -226,6 +226,33 @@ class TestFullCycle:
         assert reply["text"].startswith("Последняя встреча «Встреча с Иваном")
         assert reply["events"][0]["starts_at"] < datetime.now(MOSCOW).isoformat()
 
+    async def test_nearest_among_sixty_equal_meetings(
+        self, client: httpx.AsyncClient, parser: FakeIntentParser
+    ) -> None:
+        """60 одинаковых встреч: ближайшая создана последней и всё равно в ответе."""
+        title = "Сверка с Орионом"
+        for week in range(1, 60):
+            day = tomorrow() + timedelta(weeks=week)
+            meeting = {"type": "meeting", "title": title, "starts_at": moment(day, 10)}
+            assert (await client.post("/api/events", json=meeting)).status_code == 201
+        nearest = {"type": "meeting", "title": title, "starts_at": moment(tomorrow(), 10)}
+        assert (await client.post("/api/events", json=nearest)).status_code == 201
+
+        reply = await chat(
+            client,
+            parser,
+            Intent(
+                Action.SEARCH,
+                "Когда ближайшая сверка с Орионом?",
+                query=title,
+                event_type=EventType.MEETING,
+                time_scope=TimeScope.FUTURE,
+            ),
+        )
+
+        assert reply["text"].startswith("Ближайшая встреча «Сверка с Орионом» будет завтра")
+        assert reply["events"][0]["starts_at"] == moment(tomorrow(), 10)
+
     async def test_history_pagination(
         self, client: httpx.AsyncClient, parser: FakeIntentParser
     ) -> None:

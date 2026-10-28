@@ -1,6 +1,6 @@
 """Изменение записей голосом: цель из контекста или поиском, выбор, перенос, удаление."""
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -265,6 +265,20 @@ class TestChoice:
 
         assert len(reply.choices) == 5
         assert reply.text == "Подходит несколько записей, вот самые похожие. Какую удалить?"
+
+    async def test_many_equal_records_keep_nearest_in_choice(self, dialog: DialogHarness) -> None:
+        """60 одинаковых записей: ближайшая создана последней и всё равно среди вариантов."""
+        for week in range(1, 60):
+            await dialog.add_event(
+                EventType.TASK, "Позвонить Ивану", at(TOMORROW, 10) + timedelta(weeks=week)
+            )
+        nearest = await dialog.add_event(EventType.TASK, "Позвонить Ивану", at(TOMORROW, 10))
+
+        reply = await dialog.say(
+            change(Action.DELETE, "Удали звонок Ивану", target=about("позвонить Ивану"))
+        )
+
+        assert reply.choices[0].id == nearest.id
 
     async def test_deny_choice(self, dialog: DialogHarness, ivan: list[int]) -> None:
         await self.offer(dialog)

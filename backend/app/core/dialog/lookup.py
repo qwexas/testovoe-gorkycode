@@ -4,7 +4,9 @@
 умолчанию сегодня; «задачи» — это задачи и напоминания (`relevance.ASKED_TYPES`).
 Поиск: «Найди задачу про презентацию», «Когда у меня была встреча с Иваном?». Для «когда
 была / когда будет» кандидаты — все записи с оценкой рядом с лучшей (близкие названия
-почти равны), среди них — последняя прошедшая или ближайшая будущая.
+почти равны), среди них — последняя прошедшая или ближайшая будущая. Поиск отдаёт все
+подходящие записи, а предел — только у показанного: иначе среди 60 одинаковых встреч
+ближайшая могла бы не дожить до выбора по времени.
 """
 
 from collections.abc import Callable, Mapping, Sequence
@@ -29,8 +31,8 @@ from app.core.schedule import start_of_day
 from app.nlu.interfaces import Intent, Period, TimeScope
 
 LIST_LIMIT = 100
-SEARCH_LIMIT = 50
-"""Сколько записей просить у поиска, чтобы повторы одного названия не вытеснили остальные."""
+MANY_FOUND = 50
+"""С какого числа найденных говорить «много похожих» вместо точного числа."""
 REPLY_EVENTS_LIMIT = 10
 TODAY_LABEL = "сегодня"
 
@@ -119,7 +121,7 @@ class SearchFlow:
         )
         query = intent.query or intent.title or intent.text
         scored = await self._reader.search_scored(
-            criteria, query, SEARCH_LIMIT, preferred_type=intent.event_type
+            criteria, query, None, preferred_type=intent.event_type
         )
         if not scored:
             return Outcome.say(phrases.SEARCH_NOTHING)
@@ -169,7 +171,7 @@ def _nearest_future_first(found: _Found, turn: Turn) -> _Answer:
 def _best_match_first(found: _Found, turn: Turn) -> _Answer:
     """«Найди…»: самая подходящая запись и сколько всего нашлось."""
     total = len(found.ranked)
-    text = phrases.search_found(total, found.best, turn.today, capped=total >= SEARCH_LIMIT)
+    text = phrases.search_found(total, found.best, turn.today, capped=total >= MANY_FOUND)
     return _Answer(found.best, text)
 
 

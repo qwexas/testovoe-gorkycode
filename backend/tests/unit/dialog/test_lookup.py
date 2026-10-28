@@ -1,6 +1,6 @@
 """Список за период и поиск по смыслу: тексты ответов, фильтры, группировка по названию."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -227,6 +227,43 @@ class TestSearch:
         order = [ivan_meetings[key] for key in ("next", "later", "last", "old")]
         assert [card.id for card in reply.events][:4] == order
         assert reply.events[4].starts_at is None
+
+    async def test_nearest_survives_many_equal_records(self, dialog: DialogHarness) -> None:
+        """60 одинаковых встреч: ближайшая создана последней и не теряется за пределом выдачи."""
+        title = "Встреча с Иваном по CRM"
+        for week in range(1, 60):
+            await dialog.add_event(
+                EventType.MEETING, title, at(TOMORROW, 10) + timedelta(weeks=week)
+            )
+        nearest = await dialog.add_event(EventType.MEETING, title, at(TOMORROW, 10))
+
+        reply = await dialog.say(
+            search(
+                "Когда ближайшая встреча с Иваном?",
+                "встреча Иван",
+                event_type=EventType.MEETING,
+                time_scope=TimeScope.FUTURE,
+            )
+        )
+
+        assert reply.events[0].id == nearest.id
+        assert reply.text == (
+            "Ближайшая встреча «Встреча с Иваном по CRM» будет завтра, 27 октября, в 10:00."
+        )
+
+    async def test_many_equal_records_are_counted_as_many(self, dialog: DialogHarness) -> None:
+        for day in range(60):
+            await dialog.add_event(
+                EventType.TASK, "Позвонить Ивану", at(TOMORROW, 10) + timedelta(days=day)
+            )
+
+        reply = await dialog.say(search("Найди звонки Ивану", "позвонить Ивану"))
+
+        assert reply.text == (
+            "Нашёл много похожих записей. Больше всего подходит — "
+            "задача «Позвонить Ивану», завтра, 27 октября, в 10:00."
+        )
+        assert reply.events[0].starts_at == at(TOMORROW, 10)
 
     async def test_preferred_type_is_passed_to_ranking(self, dialog: DialogHarness) -> None:
         await dialog.say(search("Найди встречу с Иваном", "Иван", event_type=EventType.MEETING))
