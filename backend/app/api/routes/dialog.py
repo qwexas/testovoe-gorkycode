@@ -5,7 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, Request, Response
 
 from app.api.audio_upload import VOICE_REQUEST_BODY, read_audio_upload
-from app.api.dependencies import CURRENT_PROFILE_RESPONSES, CurrentProfile, Dialog, Synthesis
+from app.api.dependencies import (
+    CURRENT_PROFILE_RESPONSES,
+    ClientIp,
+    CurrentProfile,
+    Dialog,
+    Synthesis,
+)
 from app.api.errors import error_responses
 from app.api.schemas.dialog import (
     AssistantReply,
@@ -44,9 +50,9 @@ ActionId = Annotated[str, Path(min_length=1, max_length=TOKEN_LENGTH)]
     ),
 )
 async def send_chat_message(
-    body: ChatRequest, profile: CurrentProfile, dialog: Dialog
+    body: ChatRequest, profile: CurrentProfile, dialog: Dialog, client_ip: ClientIp
 ) -> AssistantReply:
-    answer = await dialog.handle(profile.id, body.text, MessageSource.TEXT)
+    answer = await dialog.handle(profile.id, body.text, MessageSource.TEXT, client_ip)
     return _to_reply_schema(answer)
 
 
@@ -74,10 +80,10 @@ async def send_chat_message(
     openapi_extra={"requestBody": VOICE_REQUEST_BODY},
 )
 async def send_voice_message(
-    request: Request, profile: CurrentProfile, dialog: Dialog
+    request: Request, profile: CurrentProfile, dialog: Dialog, client_ip: ClientIp
 ) -> AssistantReply:
     audio = await read_audio_upload(request)
-    return _to_reply_schema(await dialog.handle_voice(profile.id, audio))
+    return _to_reply_schema(await dialog.handle_voice(profile.id, audio, client_ip))
 
 
 @router.get(
@@ -119,9 +125,9 @@ async def get_dialog(
     },
 )
 async def synthesize_speech(
-    body: TtsRequest, profile: CurrentProfile, synthesis: Synthesis
+    body: TtsRequest, profile: CurrentProfile, synthesis: Synthesis, client_ip: ClientIp
 ) -> Response:
-    audio = await synthesis.synthesize(profile.id, body.text, body.voice)
+    audio = await synthesis.synthesize(profile.id, body.text, body.voice, client_ip)
     return Response(content=audio.data, media_type=audio.content_type, headers=NO_STORE)
 
 

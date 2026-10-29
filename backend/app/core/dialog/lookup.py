@@ -42,6 +42,7 @@ def today_period(now: datetime) -> Period:
     start = start_of_day(now)
     return Period(start=start, end=start + timedelta(days=1), label=TODAY_LABEL)
 
+
 class ListingFlow:
     """Записи за период с текстовой сводкой."""
 
@@ -77,6 +78,7 @@ class ListingFlow:
             focus=tuple(card.id for card in events),
             peer_focus=True,
         )
+
 
 @dataclass(frozen=True, slots=True)
 class _Answer:

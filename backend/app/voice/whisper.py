@@ -118,8 +118,25 @@ class WhisperSpeechToText:
         samples = await asyncio.to_thread(decode_speech, audio.data)
         if samples.size == 0:
             return ""
-        async with self._slots:
-            return await asyncio.to_thread(self._recognize, samples)
+        return await self._in_slot(samples)
+
+    async def _in_slot(self, samples: NDArray[np.float32]) -> str:
+        """Распознавание в слоте модели; слот освобождается, когда закончит поток.
+
+        Если запрос отменён (срок хода, обрыв связи), поток Whisper всё равно дорабатывает —
+        освобождать слот раньше нельзя, иначе на CPU окажется больше моделей, чем слотов.
+        """
+        await self._slots.acquire()
+        work = asyncio.ensure_future(asyncio.to_thread(self._recognize, samples))
+        work.add_done_callback(self._release_slot)
+        return await asyncio.shield(work)
+
+    def _release_slot(self, work: "asyncio.Future[str]") -> None:
+        self._slots.release()
+        if not work.cancelled():
+            # Ошибку получает ожидающий запрос; после его отмены — пусть не пишет в лог
+            # «exception was never retrieved».
+            work.exception()
 
     async def check(self) -> ServiceStatus:
         """`ok` — модель загружена, `unknown` — ещё не грузилась, `fail` — загрузка упала."""

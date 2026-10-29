@@ -231,8 +231,6 @@ class FakeUndoRepository:
         for action_id in expired:
             del self.actions[action_id]
 
-from uuid import UUID
-
 
 class FakeProfiles:
     """Заглушка репозитория профилей для модульных тестов."""
@@ -255,6 +253,7 @@ class FakeStorage:
 
     async def commit(self) -> None:
         self.commits += 1
+
     async def lock(self, profile_id: UUID) -> None:
         pass
 

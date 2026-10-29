@@ -10,6 +10,7 @@ from fastapi.security import APIKeyCookie
 from app.api.errors import error_responses
 from app.api.session_cookie import SESSION_COOKIE_NAME, issue_session_cookie
 from app.config import Settings
+from app.core.admission import DialogAdmission, SpeechAdmission
 from app.core.calendar import CalendarExport, SubscriptionThrottle
 from app.core.dialog.service import DialogDependencies, DialogService, MessageThrottle
 from app.core.errors import ErrorCode
@@ -54,6 +55,8 @@ class AppServices:
     synthesis_throttle: SynthesisThrottle
     subscription_throttle: SubscriptionThrottle
     probes: DependencyProbes
+    dialog_admission: DialogAdmission
+    speech_admission: SpeechAdmission
 
 
 def get_services(request: Request) -> AppServices:
@@ -105,6 +108,7 @@ def get_dialog_service(storage: Storage, services: Services) -> DialogService:
         search=services.search,
         throttle=services.message_throttle,
         speech=services.speech_to_text,
+        admission=services.dialog_admission,
     )
     return DialogService(storage, dependencies)
 
@@ -113,8 +117,10 @@ Dialog = Annotated[DialogService, Depends(get_dialog_service)]
 
 
 def get_speech_synthesis(services: Services) -> SpeechSynthesis:
-    """Озвучка ответов с лимитом на профиль."""
-    return SpeechSynthesis(services.text_to_speech, services.synthesis_throttle)
+    """Озвучка ответов с лимитами на профиль, IP и общую очередь."""
+    return SpeechSynthesis(
+        services.text_to_speech, services.synthesis_throttle, services.speech_admission
+    )
 
 
 Synthesis = Annotated[SpeechSynthesis, Depends(get_speech_synthesis)]
@@ -147,18 +153,25 @@ ClientIp = Annotated[str, Depends(get_client_ip)]
 
 
 async def get_current_profile(
-    request: Request, session_token: SessionToken, profiles: Profiles, client_ip: ClientIp
+    request: Request,
+    session_token: SessionToken,
+    profiles: Profiles,
+    storage: Storage,
+    client_ip: ClientIp,
 ) -> ProfileCard:
     """Профиль из cookie; если cookie нет или она недействительна — новый профиль.
 
     Новые профили с одного адреса ограничены (`ProfileOnboarding`): сверх лимита — 429.
+    После проверки транзакция закрывается: соединение с БД возвращается в пул и не
+    простаивает, пока маршрут ждёт LLM, распознавание или озвучку.
     """
     profile = await profiles.find_by_session(session_token)
-    if profile is not None:
-        return profile
-    grant = await profiles.create_profile(replaced_session=session_token, requester=client_ip)
-    issue_session_cookie(request, grant.session_token)
-    return grant.profile
+    if profile is None:
+        grant = await profiles.create_profile(replaced_session=session_token, requester=client_ip)
+        issue_session_cookie(request, grant.session_token)
+        profile = grant.profile
+    await storage.commit()
+    return profile
 
 
 CurrentProfile = Annotated[ProfileCard, Depends(get_current_profile)]

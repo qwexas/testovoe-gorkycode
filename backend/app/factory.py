@@ -15,6 +15,7 @@ from app.api.errors import install_error_handlers
 from app.api.router import api_router
 from app.api.session_cookie import SessionCookieMiddleware
 from app.config import LLMBackend, SearchBackend, Settings, VoiceBackend, get_settings
+from app.core.admission import DialogAdmission, SpeechAdmission
 from app.core.calendar import SubscriptionThrottle
 from app.core.dialog.service import MessageThrottle
 from app.core.enums import ServiceStatus
@@ -211,6 +212,8 @@ def _build_services(
         synthesis_throttle=SynthesisThrottle(),
         subscription_throttle=SubscriptionThrottle(),
         probes=DependencyProbes(llm=language.probe, stt=voice.stt_probe, tts=voice.tts_probe),
+        dialog_admission=DialogAdmission(),
+        speech_admission=SpeechAdmission(),
     )
 
 

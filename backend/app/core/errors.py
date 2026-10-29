@@ -112,6 +112,15 @@ class SpeechNotRecognizedError(DomainError):
     default_message = "Не расслышал, повторите, пожалуйста."
 
 
+class TurnTimeoutError(DomainError):
+    """Ход не уложился в срок: разбор или распознавание затянулись. Ничего не выполнено."""
+
+    code = ErrorCode.LLM_UNAVAILABLE
+    default_message = (
+        "Не успел обработать запрос вовремя — ничего не изменено. Повторите, пожалуйста."
+    )
+
+
 class SpeechToTextUnavailableError(DomainError):
     """Распознавание речи не работает: модель не загрузилась или упала."""
 

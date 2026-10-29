@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -8,7 +7,6 @@ import pytest
 
 from app.core.dialog.lookup import ListingFlow, today_period
 from app.nlu.interfaces import Period
-
 
 NOW = datetime(2026, 10, 28, 12, 0, tzinfo=timezone(timedelta(hours=3)))
 
@@ -41,9 +39,7 @@ async def test_undated_tasks_only_in_today_summary(
         )
     )
 
-    reader = SimpleNamespace(
-        list_events=AsyncMock(return_value=[])
-    )
+    reader = SimpleNamespace(list_events=AsyncMock(return_value=[]))
 
     turn = SimpleNamespace(
         profile_id=uuid4(),

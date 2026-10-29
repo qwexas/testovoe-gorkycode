@@ -1,17 +1,19 @@
 """Сервис диалога: контекст для парсера, состояние, история, ошибки LLM, лимит, подсказки."""
 
+import asyncio
 from datetime import time, timedelta
 
 import pytest
 
+from app.core.dialog import service as service_module
 from app.core.dialog.payloads import answer_payload
-from app.core.dialog.service import MessageThrottle
+from app.core.dialog.service import ACTION_RESERVE_SECONDS, MessageThrottle
 from app.core.dialog.state import RECENT_TURNS_LIMIT
 from app.core.enums import EventType, MessageRole, MessageSource, PendingExpectation, ReplyKind
-from app.core.errors import ErrorCode, TooManyMessagesError
+from app.core.errors import ErrorCode, TooManyMessagesError, TurnTimeoutError
 from app.core.rate_limit import SlidingWindowRateLimiter
 from app.llm.errors import LLMUnavailableError
-from app.nlu.interfaces import Action, DialogTurn
+from app.nlu.interfaces import Action, DialogContext, DialogTurn, Intent
 from tests.unit.dialog.support import (
     NOW,
     TODAY,
@@ -231,3 +233,31 @@ class TestHints:
         reply = await dialog.say(simple(action, "да"))
 
         assert reply.text.startswith("Не понял, что сделать.")
+
+
+class TestTurnDeadline:
+    """H3: ход, не уложившийся в срок, ничего не выполняет и не ждёт таймаута nginx."""
+
+    async def test_slow_parse_creates_nothing(
+        self, dialog: DialogHarness, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(service_module, "TEXT_TURN_SECONDS", ACTION_RESERVE_SECONDS + 0.05)
+        text = "Напомни завтра в 10 позвонить Ивану"
+        dialog.parser.script[text] = create(
+            text, EventType.REMINDER, "Позвонить Ивану", date=TOMORROW, time=time(10)
+        )
+        fast_parse = dialog.parser.parse
+
+        async def slow_parse(phrase: str, context: DialogContext) -> Intent:
+            await asyncio.sleep(1)
+            return await fast_parse(phrase, context)
+
+        monkeypatch.setattr(dialog.parser, "parse", slow_parse)
+
+        with pytest.raises(TurnTimeoutError) as raised:
+            await dialog.service.handle(dialog.profile_id, text, MessageSource.TEXT)
+
+        assert raised.value.code is ErrorCode.LLM_UNAVAILABLE
+        assert dialog.storage.events.records == {}
+        assert [m.role for m in dialog.storage.messages.messages] == [MessageRole.USER]
+        assert dialog.state is None

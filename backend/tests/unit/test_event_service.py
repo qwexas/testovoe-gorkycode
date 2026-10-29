@@ -18,6 +18,7 @@ from app.search.interfaces import SearchCandidate
 from app.search.placeholders import HashingEmbedder, LowercaseLemmatizer, SimilarityRanker
 from app.storage.models import EventRecord
 from tests.fakes import FakeProfiles
+
 NOW = datetime(2026, 10, 26, 9, 0, tzinfo=UTC)
 TOMORROW_15 = datetime(2026, 10, 27, 15, 0, tzinfo=MOSCOW)
 HOUR = timedelta(hours=1)

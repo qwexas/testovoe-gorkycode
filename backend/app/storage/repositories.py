@@ -108,11 +108,7 @@ class ProfileRepository:
 
     async def lock(self, profile_id: UUID) -> None:
         """Блокирует профиль до завершения текущей транзакции."""
-        statement = (
-        select(ProfileRecord.id)
-        .where(ProfileRecord.id == profile_id)
-        .with_for_update()
-        )
+        statement = select(ProfileRecord.id).where(ProfileRecord.id == profile_id).with_for_update()
 
         result = await self._session.execute(statement)
 

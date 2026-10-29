@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from uuid import UUID
 
+from app.core.admission import LOCAL_CLIENT, SpeechAdmission
 from app.core.errors import (
     DomainError,
     SpeechNotRecognizedError,
@@ -55,23 +56,32 @@ class SynthesisThrottle(Throttle):
 
 
 class SpeechSynthesis:
-    """Озвучка ответов ассистента с проверкой голоса и лимитом на профиль."""
+    """Озвучка ответов ассистента с проверкой голоса и лимитами на профиль, IP и очередь."""
 
-    def __init__(self, synthesizer: TextToSpeech, throttle: SynthesisThrottle) -> None:
+    def __init__(
+        self,
+        synthesizer: TextToSpeech,
+        throttle: SynthesisThrottle,
+        admission: SpeechAdmission | None = None,
+    ) -> None:
         self._synthesizer = synthesizer
         self._throttle = throttle
+        self._admission = admission or SpeechAdmission()
 
-    async def synthesize(self, profile_id: UUID, text: str, voice_name: str | None) -> AudioClip:
+    async def synthesize(
+        self, profile_id: UUID, text: str, voice_name: str | None, client: str = LOCAL_CLIENT
+    ) -> AudioClip:
         """Аудио OGG/Opus с текстом `text`; `voice_name=None` — голос по умолчанию.
 
         Raises:
             UnknownVoiceError: Такого голоса у синтезатора нет.
             TooManySpeechRequestsError: Профиль превысил лимит озвучек в минуту.
+            ServiceBusyError: Лимит IP или общей очереди озвучки.
             TextToSpeechUnavailableError: Модель не загрузилась или упала.
         """
         self._check_voice(voice_name)
         self._throttle.admit(profile_id)
-        with _model_failure_as(TextToSpeechUnavailableError):
+        with self._admission.enter(client), _model_failure_as(TextToSpeechUnavailableError):
             return await self._synthesizer.synthesize(text, voice_name)
 
     def _check_voice(self, voice_name: str | None) -> None:

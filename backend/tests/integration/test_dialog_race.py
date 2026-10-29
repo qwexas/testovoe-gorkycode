@@ -5,8 +5,7 @@ import os
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
-from app.core.enums import EventType
-from app.storage.models import EventRecord
+
 import pytest
 from sqlalchemy import delete, select
 
@@ -16,11 +15,11 @@ from app.core.dialog.service import (
     MessageThrottle,
 )
 from app.core.dialog.state import DialogState
-from app.core.enums import MessageRole, MessageSource
+from app.core.enums import EventType, MessageRole, MessageSource
 from app.core.schedule import MOSCOW
 from app.nlu.interfaces import Action, DialogContext, Intent
 from app.storage.database import Database
-from app.storage.models import ChatMessageRecord, ProfileRecord
+from app.storage.models import ChatMessageRecord, EventRecord, ProfileRecord
 
 FIRST = "Первое сообщение F05"
 SECOND = "Второе сообщение F05"
@@ -75,10 +74,7 @@ async def test_parallel_messages_preserve_dialog_context() -> None:
     database_name = make_url(url).database
 
     if database_name != "gorky_test":
-        pytest.fail(
-            f"Тест должен использовать gorky_test, "
-            f"а не {database_name!r}"
-        )
+        pytest.fail(f"Тест должен использовать gorky_test, а не {database_name!r}")
 
     db = Database(url)
 
@@ -145,9 +141,7 @@ async def test_parallel_messages_preserve_dialog_context() -> None:
         assert not first_task.done()
 
         # 3. Запускаем второй запрос параллельно.
-        second_task = asyncio.create_task(
-            send(SECOND, started=second_started)
-        )
+        second_task = asyncio.create_task(send(SECOND, started=second_started))
 
         await asyncio.wait_for(
             second_started.wait(),
@@ -183,25 +177,17 @@ async def test_parallel_messages_preserve_dialog_context() -> None:
 
             result = await storage._session.scalars(
                 select(ChatMessageRecord)
-                .where(
-                    ChatMessageRecord.profile_id == profile_id
-                )
+                .where(ChatMessageRecord.profile_id == profile_id)
                 .order_by(ChatMessageRecord.id)
             )
 
             messages = list(result.all())
 
         # 6. Проверяем историю сообщений.
-        user_texts = [
-            message.text
-            for message in messages
-            if message.role == MessageRole.USER
-        ]
+        user_texts = [message.text for message in messages if message.role == MessageRole.USER]
 
         assistant_messages = [
-            message
-            for message in messages
-            if message.role == MessageRole.ASSISTANT
+            message for message in messages if message.role == MessageRole.ASSISTANT
         ]
 
         assert len(user_texts) == 2
@@ -211,14 +197,11 @@ async def test_parallel_messages_preserve_dialog_context() -> None:
 
         # 7. Проверяем сохранённый контекст.
         recent_user_texts = [
-            turn.text
-            for turn in state.recent
-            if turn.role == MessageRole.USER.value
+            turn.text for turn in state.recent if turn.role == MessageRole.USER.value
         ]
 
         assert recent_user_texts == [FIRST, SECOND], (
-            "F05: контекст одного из запросов потерян. "
-            f"Получено: {recent_user_texts}"
+            f"F05: контекст одного из запросов потерян. Получено: {recent_user_texts}"
         )
 
         # 8. Второй парсер должен получить контекст
@@ -226,23 +209,15 @@ async def test_parallel_messages_preserve_dialog_context() -> None:
         second_context = parser.contexts[SECOND]
 
         assert any(
-            turn.role == MessageRole.USER.value
-            and turn.text == FIRST
+            turn.role == MessageRole.USER.value and turn.text == FIRST
             for turn in second_context.recent
-        ), (
-            "F05: второй запрос получил устаревший "
-            "контекст диалога"
-        )
+        ), "F05: второй запрос получил устаревший контекст диалога"
 
     finally:
         # На случай ошибки освобождаем первый парсер.
         parser.release_first.set()
 
-        tasks = [
-            task
-            for task in (first_task, second_task)
-            if task is not None
-        ]
+        tasks = [task for task in (first_task, second_task) if task is not None]
 
         for task in tasks:
             if not task.done():
@@ -259,16 +234,12 @@ async def test_parallel_messages_preserve_dialog_context() -> None:
             if profile_created:
                 async with db.unit_of_work() as storage:
                     await storage._session.execute(
-                        delete(ProfileRecord).where(
-                            ProfileRecord.id == profile_id
-                        )
+                        delete(ProfileRecord).where(ProfileRecord.id == profile_id)
                     )
                     await storage.commit()
 
         finally:
             await db.dispose()
-
-
 
 
 class StateParser(ControlledParser):
@@ -421,9 +392,7 @@ async def test_parallel_requests_preserve_state(
 
         # Читаем итоговое состояние из новой сессии.
         async with db.unit_of_work() as storage:
-            record = await storage.dialog_states.get(
-                profile_id
-            )
+            record = await storage.dialog_states.get(profile_id)
 
         assert record is not None
 
@@ -431,11 +400,7 @@ async def test_parallel_requests_preserve_state(
         second_context = parser.contexts[SECOND]
 
         # Обе команды должны остаться в recent.
-        recent_users = [
-            turn.text
-            for turn in state.recent
-            if turn.role == MessageRole.USER.value
-        ]
+        recent_users = [turn.text for turn in state.recent if turn.role == MessageRole.USER.value]
 
         assert recent_users == [FIRST, SECOND]
 
@@ -447,10 +412,7 @@ async def test_parallel_requests_preserve_state(
             # существующий pending.
             assert second_context.pending is not None
 
-            assert (
-                second_context.pending_question
-                == state.pending.question.question
-            )
+            assert second_context.pending_question == state.pending.question.question
 
         else:
             assert event_id is not None
@@ -459,19 +421,12 @@ async def test_parallel_requests_preserve_state(
             assert event_id in state.focus_ids
 
             # Второй запрос увидел этот фокус.
-            assert any(
-                card.id == event_id
-                for card in second_context.focus
-            )
+            assert any(card.id == event_id for card in second_context.focus)
 
     finally:
         parser.release_first.set()
 
-        tasks = [
-            task
-            for task in (first_task, second_task)
-            if task is not None
-        ]
+        tasks = [task for task in (first_task, second_task) if task is not None]
 
         for task in tasks:
             if not task.done():
@@ -488,16 +443,11 @@ async def test_parallel_requests_preserve_state(
                 async with db.unit_of_work() as storage:
                     # Явно удаляем тестовое событие.
                     await storage._session.execute(
-                        delete(EventRecord).where(
-                            EventRecord.profile_id == profile_id
-                        )
+                        delete(EventRecord).where(EventRecord.profile_id == profile_id)
                     )
                     await storage._session.execute(
-                        delete(ProfileRecord).where(
-                            ProfileRecord.id == profile_id
-                        )
+                        delete(ProfileRecord).where(ProfileRecord.id == profile_id)
                     )
                     await storage.commit()
         finally:
             await db.dispose()
-

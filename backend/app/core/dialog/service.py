@@ -4,18 +4,21 @@
 принимает `DialogRouter`, тексты ответов — шаблоны `phrases` (Q24).
 """
 
-from collections.abc import Callable, Sequence
+import asyncio
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
+from app.core.admission import LOCAL_CLIENT, DialogAdmission
 from app.core.dialog.models import AssistantAnswer, DialogEntry, Reply, Turn
 from app.core.dialog.payloads import answer_payload
 from app.core.dialog.router import DialogRouter
 from app.core.dialog.state import DialogState
 from app.core.dialog.undo import UndoLog
 from app.core.enums import MessageRole, MessageSource
-from app.core.errors import TooManyMessagesError
+from app.core.errors import TooManyMessagesError, TurnTimeoutError
 from app.core.events import EventCard, EventEditor
 from app.core.rate_limit import Throttle
 from app.core.schedule import MOSCOW, moscow_now
@@ -28,6 +31,12 @@ from app.voice.interfaces import AudioClip, SpeechToText
 
 MESSAGES_PER_WINDOW = 20
 MESSAGE_WINDOW_SECONDS = 60
+TEXT_TURN_SECONDS = 50.0
+"""Сколько может длиться текстовый ход — меньше таймаута nginx (60 с)."""
+VOICE_TURN_SECONDS = 85.0
+"""Сколько может длиться голосовой ход — меньше таймаута nginx для `/api/voice` (95 с)."""
+ACTION_RESERVE_SECONDS = 3.0
+"""Запас на выполнение действия и запись в БД после разбора."""
 
 Clock = Callable[[], datetime]
 
@@ -49,6 +58,8 @@ class DialogDependencies:
     throttle: MessageThrottle
     speech: SpeechToText
     clock: Clock = field(default=moscow_now)
+    admission: DialogAdmission = field(default_factory=DialogAdmission)
+    """Общая на процесс очередь реплик: в `app.factory` — одна на все запросы."""
 
 
 class DialogService:
@@ -60,23 +71,34 @@ class DialogService:
         self._speech = dependencies.speech
         self._throttle = dependencies.throttle
         self._clock = dependencies.clock
+        self._admission = dependencies.admission
         self._undo = UndoLog(storage, EventEditor(storage, dependencies.search))
         self._router = DialogRouter(storage, dependencies.search, self._undo)
 
-    async def handle(self, profile_id: UUID, text: str, source: MessageSource) -> AssistantAnswer:
+    async def handle(
+        self, profile_id: UUID, text: str, source: MessageSource, client: str = LOCAL_CLIENT
+    ) -> AssistantAnswer:
         """Отвечает на реплику пользователя и сохраняет обе реплики в историю.
 
         Реплика пользователя фиксируется до разбора: если LLM недоступна, она остаётся
         в истории, а ошибка `llm_unavailable` уходит вызывающему без ответа ассистента.
+        Пока LLM думает, соединение с БД не занято; если ход не уложился в срок,
+        ничего не выполняется (`TurnTimeoutError`).
 
         Raises:
             TooManyMessagesError: Профиль превысил лимит реплик в минуту.
+            TooManyAttemptsError: Занята очередь профиля, IP или сервиса.
+            TurnTimeoutError: Ход не уложился в срок.
             DomainError: Разбор реплики не удался (`llm_unavailable`).
         """
         self._throttle.admit(profile_id)
-        return await self._answer(profile_id, text, source)
+        deadline = _deadline(TEXT_TURN_SECONDS)
+        async with self._turn(profile_id, client, deadline):
+            return await self._answer(profile_id, text, source, deadline)
 
-    async def handle_voice(self, profile_id: UUID, audio: AudioClip) -> AssistantAnswer:
+    async def handle_voice(
+        self, profile_id: UUID, audio: AudioClip, client: str = LOCAL_CLIENT
+    ) -> AssistantAnswer:
         """Голосовая реплика: распознаёт речь и отвечает, как на текст (`source=voice`).
 
         Лимит реплик общий с текстом и учитывается до распознавания: модель речи
@@ -84,13 +106,18 @@ class DialogService:
 
         Raises:
             TooManyMessagesError: Профиль превысил лимит реплик в минуту.
+            TooManyAttemptsError: Занята очередь профиля, IP или сервиса.
+            TurnTimeoutError: Ход не уложился в срок.
             SpeechNotRecognizedError: В записи нет речи.
             DomainError: Запись не подходит (`audio_unsupported`, `audio_too_large`),
                 распознавание или LLM недоступны (`stt_unavailable`, `llm_unavailable`).
         """
         self._throttle.admit(profile_id)
-        text = await recognize_speech(self._speech, audio)
-        return await self._answer(profile_id, text, MessageSource.VOICE)
+        deadline = _deadline(VOICE_TURN_SECONDS)
+        async with self._turn(profile_id, client, deadline):
+            async with _until(deadline - ACTION_RESERVE_SECONDS):
+                text = await recognize_speech(self._speech, audio)
+            return await self._answer(profile_id, text, MessageSource.VOICE, deadline)
 
     async def undo_action(self, profile_id: UUID, action_id: str) -> AssistantAnswer:
         """Отменяет действие по кнопке «Отменить»; ответ попадает в историю.
@@ -121,14 +148,32 @@ class DialogService:
             for message in messages
         ]
 
-    async def _answer(self, profile_id: UUID, text: str, source: MessageSource) -> AssistantAnswer:
-        await self._save_user_message(profile_id, text)
-        await self._storage.profiles.lock(profile_id)
+    @asynccontextmanager
+    async def _turn(self, profile_id: UUID, client: str, deadline: float) -> AsyncIterator[None]:
+        """Очередь хода: ждать её дольше срока хода нельзя."""
+        try:
+            async with self._admission.enter(profile_id, client, deadline):
+                yield
+        except TimeoutError as error:
+            raise TurnTimeoutError() from error
 
+    async def _answer(
+        self, profile_id: UUID, text: str, source: MessageSource, deadline: float
+    ) -> AssistantAnswer:
+        # Ходы профиля уже идут по очереди (`DialogAdmission`), поэтому состояние,
+        # прочитанное до разбора, к записи не устареет. Соединение с БД на время
+        # разбора возвращается в пул: commit сохраняет реплику и закрывает транзакцию.
+        await self._add_user_message(profile_id, text)
         now = self._clock()
         state = DialogState.from_record(await self._storage.dialog_states.get(profile_id))
         focus = await self._focus_cards(profile_id, state.focus_ids)
-        intent = await self._parser.parse(text, _parser_context(now, state, focus))
+        await self._storage.commit()
+
+        async with _until(deadline - ACTION_RESERVE_SECONDS):
+            intent = await self._parser.parse(text, _parser_context(now, state, focus))
+
+        # Запасная блокировка строки профиля — на случай нескольких процессов.
+        await self._storage.profiles.lock(profile_id)
         peer_ids = set(state.peer_ids)
         turn = Turn(
             profile_id=profile_id,
@@ -145,10 +190,9 @@ class DialogService:
         await self._storage.commit()
         return answer
 
-    async def _save_user_message(self, profile_id: UUID, text: str) -> None:
+    async def _add_user_message(self, profile_id: UUID, text: str) -> None:
         message = ChatMessageRecord(profile_id=profile_id, role=MessageRole.USER, text=text)
         await self._storage.messages.add(message)
-        await self._storage.commit()
 
     async def _save_answer(
         self, profile_id: UUID, reply: Reply, recognized_text: str | None
@@ -165,6 +209,20 @@ class DialogService:
     async def _focus_cards(self, profile_id: UUID, focus_ids: Sequence[int]) -> list[EventCard]:
         records = await self._storage.events.get_many(profile_id, focus_ids)
         return [EventCard.from_record(record) for record in records]
+
+
+def _deadline(seconds: float) -> float:
+    return asyncio.get_running_loop().time() + seconds
+
+
+@asynccontextmanager
+async def _until(deadline: float) -> AsyncIterator[None]:
+    """Блок должен закончиться до `deadline`; иначе ход прерывается до любых изменений."""
+    try:
+        async with asyncio.timeout_at(deadline):
+            yield
+    except TimeoutError as error:
+        raise TurnTimeoutError() from error
 
 
 def _parser_context(now: datetime, state: DialogState, focus: Sequence[EventCard]) -> DialogContext:
