@@ -97,7 +97,9 @@ class TestSeedEvents:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url=BASE_URL
         ) as client:
-            profile_id = (await client.get("/api/me")).json()["id"]
+            profile_id = (
+                await client.post("/api/profiles", headers={"X-Gorky-Client": "web"})
+            ).json()["id"]
         async with db_engine.begin() as connection:
             await connection.execute(
                 update(SeedEventRecord).values(
@@ -211,3 +213,14 @@ class TestProfileHistory:
                 )
             ).all()
         assert [count for _, count in per_profile] == [len(HISTORY), len(HISTORY)]
+
+
+@pytest.fixture(name="client")
+def authenticated_client(profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Операции профиля проверяются после явного создания, без скрытого onboarding."""
+    return profile_client
+
+
+@pytest.fixture(name="other_device")
+def authenticated_other_device(other_profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    return other_profile_client

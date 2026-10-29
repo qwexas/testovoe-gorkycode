@@ -325,3 +325,14 @@ class TestIsolation:
         found_by_other = await list_events(other_device, q="Секретный отчёт Горького")
         assert event["id"] not in {found["id"] for found in found_by_other}
         assert event["id"] in {found["id"] for found in await list_events(client, **same_day)}
+
+
+@pytest.fixture(name="client")
+def authenticated_client(profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Операции профиля проверяются после явного создания, без скрытого onboarding."""
+    return profile_client
+
+
+@pytest.fixture(name="other_device")
+def authenticated_other_device(other_profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    return other_profile_client

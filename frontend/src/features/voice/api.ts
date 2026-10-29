@@ -1,4 +1,5 @@
 import { apiErrorFromException, apiErrorFromResponse } from "@/lib/api/errors";
+import { sessionFetch } from "@/lib/api/profile-session";
 
 /** Сервер озвучивает до 1000 символов за раз. */
 export const SPEECH_TEXT_LIMIT = 1000;
@@ -10,7 +11,7 @@ export const SPEECH_TEXT_LIMIT = 1000;
 export async function fetchSpeech(text: string, signal?: AbortSignal): Promise<Blob> {
   let response: Response;
   try {
-    response = await fetch("/api/tts", {
+    response = await sessionFetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text.slice(0, SPEECH_TEXT_LIMIT) }),

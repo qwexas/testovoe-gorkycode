@@ -255,3 +255,14 @@ class TestLemmaChannel:
         found = await events.search_events(EventFilter(stranger.id), "договор", limit=10)
 
         assert found == []
+
+
+@pytest.fixture(name="client")
+def authenticated_client(profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Операции профиля проверяются после явного создания, без скрытого onboarding."""
+    return profile_client
+
+
+@pytest.fixture(name="other_device")
+def authenticated_other_device(other_profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    return other_profile_client

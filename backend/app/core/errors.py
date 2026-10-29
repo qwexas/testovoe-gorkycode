@@ -15,6 +15,8 @@ class ErrorCode(StrEnum):
     """Коды ошибок из контракта API."""
 
     VALIDATION_ERROR = "validation_error"
+    SESSION_REQUIRED = "session_required"
+    FORBIDDEN = "forbidden"
     NOT_FOUND = "not_found"
     RATE_LIMITED = "rate_limited"
     AUDIO_UNSUPPORTED = "audio_unsupported"
@@ -37,6 +39,16 @@ class DomainError(Exception):
     def __init__(self, message: str | None = None) -> None:
         self.message = message or self.default_message
         super().__init__(self.message)
+
+
+class SessionRequiredError(DomainError):
+    code = ErrorCode.SESSION_REQUIRED
+    default_message = "Нет действующей сессии. Создайте профиль или войдите по коду восстановления."
+
+
+class ForbiddenError(DomainError):
+    code = ErrorCode.FORBIDDEN
+    default_message = "Создание профиля с этой страницы не разрешено."
 
 
 class FeatureNotImplementedError(DomainError):

@@ -81,3 +81,16 @@ def test_period_uses_from_key(openapi: dict[str, Any]) -> None:
     period = openapi["components"]["schemas"]["Period"]
 
     assert set(period["required"]) == {"from", "to", "label"}
+
+
+def test_session_security_and_explicit_creation_are_documented(openapi: dict[str, Any]) -> None:
+    paths = openapi["paths"]
+    assert paths["/api/profiles"]["post"]["security"] == [{"ProfileCreation": []}]
+    assert "403" in paths["/api/profiles"]["post"]["responses"]
+    assert "security" not in paths["/api/profiles/restore"]["post"]
+    assert "security" not in paths["/api/health"]["get"]
+    assert "security" not in paths["/api/calendar/{token}.ics"]["get"]
+    for item in paths.values():
+        for operation in item.values():
+            if {"ProfileSession": []} in operation.get("security", []):
+                assert "401" in operation["responses"]

@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import Field, HttpUrl, SecretStr
+from pydantic import Field, HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -57,6 +57,33 @@ class Settings(BaseSettings):
         description="Ключ HMAC для кодов восстановления",
     )
     cookie_secure: bool = Field(default=True, description="Флаг Secure у cookie профиля")
+    profile_creation_origins: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Разрешённые Origin для явного создания профиля; "
+            "пустой список запрещает браузерный POST с Origin"
+        ),
+    )
+
+    @field_validator("profile_creation_origins")
+    @classmethod
+    def _validate_origins(cls, origins: list[str]) -> list[str]:
+        for origin in origins:
+            parsed = urlsplit(origin)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.netloc
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "Origin должен иметь вид https://host[:port], без пути и завершающего /"
+                )
+        return origins
+
     public_base_url: HttpUrl = Field(
         default=HttpUrl("https://voice.wexasas.online"),
         description="Публичный адрес сервиса — из него строится ссылка подписки на календарь",

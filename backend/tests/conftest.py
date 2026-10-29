@@ -27,6 +27,7 @@ def make_settings(database_url: str, **overrides: Any) -> Settings:
         "app_secret": TEST_APP_SECRET,
         "cookie_secure": False,
         "public_base_url": TEST_PUBLIC_BASE_URL,
+        "profile_creation_origins": [BASE_URL],
         "search_backend": SearchBackend.PLACEHOLDER,
         "llm_backend": LLMBackend.DISABLED,
         "voice_backend": VoiceBackend.DISABLED,

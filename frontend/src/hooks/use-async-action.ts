@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { type ApiError, apiErrorFromException } from "@/lib/api/errors";
 
@@ -17,9 +17,12 @@ export function useAsyncAction<TArgs extends unknown[]>(
 } {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const running = useRef(false);
 
   const run = useCallback(
     async (...args: TArgs) => {
+      if (running.current) return false;
+      running.current = true;
       setPending(true);
       setError(null);
       try {
@@ -29,6 +32,7 @@ export function useAsyncAction<TArgs extends unknown[]>(
         setError(apiErrorFromException(cause));
         return false;
       } finally {
+        running.current = false;
         setPending(false);
       }
     },

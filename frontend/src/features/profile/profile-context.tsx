@@ -7,13 +7,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { StatusToast } from "@/components/ui/status-toast";
 import { apiErrorFromException } from "@/lib/api/errors";
+import { setSessionProfile, subscribeSessionLoss } from "@/lib/api/profile-session";
 
 import {
   createProfile as requestNewProfile,
@@ -21,7 +22,7 @@ import {
   fetchCurrentProfile,
   restoreProfile as requestRestore,
 } from "./api";
-import { type ProfileStatus, initialProfileState, profileReducer } from "./profile-state";
+import { type ProfileStatus, createProfileController, initialProfileState } from "./profile-state";
 
 type ProfileContextValue = {
   profile: ProfileStatus;
@@ -40,6 +41,15 @@ type ProfileContextValue = {
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 const TOAST_DURATION_MS = 5000;
+const PROFILE_CHANGE_KEY = "gorky-profile-change";
+function announceProfileChange() {
+  // Только сигнал, без ID, кода восстановления и других данных профиля.
+  try {
+    localStorage.setItem(PROFILE_CHANGE_KEY, crypto.randomUUID());
+  } catch {
+    /* storage недоступен */
+  }
+}
 
 function useToast(): { message: string | null; show: (message: string) => void } {
   const [message, setMessage] = useState<string | null>(null);
@@ -57,54 +67,75 @@ function useToast(): { message: string | null; show: (message: string) => void }
 }
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(profileReducer, initialProfileState);
+  const [controller] = useState(() =>
+    createProfileController({
+      read: fetchCurrentProfile,
+      create: requestNewProfile,
+      restore: requestRestore,
+      remove: deleteCurrentProfile,
+      setSession: setSessionProfile,
+      error: apiErrorFromException,
+    }),
+  );
+  const state = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    () => initialProfileState,
+  );
   const { message: toastMessage, show: showToast } = useToast();
   const initialLoadStarted = useRef(false);
 
-  const load = useCallback(async () => {
-    try {
-      dispatch({ type: "profile_received", profile: await fetchCurrentProfile() });
-    } catch (error) {
-      dispatch({ type: "load_failed", error: apiErrorFromException(error) });
-    }
-  }, []);
-
   useEffect(() => {
-    // Один запрос даже при двойном эффекте Strict Mode: без cookie каждый GET /api/me
-    // создаёт новый профиль, и показанный код мог бы оказаться от чужого профиля.
-    if (initialLoadStarted.current) return;
-    initialLoadStarted.current = true;
-    void load();
-  }, [load]);
+    const unsubscribe = subscribeSessionLoss(controller.sessionLost);
+    const changed = (event: StorageEvent) => {
+      if (event.key === PROFILE_CHANGE_KEY) void controller.sessionChanged();
+    };
+    const focused = () => {
+      void controller.load();
+    };
+    window.addEventListener("storage", changed);
+    window.addEventListener("focus", focused);
+    if (!initialLoadStarted.current) {
+      initialLoadStarted.current = true;
+      void controller.load();
+    }
+    return () => {
+      unsubscribe();
+      window.removeEventListener("storage", changed);
+      window.removeEventListener("focus", focused);
+    };
+  }, [controller]);
 
   const createProfile = useCallback(async () => {
-    const profile = await requestNewProfile();
-    dispatch({ type: "profile_received", profile });
-  }, []);
+    await controller.create();
+    announceProfileChange();
+  }, [controller]);
 
   const restoreProfile = useCallback(
     async (code: string) => {
-      const profile = await requestRestore(code);
-      dispatch({ type: "profile_received", profile });
+      await controller.restore(code);
+      announceProfileChange();
       showToast("Вы вошли в профиль по коду восстановления");
     },
-    [showToast],
+    [controller, showToast],
   );
 
   const deleteAllData = useCallback(async () => {
-    await deleteCurrentProfile();
-    dispatch({ type: "profile_deleted" });
+    await controller.remove();
+    announceProfileChange();
     showToast("Все данные удалены");
-  }, [showToast]);
+  }, [controller, showToast]);
 
-  const dismissRecoveryCode = useCallback(() => dispatch({ type: "recovery_code_dismissed" }), []);
+  const dismissRecoveryCode = controller.dismissCode;
 
   const value = useMemo<ProfileContextValue>(
     () => ({
-      profile: state.profile,
-      pendingRecoveryCode: state.pendingRecoveryCode,
+      profile:
+        state.changing && state.profile.status === "ready" ? { status: "loading" } : state.profile,
+      pendingRecoveryCode:
+        !state.changing && state.profile.status === "ready" ? state.pendingRecoveryCode : null,
       dismissRecoveryCode,
-      reload: load,
+      reload: controller.load,
       createProfile,
       restoreProfile,
       deleteAllData,
@@ -113,8 +144,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     [
       state.profile,
       state.pendingRecoveryCode,
+      state.changing,
       dismissRecoveryCode,
-      load,
+      controller,
       createProfile,
       restoreProfile,
       deleteAllData,

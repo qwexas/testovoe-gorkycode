@@ -72,7 +72,7 @@ export function ConsoleScreen() {
     [assistant.conversation.changedIds],
   );
 
-  const profileBlocked = profile.status === "deleted" || profile.status === "failed";
+  const profileBlocked = profile.status !== "ready" && profile.status !== "loading";
 
   return (
     <div className={cn(tty.root, "flex h-dvh flex-col")}>

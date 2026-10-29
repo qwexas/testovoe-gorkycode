@@ -8,11 +8,11 @@ from fastapi import Depends, Request, Security
 from fastapi.security import APIKeyCookie
 
 from app.api.errors import error_responses
-from app.api.session_cookie import SESSION_COOKIE_NAME, issue_session_cookie
+from app.api.session_cookie import SESSION_COOKIE_NAME
 from app.config import Settings
 from app.core.calendar import CalendarExport, SubscriptionThrottle
 from app.core.dialog.service import DialogDependencies, DialogService, MessageThrottle
-from app.core.errors import ErrorCode
+from app.core.errors import ErrorCode, SessionRequiredError
 from app.core.events import EventService
 from app.core.health import DependencyProbes
 from app.core.history import SeedHistoryLoader
@@ -30,8 +30,8 @@ session_cookie_scheme = APIKeyCookie(
     name=SESSION_COOKIE_NAME,
     scheme_name="ProfileSession",
     description=(
-        "Анонимный профиль. Если cookie нет или она недействительна, "
-        "эндпоинт создаёт новый профиль и ставит cookie сам."
+        "Существующая сессия анонимного профиля. Без действующей cookie — 401 session_required. "
+        "Профиль создаётся только явным POST /api/profiles; вход — POST /api/profiles/restore."
     ),
     auto_error=False,
 )
@@ -129,6 +129,14 @@ CalendarFeed = Annotated[CalendarExport, Depends(get_calendar_export)]
 SessionToken = Annotated[str | None, Security(session_cookie_scheme)]
 
 
+def optional_session_token(request: Request) -> str | None:
+    """Старая cookie для переключения/удаления; не объявляет обязательную авторизацию."""
+    return request.cookies.get(SESSION_COOKIE_NAME)
+
+
+OptionalSessionToken = Annotated[str | None, Depends(optional_session_token)]
+
+
 def get_client_ip(request: Request) -> str:
     """IP клиента: `CF-Connecting-IP`, затем первый адрес `X-Forwarded-For`, затем сокет.
 
@@ -147,20 +155,16 @@ ClientIp = Annotated[str, Depends(get_client_ip)]
 
 
 async def get_current_profile(
-    request: Request, session_token: SessionToken, profiles: Profiles, client_ip: ClientIp
+    session_token: SessionToken,
+    profiles: Profiles,
 ) -> ProfileCard:
-    """Профиль из cookie; если cookie нет или она недействительна — новый профиль.
-
-    Новые профили с одного адреса ограничены (`ProfileOnboarding`): сверх лимита — 429.
-    """
+    """Только проверка существующей сессии; никаких созданий, seed и новых cookie."""
     profile = await profiles.find_by_session(session_token)
-    if profile is not None:
-        return profile
-    grant = await profiles.create_profile(replaced_session=session_token, requester=client_ip)
-    issue_session_cookie(request, grant.session_token)
-    return grant.profile
+    if profile is None:
+        raise SessionRequiredError()
+    return profile
 
 
 CurrentProfile = Annotated[ProfileCard, Depends(get_current_profile)]
-CURRENT_PROFILE_RESPONSES = error_responses(ErrorCode.RATE_LIMITED)
-"""Ответы маршрутов с `CurrentProfile`: автосоздание профиля может упереться в лимит."""
+CURRENT_PROFILE_RESPONSES = error_responses(ErrorCode.SESSION_REQUIRED)
+"""Ответы маршрутов с `CurrentProfile`: отсутствующая или недействительная сессия."""

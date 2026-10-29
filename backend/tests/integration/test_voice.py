@@ -113,4 +113,15 @@ async def test_disabled_stt_is_503(client: httpx.AsyncClient) -> None:
     response = await send_voice(client)
 
     assert_error(response, 503, ErrorCode.STT_UNAVAILABLE)
-    assert "set-cookie" in response.headers
+    assert "set-cookie" not in response.headers
+
+
+@pytest.fixture(name="client")
+def authenticated_client(profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Операции профиля проверяются после явного создания, без скрытого onboarding."""
+    return profile_client
+
+
+@pytest.fixture(name="other_device")
+def authenticated_other_device(other_profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    return other_profile_client

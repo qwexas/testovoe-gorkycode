@@ -1,6 +1,7 @@
 import { apiClient, unwrap } from "@/lib/api/client";
 import { apiErrorFromException, apiErrorFromResponse } from "@/lib/api/errors";
 import type { AssistantReply, ChatMessage } from "@/types/api";
+import { sessionFetch } from "@/lib/api/profile-session";
 
 /** Сервер принимает реплику до 1000 символов. */
 export const CHAT_TEXT_LIMIT = 1000;
@@ -20,7 +21,7 @@ export async function sendVoice(audio: Blob, fileName: string): Promise<Assistan
   body.append("audio", audio, fileName);
   let response: Response;
   try {
-    response = await fetch("/api/voice", {
+    response = await sessionFetch("/api/voice", {
       method: "POST",
       body,
       credentials: "include",
