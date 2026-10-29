@@ -216,6 +216,8 @@
         "description": "Коды ошибок из контракта API.",
         "enum": [
           "validation_error",
+          "session_required",
+          "forbidden",
           "not_found",
           "rate_limited",
           "audio_unsupported",
@@ -760,8 +762,14 @@
       }
     },
     "securitySchemes": {
+      "ProfileCreation": {
+        "description": "Обязательное значение web. При наличии Origin он проверяется по PROFILE_CREATION_ORIGINS.",
+        "in": "header",
+        "name": "X-Gorky-Client",
+        "type": "apiKey"
+      },
       "ProfileSession": {
-        "description": "Анонимный профиль. Если cookie нет или она недействительна, эндпоинт создаёт новый профиль и ставит cookie сам.",
+        "description": "Существующая сессия анонимного профиля. Без действующей cookie — 401 session_required. Профиль создаётся только явным POST /api/profiles; вход — POST /api/profiles/restore.",
         "in": "cookie",
         "name": "gorky_session",
         "type": "apiKey"
@@ -803,6 +811,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -822,16 +840,6 @@
               }
             },
             "description": "`validation_error`"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -870,7 +878,7 @@
             },
             "description": "Календарь iCalendar (RFC 5545)"
           },
-          "429": {
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
@@ -878,7 +886,7 @@
                 }
               }
             },
-            "description": "`rate_limited`"
+            "description": "`session_required`"
           },
           "500": {
             "content": {
@@ -1002,6 +1010,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1100,6 +1118,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1109,16 +1137,6 @@
               }
             },
             "description": "`validation_error`"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1254,6 +1272,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1263,16 +1291,6 @@
               }
             },
             "description": "`validation_error`"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1319,6 +1337,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1328,16 +1356,6 @@
               }
             },
             "description": "`validation_error`"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1380,6 +1398,16 @@
           "204": {
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1399,16 +1427,6 @@
               }
             },
             "description": "`validation_error`"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1467,6 +1485,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1486,16 +1514,6 @@
               }
             },
             "description": "`validation_error`"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "`rate_limited`"
           },
           "500": {
             "content": {
@@ -1570,18 +1588,13 @@
             "description": "`internal_error`"
           }
         },
-        "security": [
-          {
-            "ProfileSession": []
-          }
-        ],
         "summary": "Удалить все мои данные",
         "tags": [
           "profile"
         ]
       },
       "get": {
-        "description": "Если профиля нет, создаёт его — тогда `recovery_code` заполнен.",
+        "description": "Читает существующий профиль. Без действующей сессии — 401; ничего не создаёт.",
         "operationId": "get_me",
         "responses": {
           "200": {
@@ -1594,7 +1607,7 @@
             },
             "description": "Successful Response"
           },
-          "429": {
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1602,7 +1615,7 @@
                 }
               }
             },
-            "description": "`rate_limited`"
+            "description": "`session_required`"
           },
           "500": {
             "content": {
@@ -1628,7 +1641,7 @@
     },
     "/api/profiles": {
       "post": {
-        "description": "Создаёт профиль и переключает на него cookie этого устройства. Лимит — 20 новых профилей в час с одного IP (вместе с автосозданием).",
+        "description": "Создаёт профиль и переключает на него cookie этого устройства. Возвращает одноразовый recovery_code. Обязателен X-Gorky-Client: web. При наличии Origin он должен входить в PROFILE_CREATION_ORIGINS. Лимит — 20 новых профилей в час с одного IP.",
         "operationId": "create_profile",
         "responses": {
           "201": {
@@ -1640,6 +1653,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`forbidden`"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`validation_error`"
           },
           "429": {
             "content": {
@@ -1664,7 +1697,7 @@
         },
         "security": [
           {
-            "ProfileSession": []
+            "ProfileCreation": []
           }
         ],
         "summary": "Новый профиль",
@@ -1739,11 +1772,6 @@
             "description": "`internal_error`"
           }
         },
-        "security": [
-          {
-            "ProfileSession": []
-          }
-        ],
         "summary": "Вход по коду восстановления",
         "tags": [
           "profile"
@@ -1775,6 +1803,16 @@
               }
             },
             "description": "Аудио OGG/Opus"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
           },
           "422": {
             "content": {
@@ -1862,6 +1900,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`session_required`"
           },
           "413": {
             "content": {

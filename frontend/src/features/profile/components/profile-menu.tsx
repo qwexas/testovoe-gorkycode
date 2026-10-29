@@ -101,6 +101,10 @@ function ProfileSummary({ status }: { status: ProfileStatus }) {
           </span>
         </DropdownMenuLabel>
       );
+    case "anonymous":
+      return (
+        <DropdownMenuLabel>Создайте профиль или войдите по коду восстановления.</DropdownMenuLabel>
+      );
     case "failed":
       return (
         <DropdownMenuLabel>

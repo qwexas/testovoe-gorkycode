@@ -3,6 +3,8 @@ import type { ErrorResponse, ServerErrorCode } from "@/types/api";
 /** Коды, которые присылает сервер (`{ error: { code, message } }`). */
 const SERVER_ERROR_CODES: Record<ServerErrorCode, true> = {
   validation_error: true,
+  session_required: true,
+  forbidden: true,
   not_found: true,
   rate_limited: true,
   audio_unsupported: true,

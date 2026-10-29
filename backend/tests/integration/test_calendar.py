@@ -221,3 +221,14 @@ class TestSubscription:
         assert_error(limited, 429, ErrorCode.RATE_LIMITED)
         assert limited.headers["retry-after"] == "60"
         assert other_ip.status_code == 200
+
+
+@pytest.fixture(name="client")
+def authenticated_client(profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Операции профиля проверяются после явного создания, без скрытого onboarding."""
+    return profile_client
+
+
+@pytest.fixture(name="other_device")
+def authenticated_other_device(other_profile_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    return other_profile_client

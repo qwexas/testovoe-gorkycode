@@ -178,7 +178,7 @@ export interface paths {
         };
         /**
          * Текущий профиль
-         * @description Если профиля нет, создаёт его — тогда `recovery_code` заполнен.
+         * @description Читает существующий профиль. Без действующей сессии — 401; ничего не создаёт.
          */
         get: operations["get_me"];
         put?: never;
@@ -204,7 +204,7 @@ export interface paths {
         put?: never;
         /**
          * Новый профиль
-         * @description Создаёт профиль и переключает на него cookie этого устройства. Лимит — 20 новых профилей в час с одного IP (вместе с автосозданием).
+         * @description Создаёт профиль и переключает на него cookie этого устройства. Возвращает одноразовый recovery_code. Обязателен X-Gorky-Client: web. При наличии Origin он должен входить в PROFILE_CREATION_ORIGINS. Лимит — 20 новых профилей в час с одного IP.
          */
         post: operations["create_profile"];
         delete?: never;
@@ -377,7 +377,7 @@ export interface components {
          * @description Коды ошибок из контракта API.
          * @enum {string}
          */
-        ErrorCode: "validation_error" | "not_found" | "rate_limited" | "audio_unsupported" | "audio_too_large" | "speech_not_recognized" | "llm_unavailable" | "stt_unavailable" | "tts_unavailable" | "invalid_recovery_code" | "not_implemented" | "internal_error";
+        ErrorCode: "validation_error" | "session_required" | "forbidden" | "not_found" | "rate_limited" | "audio_unsupported" | "audio_too_large" | "speech_not_recognized" | "llm_unavailable" | "stt_unavailable" | "tts_unavailable" | "invalid_recovery_code" | "not_implemented" | "internal_error";
         /**
          * ErrorResponse
          * @description `{"error": {"code": …, "message": …}}`.
@@ -674,6 +674,15 @@ export interface operations {
                     "application/json": components["schemas"]["AssistantReply"];
                 };
             };
+            /** @description `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `not_found` */
             404: {
                 headers: {
@@ -685,15 +694,6 @@ export interface operations {
             };
             /** @description `validation_error` */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description `rate_limited` */
-            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -730,8 +730,8 @@ export interface operations {
                     "text/calendar": string;
                 };
             };
-            /** @description `rate_limited` */
-            429: {
+            /** @description `session_required` */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -830,6 +830,15 @@ export interface operations {
                     "application/json": components["schemas"]["AssistantReply"];
                 };
             };
+            /** @description `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `validation_error` */
             422: {
                 headers: {
@@ -889,8 +898,8 @@ export interface operations {
                     "application/json": components["schemas"]["DialogResponse"];
                 };
             };
-            /** @description `validation_error` */
-            422: {
+            /** @description `session_required` */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -898,8 +907,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `rate_limited` */
-            429: {
+            /** @description `validation_error` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -943,8 +952,8 @@ export interface operations {
                     "application/json": components["schemas"]["EventsResponse"];
                 };
             };
-            /** @description `validation_error` */
-            422: {
+            /** @description `session_required` */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -952,8 +961,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `rate_limited` */
-            429: {
+            /** @description `validation_error` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -994,8 +1003,8 @@ export interface operations {
                     "application/json": components["schemas"]["Event"];
                 };
             };
-            /** @description `validation_error` */
-            422: {
+            /** @description `session_required` */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1003,8 +1012,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `rate_limited` */
-            429: {
+            /** @description `validation_error` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1041,6 +1050,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `not_found` */
             404: {
                 headers: {
@@ -1052,15 +1070,6 @@ export interface operations {
             };
             /** @description `validation_error` */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description `rate_limited` */
-            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1103,6 +1112,15 @@ export interface operations {
                     "application/json": components["schemas"]["Event"];
                 };
             };
+            /** @description `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `not_found` */
             404: {
                 headers: {
@@ -1114,15 +1132,6 @@ export interface operations {
             };
             /** @description `validation_error` */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description `rate_limited` */
-            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1188,8 +1197,8 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
-            /** @description `rate_limited` */
-            429: {
+            /** @description `session_required` */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1251,6 +1260,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description `forbidden` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `validation_error` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description `rate_limited` */
@@ -1355,6 +1382,15 @@ export interface operations {
                     "audio/ogg": string;
                 };
             };
+            /** @description `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `validation_error` */
             422: {
                 headers: {
@@ -1419,6 +1455,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantReply"];
+                };
+            };
+            /** @description `session_required` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description `audio_too_large` */

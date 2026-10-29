@@ -26,6 +26,8 @@ from app.storage.database import Database, UnitOfWork
 from app.storage.models import Base, SeedEventRecord
 from tests.conftest import BASE_URL, make_settings
 
+CREATE_HEADERS = {"X-Gorky-Client": "web", "Origin": BASE_URL}
+
 BACKEND_DIR = REPOSITORY_ROOT / "backend"
 CONNECT_TIMEOUT_SECONDS = 3
 
@@ -147,7 +149,7 @@ async def app(database_url: str) -> FastAPI:
 
 
 @pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+async def anonymous_client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     """HTTP-клиент со своим хранилищем cookie — как отдельное устройство."""
     async with (
         app.router.lifespan_context(app),
@@ -157,9 +159,33 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 
 
 @pytest.fixture
-async def other_device(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+async def anonymous_other_device(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     """Второе устройство того же пользователя: отдельные cookie."""
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url=BASE_URL
     ) as client:
         yield client
+
+
+@pytest.fixture
+async def profile_client(anonymous_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    response = await anonymous_client.post("/api/profiles", headers=CREATE_HEADERS)
+    assert response.status_code == 201, response.text
+    return anonymous_client
+
+
+@pytest.fixture
+async def other_profile_client(anonymous_other_device: httpx.AsyncClient) -> httpx.AsyncClient:
+    response = await anonymous_other_device.post("/api/profiles", headers=CREATE_HEADERS)
+    assert response.status_code == 201, response.text
+    return anonymous_other_device
+
+
+@pytest.fixture
+def client(anonymous_client: httpx.AsyncClient) -> httpx.AsyncClient:
+    return anonymous_client
+
+
+@pytest.fixture
+def other_device(anonymous_other_device: httpx.AsyncClient) -> httpx.AsyncClient:
+    return anonymous_other_device

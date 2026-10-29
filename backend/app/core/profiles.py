@@ -47,7 +47,7 @@ class ProfileOnboarding:
     """Появление нового профиля: не чаще лимита с одного адреса и сразу с историей (Q22).
 
     Лимит — `PROFILE_CREATIONS_PER_ADDRESS` профилей за `PROFILE_CREATION_WINDOW_SECONDS`
-    с одного IP; он защищает базу от массового автосоздания профилей запросами без cookie.
+    с одного IP; лимит действует при явном создании через POST /api/profiles.
     """
 
     def __init__(

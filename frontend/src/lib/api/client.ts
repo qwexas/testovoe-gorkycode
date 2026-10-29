@@ -2,6 +2,7 @@ import createClient from "openapi-fetch";
 
 import { apiErrorFromException, apiErrorFromResponse } from "./errors";
 import type { paths } from "./schema";
+import { sessionFetch } from "./profile-session";
 
 /**
  * Типизированный клиент API. Фронт и API на одном домене (`/api` → FastAPI),
@@ -10,6 +11,7 @@ import type { paths } from "./schema";
 export const apiClient = createClient<paths>({
   baseUrl: "",
   credentials: "include",
+  fetch: sessionFetch,
 });
 
 type FetchResult<TData> = {

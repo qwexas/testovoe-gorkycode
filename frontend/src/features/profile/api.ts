@@ -1,15 +1,16 @@
 import { apiClient, unwrap } from "@/lib/api/client";
 import { apiErrorFromException, apiErrorFromResponse } from "@/lib/api/errors";
 import type { Profile } from "@/types/api";
+import { sessionFetch } from "@/lib/api/profile-session";
 
-/** Текущий профиль. Если cookie нет, сервер создаёт профиль и возвращает recovery_code. */
+/** Только чтение сессии. Без действующей cookie — session_required, профиль не создаётся. */
 export function fetchCurrentProfile(): Promise<Profile> {
   return unwrap(apiClient.GET("/api/me", { cache: "no-store" }));
 }
 
 /** «Новый профиль»: сервер создаёт профиль и переключает cookie. */
 export function createProfile(): Promise<Profile> {
-  return unwrap(apiClient.POST("/api/profiles"));
+  return unwrap(apiClient.POST("/api/profiles", { headers: { "X-Gorky-Client": "web" } }));
 }
 
 /** Вход по коду восстановления. Ошибки: invalid_recovery_code, rate_limited. */
@@ -31,7 +32,10 @@ export const CALENDAR_FILE_NAME = "gorky.ics";
 export async function downloadCalendar(): Promise<void> {
   let response: Response;
   try {
-    response = await fetch("/api/calendar.ics", { credentials: "include", cache: "no-store" });
+    response = await sessionFetch("/api/calendar.ics", {
+      credentials: "include",
+      cache: "no-store",
+    });
   } catch (cause) {
     throw apiErrorFromException(cause);
   }

@@ -16,6 +16,8 @@ from app.core.errors import DomainError, ErrorCode, TooManyAttemptsError
 ERROR_STATUS: Final[Mapping[ErrorCode, HTTPStatus]] = MappingProxyType(
     {
         ErrorCode.VALIDATION_ERROR: HTTPStatus.UNPROCESSABLE_ENTITY,
+        ErrorCode.SESSION_REQUIRED: HTTPStatus.UNAUTHORIZED,
+        ErrorCode.FORBIDDEN: HTTPStatus.FORBIDDEN,
         ErrorCode.NOT_FOUND: HTTPStatus.NOT_FOUND,
         ErrorCode.RATE_LIMITED: HTTPStatus.TOO_MANY_REQUESTS,
         ErrorCode.AUDIO_UNSUPPORTED: HTTPStatus.UNSUPPORTED_MEDIA_TYPE,

@@ -2,10 +2,13 @@
 
 import asyncio
 import os
+from dataclasses import replace
 from typing import Any, cast
 from uuid import uuid4
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from sqlalchemy import delete
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import QueuePool
@@ -15,6 +18,29 @@ from app.core.enums import MessageSource
 from app.storage.database import Database
 from app.storage.models import ChatMessageRecord, ProfileRecord
 from tests.integration.test_dialog_race import FIRST, NOW, TIMEOUT, ControlledParser
+
+
+@pytest.mark.integration
+async def test_authenticated_chat_releases_connection_before_parse(
+    app: FastAPI, profile_client: httpx.AsyncClient
+) -> None:
+    """M1 и H2: проверка cookie не удерживает соединение во время HTTP-диалога."""
+    parser = ControlledParser()
+    services = app.state.services
+    app.state.services = replace(services, intent_parser=parser)
+    pool = cast(QueuePool, services.database._engine.pool)
+    task = asyncio.create_task(profile_client.post("/api/chat", json={"text": FIRST}))
+    try:
+        await asyncio.wait_for(parser.first_entered.wait(), timeout=TIMEOUT)
+        assert pool.checkedout() == 0, "Проверка сессии удерживает соединение во время LLM"
+        parser.release_first.set()
+        response = await asyncio.wait_for(task, timeout=TIMEOUT)
+        assert response.status_code == 200, response.text
+    finally:
+        parser.release_first.set()
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.asyncio
