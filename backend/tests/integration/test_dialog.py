@@ -7,6 +7,7 @@
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
@@ -14,12 +15,13 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.core.enums import EventType
+from app.core.enums import EventStatus, EventType
 from app.core.errors import ErrorCode
 from app.core.schedule import MOSCOW
 from app.llm.errors import LLMUnavailableError
 from app.nlu.interfaces import Action, Intent, TimeScope, When
-from app.storage.models import DialogStateRecord
+from app.nlu.parser import LLMIntentParser
+from app.storage.models import DialogStateRecord, EventRecord
 from tests.helpers import assert_error
 from tests.unit.dialog.support import FakeIntentParser, about, answer, create, simple
 
@@ -50,6 +52,45 @@ async def chat(
     assert response.status_code == 200, response.text
     reply: dict[str, Any] = response.json()
     return reply
+
+
+async def test_explicit_description_after_demonstrative_overrides_focus(
+    client: httpx.AsyncClient,
+    app: FastAPI,
+    parser: FakeIntentParser,
+    db_engine: AsyncEngine,
+) -> None:
+    """R01: правильное описание не теряется между JSON модели, HTTP и commit в PostgreSQL."""
+    bread = await chat(client, parser, create("Создай купить хлеб", EventType.TASK, "Купить хлеб"))
+    milk = await chat(
+        client, parser, create("Создай купить молоко", EventType.TASK, "Купить молоко")
+    )
+    bread_id, milk_id = bread["events"][0]["id"], milk["events"][0]["id"]
+    llm = Mock(
+        complete_json=AsyncMock(
+            return_value={
+                "action": "complete",
+                "event_type": "task",
+                "query": "Купить хлеб",
+                "about_last": False,
+            }
+        )
+    )
+    app.state.services = replace(app.state.services, intent_parser=LLMIntentParser(llm))
+
+    response = await client.post(
+        "/api/chat", json={"text": "Отметь эту задачу Купить хлеб выполненной"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["events"][0]["id"] == bread_id
+    async with db_engine.connect() as connection:
+        rows = await connection.execute(
+            select(EventRecord.id, EventRecord.status).where(
+                EventRecord.id.in_([bread_id, milk_id])
+            )
+        )
+        assert dict(rows.all()) == {bread_id: EventStatus.DONE, milk_id: EventStatus.OPEN}
 
 
 async def history(client: httpx.AsyncClient, **params: str) -> list[dict[str, Any]]:

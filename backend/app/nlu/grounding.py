@@ -14,7 +14,12 @@ GigaChat-2-Pro на «Отметь звонок Ивану как сделанн
 import re
 from functools import cache
 
-from app.search.lemmas import DEFAULT_STOP_WORDS, MorphLemmatizer, shared_morph_analyzer
+from app.search.lemmas import (
+    DEFAULT_STOP_WORDS,
+    MorphLemmatizer,
+    normalize_yo,
+    shared_morph_analyzer,
+)
 
 MIN_QUERY_COVERAGE = 0.5
 """Доля лемм описания, которая должна быть в реплике: больше половины, а у описания из двух
@@ -53,6 +58,9 @@ LAST_REFERENCES = frozenset(
 )
 """«Отметь последнюю выполненной»; внутри описания «проверить последний отчёт» — не ссылка."""
 POSSESSED_PARTS_OF_SPEECH = frozenset({"NOUN", "ADJF"})
+REFERENCE_INTERVAL_WORDS = frozenset(
+    {"день", "сутки", "час", "часик", "минута", "минутка", "полчаса", "полчасик"}
+)
 _EVENT_TYPE_WORD = re.compile(
     r"\b(?:встреч|созвон|совещан|планёрк|планерк|переговор|митинг|задач|напомина|напомн)",
     re.IGNORECASE,
@@ -97,11 +105,13 @@ def same_record(description: str, title: str) -> bool:
     return bool(description_lemmas) and description_lemmas == set(_lemmatizer().lemmas(title))
 
 
-def names_record_by_pronoun(text: str) -> bool:
+def names_record_by_pronoun(text: str, *, new_title: str | None = None) -> bool:
     """Названа ли запись местоимением — тогда это запись из контекста диалога.
 
     Модель иногда «разворачивает» местоимение в название записи из фокуса, а описание
     словами реплики дало бы мусор: «нет, лучше перенеси её…» → «лучше».
+    После «эту задачу» может быть явное описание — оно важнее ссылки на контекст.
+    Новое название при переименовании не описывает выбираемую запись.
     """
     tokens = [token.lower() for token in _TOKEN.findall(text)]
     for index, token in enumerate(tokens):
@@ -120,10 +130,36 @@ def names_record_by_pronoun(text: str) -> bool:
                 _is_content(word) and not names_event_type(word) for word in tokens[index + 1 :]
             )
         if token in DEMONSTRATIVES and (index == 0 or not _is_preposition(tokens[index - 1])):
-            return True
+            return not _has_record_description(tokens[index + 1 :], new_title)
         if token in OBJECT_PRONOUNS and not _starts_noun_phrase(tokens[index + 1 : index + 2]):
             return True
     return False
+
+
+def _has_record_description(tokens: list[str], new_title: str | None) -> bool:
+    """Содержание после «эту», кроме типа, времени и нового названия при rename."""
+    title_tokens = _TOKEN.findall(new_title.lower()) if new_title else []
+    if title_tokens and normalize_yo(" ".join(tokens[-len(title_tokens) :])) == normalize_yo(
+        " ".join(title_tokens)
+    ):
+        tokens = tokens[: -len(title_tokens)]
+    temporal = _temporal_indices(tokens)
+    # «На час / на полчаса» и «в десять тридцать» дополняют ссылку временем,
+    # а не называют другую запись. Числительные с единицами уже учтены выше.
+    for index, word in enumerate(tokens):
+        if (
+            index > 0
+            and tokens[index - 1] in {"на", "через"}
+            and REFERENCE_INTERVAL_WORDS.intersection(_lemmatizer().lemmas(word))
+        ):
+            temporal.add(index)
+    return any(
+        index not in temporal
+        and _is_content(word)
+        and not names_event_type(word)
+        and not _time_modifier(word)
+        for index, word in enumerate(tokens)
+    )
 
 
 def names_moment(text: str) -> bool:

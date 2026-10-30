@@ -229,7 +229,7 @@ def _target(utterance: _Utterance, when: When | None, new_title: str | None = No
     """
     extraction = utterance.extraction
     text = utterance.text
-    pronoun = names_record_by_pronoun(text)
+    pronoun = names_record_by_pronoun(text, new_title=new_title)
     query = None if pronoun else user_description(_clean(extraction.query), text)
     if query is not None and new_title is not None and same_record(query, new_title):
         query = None

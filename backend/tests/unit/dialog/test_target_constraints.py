@@ -236,3 +236,90 @@ async def test_incorrect_about_last_does_not_replace_description(
     assert answer.reply.events[0].id == report.events[0].id
     assert dialog.event(report.events[0].id).status is EventStatus.DONE
     assert dialog.event(bread.events[0].id).status is EventStatus.OPEN
+
+
+@pytest.mark.parametrize("about_last", [True, False])
+@pytest.mark.parametrize(
+    ("action", "text", "fields"),
+    [
+        ("complete", "Отметь эту задачу Купить хлеб выполненной", {}),
+        ("delete", "Удали эту задачу Купить хлеб", {}),
+        ("reschedule", "Перенеси эту задачу Купить хлеб на завтра", {"date": "tomorrow"}),
+        (
+            "rename",
+            "Переименуй эту задачу Купить хлеб в Купить булочки",
+            {"new_title": "Купить булочки"},
+        ),
+    ],
+)
+async def test_explicit_description_after_demonstrative_changes_only_named_task(
+    action: str,
+    text: str,
+    fields: dict[str, str],
+    about_last: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R01: исходная фраза → ответ модели → Intent → действие при другом focus."""
+    dialog = new_dialog()
+    bread = await dialog.say(create("Создай купить хлеб", EventType.TASK, "Купить хлеб"))
+    milk = await dialog.say(create("Создай купить молоко", EventType.TASK, "Купить молоко"))
+    bread_id, milk_id = bread.events[0].id, milk.events[0].id
+    llm = Mock(
+        complete_json=AsyncMock(
+            return_value={
+                "action": action,
+                "event_type": "task",
+                "query": "Купить хлеб",
+                "about_last": about_last,
+                **fields,
+            }
+        )
+    )
+    monkeypatch.setattr(dialog.parser, "parse", LLMIntentParser(llm).parse)
+
+    answer = await dialog.service.handle(dialog.profile_id, text, MessageSource.TEXT)
+
+    assert answer.reply.events[0].id == bread_id
+    if action == "delete":
+        assert answer.reply.kind is ReplyKind.CONFIRM_REQUEST
+        llm.complete_json.return_value = {"action": "confirm"}
+        answer = await dialog.service.handle(dialog.profile_id, "Да", MessageSource.TEXT)
+        assert answer.reply.kind is ReplyKind.CONFIRMATION
+        assert dialog.event(bread_id) is None
+    elif action == "complete":
+        assert dialog.event(bread_id).status is EventStatus.DONE
+    elif action == "rename":
+        assert dialog.event(bread_id).title == "Купить булочки"
+    else:
+        assert dialog.event(bread_id).starts_at == at(TOMORROW, 0)
+    assert dialog.event(milk_id).title == "Купить молоко"
+    assert dialog.event(milk_id).status is EventStatus.OPEN
+    assert dialog.event(milk_id).starts_at is None
+
+
+@pytest.mark.parametrize("matches", [0, 2])
+async def test_description_after_demonstrative_does_not_fall_back_to_focus(
+    matches: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dialog = new_dialog()
+    candidates = [
+        await dialog.add_event(EventType.TASK, "Купить хлеб", at(day, 9))
+        for day in (TODAY, TOMORROW)[:matches]
+    ]
+    milk = await dialog.say(create("Создай купить молоко", EventType.TASK, "Купить молоко"))
+    llm = Mock(
+        complete_json=AsyncMock(
+            return_value={"action": "complete", "event_type": "task", "query": "Купить хлеб"}
+        )
+    )
+    monkeypatch.setattr(dialog.parser, "parse", LLMIntentParser(llm).parse)
+
+    answer = await dialog.service.handle(
+        dialog.profile_id, "Отметь эту задачу Купить хлеб выполненной", MessageSource.TEXT
+    )
+
+    assert answer.reply.kind is (ReplyKind.CHOICE if matches else ReplyKind.INFO)
+    assert answer.reply.undo is None
+    assert {card.id for card in answer.reply.choices} == {card.id for card in candidates}
+    assert all(dialog.event(card.id).status is EventStatus.OPEN for card in candidates)
+    assert dialog.event(milk.events[0].id).status is EventStatus.OPEN

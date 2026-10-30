@@ -446,6 +446,51 @@ async def test_description_with_demonstrative_is_not_a_context_reference(
     assert intent.target == TargetRef(query=expected)
 
 
+@pytest.mark.parametrize("about_last", [True, False])
+@pytest.mark.parametrize("query", ["Купить хлеб", "Купить молоко", ""])
+async def test_description_after_demonstrative_overrides_focus(
+    about_last: bool, query: str
+) -> None:
+    intent = await parse(
+        {"action": "complete", "event_type": "task", "query": query, "about_last": about_last},
+        text="Отметь эту задачу Купить хлеб выполненной",
+        context=DialogContext(now=NOW, focus=(MEETING_WITH_IVAN,)),
+    )
+
+    assert intent.target == TargetRef(query="Купить хлеб", event_type=EventType.TASK)
+
+
+@pytest.mark.parametrize(
+    ("text", "query", "expected_query"),
+    [
+        ("Переименуй эту встречу в Созвон с партнёрами", "Встреча с Иваном", None),
+        (
+            "Переименуй эту встречу с Иваном в Созвон с партнёрами",
+            "Встреча с Иваном",
+            "Встреча с Иваном",
+        ),
+    ],
+)
+async def test_demonstrative_rename_distinguishes_description_and_new_title(
+    text: str, query: str, expected_query: str | None
+) -> None:
+    intent = await parse(
+        {
+            "action": "rename",
+            "event_type": "meeting",
+            "query": query,
+            "new_title": "Созвон с партнёрами",
+        },
+        text=text,
+        context=TWO_IN_FOCUS,
+    )
+
+    assert intent.target == TargetRef(
+        last=expected_query is None, query=expected_query, event_type=EventType.MEETING
+    )
+    assert intent.title == "Созвон с партнёрами"
+
+
 @pytest.mark.parametrize(
     "action", ["create", "reschedule", "answer", "delete", "rename", "complete", "list", "search"]
 )
