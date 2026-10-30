@@ -5,6 +5,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { getAudioContext, isAudioRunning } from "@/lib/audio";
 
 import { SPEECH_TEXT_LIMIT, fetchSpeech } from "../api";
+import { textForBrowserSpeech } from "../lib/speech-text";
 
 const LANG = "ru-RU";
 /** Если сервер не озвучил за это время (модель грузится, очередь) — говорит браузер. */
@@ -80,7 +81,7 @@ export function useSpeech(): {
         finish(id);
         return;
       }
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(textForBrowserSpeech(text));
       utterance.lang = LANG;
       const voice = russianVoice();
       if (voice) utterance.voice = voice;
