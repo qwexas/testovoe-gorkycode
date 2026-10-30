@@ -1,6 +1,6 @@
 import type { ErrorResponse, ServerErrorCode } from "@/types/api";
 
-/** Коды, которые присылает сервер (`{ error: { code, message } }`). */
+/** коды, которые присылает сервер (`{ error: { code, message } }`). */
 const SERVER_ERROR_CODES: Record<ServerErrorCode, true> = {
   validation_error: true,
   session_required: true,
@@ -18,7 +18,7 @@ const SERVER_ERROR_CODES: Record<ServerErrorCode, true> = {
   internal_error: true,
 };
 
-/** Коды, которые фронт ставит сам, когда ответа в общем формате нет. */
+/** коды, которые фронт ставит сам, когда ответа в общем формате нет. */
 export type ClientErrorCode = "network_error" | "server_unavailable" | "unexpected_response";
 
 export type ApiErrorCode = ServerErrorCode | ClientErrorCode;
@@ -28,7 +28,7 @@ export class ApiError extends Error {
   readonly code: ApiErrorCode;
   /** HTTP-статус; `null`, если ответа не было (нет сети). */
   readonly status: number | null;
-  /** Секунды из заголовка `Retry-After` (для `rate_limited`). */
+  /** секунды из заголовка `Retry-After` (для `rate_limited`). */
   readonly retryAfterSeconds: number | null;
 
   constructor(options: {
@@ -71,7 +71,7 @@ function parseRetryAfter(response: Response): number | null {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
-/** Ответ с ошибкой → ApiError. Тело может быть не в общем формате (502 от nginx, HTML). */
+/** ответ с ошибкой → ApiError. Тело может быть не в общем формате (502 от nginx, HTML). */
 export function apiErrorFromResponse(response: Response, body: unknown): ApiError {
   const retryAfterSeconds = parseRetryAfter(response);
 
@@ -101,7 +101,7 @@ export function apiErrorFromResponse(response: Response, body: unknown): ApiErro
   });
 }
 
-/** Запрос не дошёл до сервера или ответ не разобрался. */
+/** запрос не дошёл до сервера или ответ не разобрался. */
 export function apiErrorFromException(cause: unknown): ApiError {
   if (cause instanceof ApiError) return cause;
 

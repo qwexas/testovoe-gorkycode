@@ -1,4 +1,4 @@
-"""Синтез русской речи Silero v4_ru на CPU (Q13): текст → слова → Silero → OGG/Opus.
+"""синтез русской речи Silero v4_ru на CPU (Q13): текст → слова → Silero → OGG/Opus.
 
 Файл модели скачивается один раз с models.silero.ai в кэш и сверяется с SHA-256: загрузка
 `torch.package` исполняет код из файла, поэтому чужой или битый файл не грузим.
@@ -34,29 +34,29 @@ DOWNLOAD_TIMEOUT_SECONDS = 120.0
 DOWNLOAD_CHUNK_BYTES = 1 << 20
 PAUSE_BETWEEN_CHUNKS_SECONDS = 0.25
 EMPTY_SPEECH_SECONDS = 0.3
-"""Если озвучивать нечего (одни эмодзи), отдаём короткую тишину — клиенту не нужен особый случай."""
+"""если озвучивать нечего (одни эмодзи), отдаём короткую тишину — клиенту не нужен особый случай."""
 WARM_UP_TEXT = "Горький на связи."
 
 
 class ModelChecksumError(RuntimeError):
-    """Скачанный файл модели не совпал с ожидаемым SHA-256."""
+    """скачанный файл модели не совпал с ожидаемым SHA-256."""
 
 
 class SpeechTensor(Protocol):
-    """Результат `apply_tts` — тензор torch с сигналом в [-1, 1]."""
+    """результат `apply_tts` — тензор torch с сигналом в [-1, 1]."""
 
     def numpy(self) -> NDArray[np.float32]:
-        """Сигнал как массив numpy."""
+        """сигнал как массив numpy."""
         ...
 
 
 class SileroModelLike(Protocol):
-    """То, что нужно от модели Silero."""
+    """то, что нужно от модели Silero."""
 
     def apply_tts(
         self, *, text: str, speaker: str, sample_rate: int, put_accent: bool, put_yo: bool
     ) -> SpeechTensor:
-        """Озвучка `text` голосом `speaker`."""
+        """озвучка `text` голосом `speaker`."""
         ...
 
 
@@ -64,7 +64,7 @@ ModelLoader = Callable[[TextToSpeechSettings], SileroModelLike]
 
 
 def ensure_model_file(directory: Path) -> Path:
-    """Путь к проверенному файлу модели; скачивает его, если файла нет или он битый.
+    """путь к проверенному файлу модели; скачивает его, если файла нет или он битый.
 
     Raises:
         ModelChecksumError: Скачанный файл не совпал с `MODEL_SHA256`.
@@ -97,7 +97,7 @@ def _sha256_of(path: Path) -> str:
 
 
 def _download(url: str, target: Path) -> str:
-    """Скачивает `url` в `target` и возвращает SHA-256 скачанного."""
+    """скачивает `url` в `target` и возвращает SHA-256 скачанного."""
     digest = hashlib.sha256()
     with (
         httpx.stream("GET", url, timeout=DOWNLOAD_TIMEOUT_SECONDS, follow_redirects=True) as reply,
@@ -118,7 +118,7 @@ def default_model_directory() -> Path:
 
 
 def load_silero_model(settings: TextToSpeechSettings) -> SileroModelLike:
-    """Скачивает (при необходимости), проверяет и загружает модель на CPU; импорт torch отложен."""
+    """скачивает (при необходимости), проверяет и загружает модель на CPU; импорт torch отложен."""
     import torch
     from torch.package.package_importer import PackageImporter
 
@@ -130,7 +130,7 @@ def load_silero_model(settings: TextToSpeechSettings) -> SileroModelLike:
 
 
 class SileroTextToSpeech:
-    """Реализация `TextToSpeech` на Silero v4_ru.
+    """реализация `TextToSpeech` на Silero v4_ru.
 
     Без аргументов настройки читаются из `TTS_*` и корневого `.env`.
     Озвучки идут по одной: каждая занимает все ядра torch, параллельно было бы не быстрее.
@@ -149,11 +149,11 @@ class SileroTextToSpeech:
 
     @property
     def voices(self) -> Sequence[str]:
-        """Голоса Silero (Q38); первый — голос по умолчанию из `TTS_VOICE`."""
+        """голоса Silero (Q38); первый — голос по умолчанию из `TTS_VOICE`."""
         return self._voices
 
     async def warm_up(self) -> None:
-        """Загружает модель и озвучивает короткую фразу, если включён `TTS_WARM_UP_ON_STARTUP`.
+        """загружает модель и озвучивает короткую фразу, если включён `TTS_WARM_UP_ON_STARTUP`.
 
         Ошибку только пишет в лог: `/api/health` покажет `fail`, а первая озвучка
         попробует загрузить модель снова.
@@ -169,7 +169,7 @@ class SileroTextToSpeech:
             logger.exception("Прогрев озвучки упал")
 
     async def synthesize(self, text: str, voice: str | None) -> AudioClip:
-        """Озвучка `text` в OGG/Opus; числа, даты и латиница читаются словами.
+        """озвучка `text` в OGG/Opus; числа, даты и латиница читаются словами.
 
         Raises:
             UnknownVoiceError: Такого голоса нет.
@@ -213,7 +213,7 @@ class SileroTextToSpeech:
 def joined_with_pauses(
     pieces: Sequence[NDArray[np.float32]], sample_rate: int
 ) -> NDArray[np.float32]:
-    """Куски речи через короткие паузы; без кусков — короткая тишина."""
+    """куски речи через короткие паузы; без кусков — короткая тишина."""
     if not pieces:
         return np.zeros(int(EMPTY_SPEECH_SECONDS * sample_rate), dtype=np.float32)
     pause = np.zeros(int(PAUSE_BETWEEN_CHUNKS_SECONDS * sample_rate), dtype=np.float32)

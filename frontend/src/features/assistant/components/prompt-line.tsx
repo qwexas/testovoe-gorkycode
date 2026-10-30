@@ -12,7 +12,7 @@ import { inputPlaceholder } from "../model/quick-replies";
 
 const PROMPT_INPUT_ID = "prompt-input";
 
-/** Строка `$`: ввод текстом, отправка Enter, кнопка «говорить» / «остановить». */
+/** строка `$`: ввод текстом, отправка Enter, кнопка «говорить» / «остановить». */
 export function PromptLine({
   assistant,
   inputRef,

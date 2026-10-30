@@ -20,7 +20,7 @@ import { describeRecorderError, rejectRecording } from "../model/microphone";
 import { type SphereMode, sphereHeadline, sphereMode, sphereSubline } from "../model/sphere";
 import { useConversation } from "./use-conversation";
 
-/** Горячая клавиша записи: Alt+M (⌥M) — свободна в Chrome, Safari и Firefox. */
+/** горячая клавиша записи: Alt+M (⌥M) — свободна в Chrome, Safari и Firefox. */
 function isRecordHotkey(event: KeyboardEvent): boolean {
   return event.altKey && !event.ctrlKey && !event.metaKey && event.code === "KeyM";
 }
@@ -32,9 +32,9 @@ function changesEvents(reply: AssistantReply): boolean {
 export type Assistant = {
   conversation: ConversationState;
   pending: Pending | null;
-  /** Ключ реплики ассистента, на вопрос которой можно ответить кнопками. */
+  /** ключ реплики ассистента, на вопрос которой можно ответить кнопками. */
   activeKey: string | null;
-  /** Секунд до закрытия окна отмены по id реплики ассистента. */
+  /** секунд до закрытия окна отмены по id реплики ассистента. */
   undoSecondsLeft: (messageId: number) => number | null;
   recorder: RecorderStatus;
   recordingSeconds: number;
@@ -43,7 +43,7 @@ export type Assistant = {
   sphere: SphereMode;
   headline: string;
   subline: string;
-  /** Уровень звука для сферы: голос пользователя при записи, ответ — при озвучке. */
+  /** уровень звука для сферы: голос пользователя при записи, ответ — при озвучке. */
   levelRef: RefObject<number>;
   speakReplies: boolean;
   setSpeakReplies: (value: boolean) => void;
@@ -57,9 +57,7 @@ export type Assistant = {
 };
 
 /**
- * Всё, что нужно экрану разговора: история и реплики, запись голоса с автостопом,
- * озвучка ответов, окна отмены и состояние сферы. Esc отменяет запись (или обрывает
- * озвучку), Alt+M начинает и заканчивает запись (решение Q26).
+ * Esc отменяет запись или озвучку, Alt+M включает и выключает запись (Q26).
  */
 export function useAssistant({
   profileId,
@@ -121,7 +119,7 @@ export function useAssistant({
       stopVoice();
       return;
     }
-    // Пока браузер спрашивает разрешение, повторное нажатие отменяет запуск.
+    // пока браузер спрашивает разрешение, повторное нажатие отменяет запуск.
     if (voice.recorder.status === "starting") {
       cancelVoice();
       return;
@@ -186,7 +184,7 @@ export function useAssistant({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [cancelVoice, stopSpeech, toggleRecording]);
 
-  // Часы для окна отмены и длительности записи: тикают, только пока это нужно.
+  // часы для окна отмены и длительности записи: тикают, только пока это нужно.
   const undoOpen = Object.keys(state.undoUntil).length > 0;
   const clock = useTicker(undoOpen || voice.recorder.status === "recording", 250);
 

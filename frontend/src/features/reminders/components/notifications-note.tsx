@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { useNotificationState } from "../hooks/use-notification-state";
 
 /**
- * Как сработают напоминания: строка под планом дня и кнопка, которая спрашивает
+ * как сработают напоминания: строка под планом дня и кнопка, которая спрашивает
  * разрешение на уведомления (только по нажатию, не при загрузке).
  */
 export function NotificationsNote() {

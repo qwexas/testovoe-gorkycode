@@ -1,4 +1,4 @@
-"""Схемы диалога с ассистентом."""
+"""схемы диалога с ассистентом."""
 
 from datetime import datetime
 from typing import Annotated

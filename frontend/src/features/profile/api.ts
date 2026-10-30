@@ -3,7 +3,7 @@ import { apiErrorFromException, apiErrorFromResponse } from "@/lib/api/errors";
 import type { Profile } from "@/types/api";
 import { sessionFetch } from "@/lib/api/profile-session";
 
-/** Только чтение сессии. Без действующей cookie — session_required, профиль не создаётся. */
+/** только чтение сессии. Без действующей cookie — session_required, профиль не создаётся. */
 export function fetchCurrentProfile(): Promise<Profile> {
   return unwrap(apiClient.GET("/api/me", { cache: "no-store" }));
 }
@@ -13,7 +13,7 @@ export function createProfile(): Promise<Profile> {
   return unwrap(apiClient.POST("/api/profiles", { headers: { "X-Gorky-Client": "web" } }));
 }
 
-/** Вход по коду восстановления. Ошибки: invalid_recovery_code, rate_limited. */
+/** вход по коду восстановления. Ошибки: invalid_recovery_code, rate_limited. */
 export function restoreProfile(code: string): Promise<Profile> {
   return unwrap(apiClient.POST("/api/profiles/restore", { body: { code } }));
 }
@@ -24,7 +24,7 @@ export async function deleteCurrentProfile(): Promise<void> {
 }
 
 /**
- * Календарь профиля одним файлом (GET /api/calendar.ics). Скачиваем через fetch, а не
+ * календарь профиля одним файлом (GET /api/calendar.ics). Скачиваем через fetch, а не
  * ссылкой: так ошибку сервера можно показать текстом, а не сохранить вместо календаря.
  */
 export const CALENDAR_FILE_NAME = "gorky.ics";
@@ -50,6 +50,6 @@ export async function downloadCalendar(): Promise<void> {
   document.body.append(link);
   link.click();
   link.remove();
-  // Даём браузеру начать загрузку, прежде чем освободить ссылку на файл.
+  // даём браузеру начать загрузку, прежде чем освободить ссылку на файл.
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

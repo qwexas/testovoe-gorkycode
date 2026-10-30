@@ -1,7 +1,7 @@
 import type { ApiError } from "@/lib/api/errors";
 import type { Profile } from "@/types/api";
 
-/** Профиль в интерфейсе. Код восстановления сюда не попадает — он живёт отдельно. */
+/** профиль в интерфейсе. Код восстановления сюда не попадает — он живёт отдельно. */
 export type ProfileStatus =
   | { status: "loading" }
   | { status: "ready"; profile: Profile }
@@ -11,7 +11,7 @@ export type ProfileStatus =
 
 export type ProfileState = {
   profile: ProfileStatus;
-  /** Код из ответа на создание профиля; показываем один раз, потом обнуляем. */
+  /** код из ответа на создание профиля; показываем один раз, потом обнуляем. */
   pendingRecoveryCode: string | null;
   recoveryProfileId: string | null;
   changing: boolean;
@@ -22,7 +22,7 @@ export type ProfileAction =
   | { type: "profile_received"; profile: Profile }
   | { type: "profile_deleted" }
   | { type: "recovery_code_dismissed" };
-// Потеря сессии — отдельное состояние, не повторная попытка создания профиля.
+// потеря сессии — отдельное состояние, не повторная попытка создания профиля.
 type SessionAction = { type: "session_lost" } | { type: "mutation_started" };
 
 export const initialProfileState: ProfileState = {
@@ -86,7 +86,7 @@ type ProfileRequests = {
   error: (cause: unknown) => ApiError;
 };
 
-/** Общий жизненный цикл для React и тестов: GET никогда не превращается в POST. */
+/** общий жизненный цикл для React и тестов: GET никогда не превращается в POST. */
 export function createProfileController(requests: ProfileRequests) {
   let state = initialProfileState;
   let revision = 0;
@@ -156,7 +156,7 @@ export function createProfileController(requests: ProfileRequests) {
               error.code,
             )
           ) {
-            // Эти отказы сервера происходят до переключения cookie: сохраняем форму и старый код.
+            // эти отказы сервера происходят до переключения cookie: сохраняем форму и старый код.
             requests.setSession(
               previous.profile.status === "ready" ? previous.profile.profile.id : null,
             );
@@ -174,7 +174,7 @@ export function createProfileController(requests: ProfileRequests) {
   function recheckSession(): Promise<void> {
     revision += 1;
     requests.setSession(null);
-    // Код хранится с владельцем, но скрыт до проверки cookie: тот же ID сохранит его.
+    // код хранится с владельцем, но скрыт до проверки cookie: тот же ID сохранит его.
     dispatch({ type: "mutation_started" });
     return load();
   }

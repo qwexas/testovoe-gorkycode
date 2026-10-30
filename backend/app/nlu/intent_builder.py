@@ -1,10 +1,7 @@
-"""Перевод извлечённого моделью (`Extraction`) в `Intent` из контракта.
+"""преобразование `Extraction` в `Intent` с расчётом дат и периодов.
 
-Здесь считаются даты и периоды (через `app.nlu.time_resolution`) и раскладываются поля
-по действию: у переноса «когда» — новые день и время, а `target_date` и `target_time`
-описывают запись там, где она стоит сейчас; у удаления названный день описывает удаляемую
-запись и т. д. Остальные команды реплики («…и удали встречу с Петром») попадают
-в `Intent.unhandled`: выполняется только первая.
+При изменении условия поиска отделены от новых значений записи.
+Из нескольких команд выполняется первая, остальные попадают в `Intent.unhandled`.
 """
 
 from collections.abc import Callable
@@ -34,7 +31,7 @@ from app.nlu.time_scope import search_time_scope
 
 TRIMMED_PUNCTUATION = " \t\n.,!?;:«»\"'"
 SHORT_WORD_LENGTH = 2
-"""Предлоги «в», «на», «с» не мешают описанию быть «только типом»: «встреча в 10»."""
+"""предлоги «в», «на», «с» не мешают описанию быть «только типом»: «встреча в 10»."""
 
 EVENT_TYPES = {
     EventTypeName.TASK: EventType.TASK,
@@ -48,7 +45,7 @@ IntentFields = dict[str, Any]
 
 @dataclass(frozen=True, slots=True)
 class _Utterance:
-    """Реплика, её разбор моделью и контекст диалога."""
+    """реплика, её разбор моделью и контекст диалога."""
 
     extraction: Extraction
     text: str
@@ -73,7 +70,7 @@ def build_intent(extraction: Extraction, text: str, context: DialogContext) -> I
 
 
 def _unhandled(extraction: Extraction, text: str) -> str | None:
-    """Остальные команды реплики: по глаголам-командам или из `rest`, если он сказан.
+    """остальные команды реплики: по глаголам-командам или из `rest`, если он сказан.
 
     Слова самой реплики надёжнее пересказа модели, поэтому сначала — `other_commands`.
     Название и описание записи первой команды — её содержание, а не следующая команда.
@@ -86,7 +83,7 @@ def _unhandled(extraction: Extraction, text: str) -> str | None:
 
 
 def _create_fields(utterance: _Utterance) -> IntentFields:
-    """Название-заглушка («Встреча» из «поставь встречу на завтра») — не названо."""
+    """название-заглушка («Встреча» из «поставь встречу на завтра») — не названо."""
     extraction = utterance.extraction
     title = _title(extraction.title)
     return {
@@ -98,7 +95,7 @@ def _create_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _list_fields(utterance: _Utterance) -> IntentFields:
-    """Часть суток сужает день: «что у меня завтра вечером» — завтра с 18:00 до полуночи."""
+    """часть суток сужает день: «что у меня завтра вечером» — завтра с 18:00 до полуночи."""
     extraction = utterance.extraction
     now = utterance.context.now
     period = resolve_period(extraction.date_expression, now)
@@ -112,7 +109,7 @@ def _list_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _search_fields(utterance: _Utterance) -> IntentFields:
-    """Поиск без названного предмета ищет по всей реплике: лишние слова отсечёт поиск.
+    """поиск без названного предмета ищет по всей реплике: лишние слова отсечёт поиск.
 
     Время поиска («была» / «будет») сверяется со словами реплики (`search_time_scope`):
     в длинном контексте модель иногда его теряет.
@@ -129,7 +126,7 @@ def _search_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _reschedule_fields(utterance: _Utterance) -> IntentFields:
-    """Прежние день и время (`target_*`) ищут запись, новые (`date`, `time`) — куда её деть.
+    """прежние день и время (`target_*`) ищут запись, новые (`date`, `time`) — куда её деть.
 
     Длительность — новая длительность встречи; не названа — остаётся прежней.
     """
@@ -153,7 +150,7 @@ def _rename_fields(utterance: _Utterance) -> IntentFields:
 
 
 def _change_fields(utterance: _Utterance) -> IntentFields:
-    """Отметка о выполнении и удаление: названный день описывает саму запись."""
+    """отметка о выполнении и удаление: названный день описывает саму запись."""
     return {"target": _target(utterance, _record_when(utterance))}
 
 
@@ -188,7 +185,7 @@ _FIELDS_BY_ACTION: dict[Action, Callable[[_Utterance], IntentFields]] = {
 
 
 def _new_when(utterance: _Utterance) -> When | None:
-    """Новые день и время: при создании, переносе, ответе на уточнение — только будущие."""
+    """новые день и время: при создании, переносе, ответе на уточнение — только будущие."""
     extraction = utterance.extraction
     return resolve_when(
         extraction.date_expression, _time_expression(utterance), utterance.context.now
@@ -196,7 +193,7 @@ def _new_when(utterance: _Utterance) -> When | None:
 
 
 def _record_when(utterance: _Utterance) -> When | None:
-    """Когда стоит изменяемая запись: «удали встречу в четверг» — ближайший четверг."""
+    """когда стоит изменяемая запись: «удали встречу в четверг» — ближайший четверг."""
     extraction = utterance.extraction
     return resolve_when(
         extraction.date_expression,
@@ -207,17 +204,17 @@ def _record_when(utterance: _Utterance) -> When | None:
 
 
 def _time_expression(utterance: _Utterance) -> TimeExpression:
-    """Названное время с ведущим нулём из реплики (`_with_leading_zero`)."""
+    """названное время с ведущим нулём из реплики (`_with_leading_zero`)."""
     return _with_leading_zero(utterance.extraction.time_expression, utterance.text)
 
 
 def _with_leading_zero(expression: TimeExpression, text: str) -> TimeExpression:
-    """Возвращаем ведущий ноль из текста, если извлечение нормализовало «06:30» в «6:30»."""
+    """возвращаем ведущий ноль из текста, если извлечение нормализовало «06:30» в «6:30»."""
     return replace(expression, clock=preserve_leading_zero(expression.clock, text))
 
 
 def _target(utterance: _Utterance, when: When | None, new_title: str | None = None) -> TargetRef:
-    """Ссылка на изменяемую запись, сверенная со словами реплики (`app.nlu.grounding`).
+    """ссылка на изменяемую запись, сверенная со словами реплики (`app.nlu.grounding`).
 
     Описание, день и тип записи берутся из ответа модели, только если они есть в самой
     реплике: модель иногда подставляет название, тип и дату записи из фокуса.

@@ -10,7 +10,7 @@ import { useProfile } from "../profile-context";
 import { RestoreProfileDialog } from "./restore-profile-dialog";
 
 /**
- * Строка в логе сессии, когда работать не с чем: данные удалены или профиль не
+ * строка в логе сессии, когда работать не с чем: данные удалены или профиль не
  * загрузился. Вместо истории — что случилось и одна команда, чтобы продолжить.
  */
 export function ProfileNotice({ onRecovered }: { onRecovered?: () => void }) {

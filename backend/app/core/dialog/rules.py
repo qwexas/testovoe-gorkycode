@@ -1,4 +1,4 @@
-"""Правила диалога о времени: чего не хватает (Q30) и что подставить по умолчанию (Q31).
+"""правила диалога о времени: чего не хватает (Q30) и что подставить по умолчанию (Q31).
 
 Парсер уже перевёл «завтра», «в пятницу», «через два часа» в даты и время (`When`);
 здесь решается, хватает ли этого, и считается итоговое время записи.
@@ -24,7 +24,7 @@ from app.core.schedule import DEADLINE_TIME, DEFAULT_MEETING_DURATION, MOSCOW, S
 from app.nlu.interfaces import Intent, When
 
 DEFAULT_CREATED_TYPE = EventType.TASK
-"""Тип записи, если разбор его не назвал: «Поставь на завтра купить молоко» — задача."""
+"""тип записи, если разбор его не назвал: «Поставь на завтра купить молоко» — задача."""
 SUNDAY_OFFSET = timedelta(days=6)
 ONE_DAY = timedelta(days=1)
 TITLE_TRAILING = " .!?,;:«»\"'"
@@ -33,12 +33,12 @@ QuestionRule = Callable[[When, date], PendingQuestion | None]
 
 
 def created_type(intent: Intent) -> EventType:
-    """Тип создаваемой записи."""
+    """тип создаваемой записи."""
     return intent.event_type or DEFAULT_CREATED_TYPE
 
 
 def tidy_title(title: str | None) -> str | None:
-    """Название без лишних пробелов, кавычек и точки в конце, с заглавной буквы."""
+    """название без лишних пробелов, кавычек и точки в конце, с заглавной буквы."""
     if title is None:
         return None
     cleaned = " ".join(title.split()).strip(TITLE_TRAILING)
@@ -46,7 +46,7 @@ def tidy_title(title: str | None) -> str | None:
 
 
 def creation_question(intent: Intent, today: date) -> PendingQuestion | None:
-    """Чего не хватает для создания записи (Q30); `None` — данных достаточно."""
+    """чего не хватает для создания записи (Q30); `None` — данных достаточно."""
     event_type = created_type(intent)
     if not intent.title:
         return PendingQuestion(PendingExpectation.TITLE, phrases.TITLE_QUESTIONS[event_type])
@@ -95,7 +95,7 @@ def _ask(expects: PendingExpectation, question: str) -> PendingQuestion:
 
 
 def creation_draft(intent: Intent, now: datetime) -> EventDraft:
-    """Запись по полному разбору (после `creation_question`, вернувшего `None`)."""
+    """запись по полному разбору (после `creation_question`, вернувшего `None`)."""
     event_type = created_type(intent)
     title = tidy_title(intent.title) or ""
     when = intent.when or When()
@@ -121,7 +121,7 @@ def _meeting_duration(intent: Intent) -> timedelta:
 
 
 def reschedule_question(card: EventCard, when: When | None, today: date) -> PendingQuestion | None:
-    """Чего не хватает для переноса записи; `None` — новое время понятно."""
+    """чего не хватает для переноса записи; `None` — новое время понятно."""
     if when is None or when.is_empty:
         return _ask(PendingExpectation.DATETIME, phrases.reschedule_when_question(card))
     needs_day = card.type is not EventType.TASK
@@ -134,7 +134,7 @@ def reschedule_question(card: EventCard, when: When | None, today: date) -> Pend
 def rescheduled_schedule(
     card: EventCard, when: When, now: datetime, duration_minutes: int | None = None
 ) -> Schedule:
-    """Новое время записи: названное время — на прежний день, названный день — в прежнее время.
+    """новое время записи: названное время — на прежний день, названный день — в прежнее время.
 
     Названная длительность встречи («перенеси на 17:00 на полчаса») задаёт новый конец;
     без неё `ends_at` пустой — редактор сдвигает конец вместе с началом, длительность прежняя.
@@ -147,7 +147,7 @@ def rescheduled_schedule(
 
 
 def _moment(when: When, current: EventCard | None, now: datetime) -> Schedule:
-    """Начало записи по названному дню и времени; недостающее берётся из `current`."""
+    """начало записи по названному дню и времени; недостающее берётся из `current`."""
     clock_time: time | None
     if when.date is None and when.week_of is not None:
         day, clock_time = when.week_of + SUNDAY_OFFSET, when.time or DEADLINE_TIME
@@ -171,7 +171,7 @@ def _current_day(current: EventCard | None) -> date | None:
 
 
 def _nearest_day(clock_time: time | None, now: datetime) -> date:
-    """День ближайшего наступления времени: сегодня, а если оно прошло — завтра."""
+    """день ближайшего наступления времени: сегодня, а если оно прошло — завтра."""
     today = now.date()
     if clock_time is None or clock_time > now.time():
         return today
@@ -179,7 +179,7 @@ def _nearest_day(clock_time: time | None, now: datetime) -> date:
 
 
 def merge_when(base: When | None, answer: When | None) -> When:
-    """Дополняет названное раньше тем, что пользователь назвал в ответе."""
+    """дополняет названное раньше тем, что пользователь назвал в ответе."""
     if base is None:
         return answer or When()
     if answer is None:
@@ -193,7 +193,7 @@ def merge_when(base: When | None, answer: When | None) -> When:
 
 
 def merge_answer(pending: Intent, answer: Intent, expects: PendingExpectation) -> Intent:
-    """Отложенное действие, дополненное ответом на уточняющий вопрос.
+    """отложенное действие, дополненное ответом на уточняющий вопрос.
 
     На вопрос о названии ответом считается вся реплика, если разбор не выделил название.
     """

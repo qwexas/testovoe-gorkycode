@@ -1,4 +1,4 @@
-"""Ответ ассистента в JSON формата контракта `AssistantReply`.
+"""ответ ассистента в JSON формата контракта `AssistantReply`.
 
 Этот же JSON хранится в `chat_messages.reply`, поэтому история диалога отдаётся
 ровно в том виде, в каком ответ пришёл в `POST /api/chat`.
@@ -18,7 +18,7 @@ _UNDO = TypeAdapter(UndoTicket | None)
 
 
 def answer_payload(answer: AssistantAnswer) -> JsonObject:
-    """Полный ответ ассистента в формате контракта."""
+    """полный ответ ассистента в формате контракта."""
     reply = answer.reply
     return {
         "message_id": answer.message_id,

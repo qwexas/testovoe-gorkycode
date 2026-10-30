@@ -1,9 +1,4 @@
-"""Временные простые реализации контракта поиска.
-
-Нужны, чтобы хранилище и API можно было писать и тестировать, пока настоящие
-модель эмбеддингов, лемматизатор и ранжирование в работе. Сигнатуры совпадают
-с `app.search.interfaces`; `HashingEmbedder` остаётся и после — для быстрых тестов.
-"""
+"""поиск без моделей для тестов и облегчённого режима."""
 
 import hashlib
 import math
@@ -17,7 +12,7 @@ _WORD = re.compile(r"[а-яёa-z0-9]+", re.IGNORECASE)
 
 
 class HashingEmbedder:
-    """Детерминированные векторы из хэшей слов: без модели, для тестов."""
+    """детерминированные векторы из хэшей слов: без модели, для тестов."""
 
     @property
     def dimension(self) -> int:
@@ -39,14 +34,14 @@ class HashingEmbedder:
 
 
 class LowercaseLemmatizer:
-    """Слова в нижнем регистре без морфологии — заглушка до pymorphy3."""
+    """слова в нижнем регистре без морфологии — заглушка до pymorphy3."""
 
     def lemmas(self, text: str) -> list[str]:
         return list(dict.fromkeys(word.lower() for word in _WORD.findall(text)))
 
 
 class SimilarityRanker:
-    """Сортировка только по близости векторов с простым порогом."""
+    """сортировка только по близости векторов с простым порогом."""
 
     def __init__(self, threshold: float = 0.2) -> None:
         self._threshold = threshold

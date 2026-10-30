@@ -26,8 +26,7 @@ import { StatusBar, type Tab } from "./status-bar";
 import { SpherePane } from "./sphere-pane";
 
 /**
- * Главный экран «Консоль» (решение Q8): сессия tmux — сфера голоса, лог разговора со
- * строкой `$`, план дня справа и статусная строка. На телефоне — вкладки «0:диалог / 1:день».
+ * диалог и план дня рядом, на телефоне переключаем их вкладками (Q8)
  */
 export function ConsoleScreen() {
   const { profile } = useProfile();
@@ -36,7 +35,7 @@ export function ConsoleScreen() {
   const { plan, refresh: refreshPlan } = useDayPlan(profileId, now);
   const assistant = useAssistant({ profileId, onEventsChanged: refreshPlan });
   const [tab, setTab] = useState<Tab>("log");
-  // На десктопе обе панели видны сразу — роли вкладок нужны только на узком экране.
+  // на десктопе обе панели видны сразу — роли вкладок нужны только на узком экране.
   const tabbed = !useMediaQuery("(min-width: 64rem)");
   const inputRef = useRef<HTMLInputElement | null>(null);
   useAudioUnlock();
@@ -55,7 +54,7 @@ export function ConsoleScreen() {
 
   const focusInput = useCallback(() => {
     setTab("log");
-    // Вкладка «диалог» на телефоне показывается после перерисовки — фокусируем следующим кадром.
+    // вкладка «диалог» на телефоне показывается после перерисовки — фокусируем следующим кадром.
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
@@ -103,7 +102,7 @@ export function ConsoleScreen() {
             ref={logRef}
             role="log"
             aria-label="История разговора"
-            // Озвучиваются только новые реплики, а не тикающие «через 20 минут» и отсчёт отмены.
+            // озвучиваются только новые реплики, а не тикающие «через 20 минут» и отсчёт отмены.
             aria-relevant="additions"
             className={cn(
               tty.paper,

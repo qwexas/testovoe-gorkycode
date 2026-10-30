@@ -7,7 +7,7 @@ export type CopyStatus = "idle" | "copied" | "failed";
 const RESET_AFTER_MS = 2500;
 
 /**
- * Копирование в буфер обмена. Clipboard API есть только в безопасном контексте
+ * копирование в буфер обмена. Clipboard API есть только в безопасном контексте
  * (HTTPS или localhost), поэтому неудача — штатный исход, а не исключение.
  */
 export function useCopyToClipboard(): {

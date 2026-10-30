@@ -1,4 +1,4 @@
-"""Ошибки бизнес-логики с кодами из контракта API.
+"""ошибки бизнес-логики с кодами из контракта API.
 
 Слой `core` не знает про HTTP: здесь только код ошибки и сообщение для пользователя.
 HTTP-статус по коду выбирает слой `api`.
@@ -31,7 +31,7 @@ class ErrorCode(StrEnum):
 
 
 class DomainError(Exception):
-    """Ошибка, которую можно показать пользователю: код из контракта и текст по-русски."""
+    """ошибка, которую можно показать пользователю: код из контракта и текст по-русски."""
 
     code: ClassVar[ErrorCode] = ErrorCode.INTERNAL_ERROR
     default_message: ClassVar[str] = "Что-то пошло не так. Попробуйте ещё раз."
@@ -52,21 +52,21 @@ class ForbiddenError(DomainError):
 
 
 class FeatureNotImplementedError(DomainError):
-    """Возможность объявлена в контракте, но ещё не реализована."""
+    """возможность объявлена в контракте, но ещё не реализована."""
 
     code = ErrorCode.NOT_IMPLEMENTED
     default_message = "Эта возможность ещё в разработке и скоро появится."
 
 
 class InvalidRecoveryCodeError(DomainError):
-    """Код восстановления не подошёл ни к одному профилю."""
+    """код восстановления не подошёл ни к одному профилю."""
 
     code = ErrorCode.INVALID_RECOVERY_CODE
     default_message = "Код не подошёл. Проверьте три слова и четыре цифры."
 
 
 class TooManyAttemptsError(DomainError):
-    """Превышен лимит попыток; повторить можно через `retry_after_seconds`."""
+    """превышен лимит попыток; повторить можно через `retry_after_seconds`."""
 
     code = ErrorCode.RATE_LIMITED
     message_template: ClassVar[str] = "Слишком много попыток. Попробуйте снова через {minutes} мин."
@@ -86,13 +86,13 @@ class TooManyProfilesError(TooManyAttemptsError):
 
 
 class TooManyMessagesError(TooManyAttemptsError):
-    """Профиль отправил слишком много реплик за минуту (`/api/chat` и `/api/voice` вместе)."""
+    """профиль отправил слишком много реплик за минуту (`/api/chat` и `/api/voice` вместе)."""
 
     message_template = "Слишком много запросов. Попробуйте снова через {minutes} мин."
 
 
 class TooManySpeechRequestsError(TooManyAttemptsError):
-    """Профиль запросил слишком много озвучек за минуту (`/api/tts`)."""
+    """профиль запросил слишком много озвучек за минуту (`/api/tts`)."""
 
     message_template = "Слишком много запросов на озвучку. Попробуйте снова через {minutes} мин."
 
@@ -104,14 +104,14 @@ class TooManyCalendarRequestsError(TooManyAttemptsError):
 
 
 class AudioUnsupportedError(DomainError):
-    """Запись в формате, который не распознаётся."""
+    """запись в формате, который не распознаётся."""
 
     code = ErrorCode.AUDIO_UNSUPPORTED
     default_message = "Не получилось прочитать запись. Подойдёт webm, ogg, mp4, wav или mp3."
 
 
 class AudioTooLargeError(DomainError):
-    """Запись больше 10 МБ или длиннее 60 секунд."""
+    """запись больше 10 МБ или длиннее 60 секунд."""
 
     code = ErrorCode.AUDIO_TOO_LARGE
     default_message = "Запись слишком длинная: не больше минуты и 10 МБ."
@@ -125,7 +125,7 @@ class SpeechNotRecognizedError(DomainError):
 
 
 class TurnTimeoutError(DomainError):
-    """Ход не уложился в срок: разбор или распознавание затянулись. Ничего не выполнено."""
+    """ход не уложился в срок: разбор или распознавание затянулись. Ничего не выполнено."""
 
     code = ErrorCode.LLM_UNAVAILABLE
     default_message = (
@@ -134,49 +134,49 @@ class TurnTimeoutError(DomainError):
 
 
 class SpeechToTextUnavailableError(DomainError):
-    """Распознавание речи не работает: модель не загрузилась или упала."""
+    """распознавание речи не работает: модель не загрузилась или упала."""
 
     code = ErrorCode.STT_UNAVAILABLE
     default_message = "Распознавание речи сейчас недоступно. Напишите, пожалуйста, текстом."
 
 
 class TextToSpeechUnavailableError(DomainError):
-    """Озвучка не работает: модель не загрузилась или упала."""
+    """озвучка не работает: модель не загрузилась или упала."""
 
     code = ErrorCode.TTS_UNAVAILABLE
     default_message = "Озвучка сейчас недоступна, ответ можно прочитать."
 
 
 class UnknownVoiceError(DomainError):
-    """Запрошен голос, которого нет у синтезатора речи."""
+    """запрошен голос, которого нет у синтезатора речи."""
 
     code = ErrorCode.VALIDATION_ERROR
     default_message = "Такого голоса нет."
 
 
 class CalendarNotFoundError(DomainError):
-    """По ссылке подписки нет календаря: токен неверный или профиль удалён."""
+    """по ссылке подписки нет календаря: токен неверный или профиль удалён."""
 
     code = ErrorCode.NOT_FOUND
     default_message = "Календарь не найден. Возьмите новую ссылку в настройках профиля."
 
 
 class UndoUnavailableError(DomainError):
-    """Действие нельзя отменить: окно отмены прошло, действие уже отменено или чужое."""
+    """действие нельзя отменить: окно отмены прошло, действие уже отменено или чужое."""
 
     code = ErrorCode.NOT_FOUND
     default_message = "Отменить уже нельзя."
 
 
 class EventValidationError(DomainError):
-    """Поля записи противоречат правилам (например, встреча без времени)."""
+    """поля записи противоречат правилам (например, встреча без времени)."""
 
     code = ErrorCode.VALIDATION_ERROR
     default_message = "Проверьте данные записи."
 
 
 class EventNotFoundError(DomainError):
-    """Записи нет в профиле — или она принадлежит другому профилю."""
+    """записи нет в профиле — или она принадлежит другому профилю."""
 
     code = ErrorCode.NOT_FOUND
     default_message = "Запись не найдена."

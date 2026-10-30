@@ -1,9 +1,7 @@
-"""Отмена действий (Q33): каждое изменение записи можно откатить в течение короткого окна.
+"""отмена изменений через обратную операцию в `undo_actions` (Q33)
 
-Создание, перенос, переименование, отметка о выполнении и удаление пишут в
-`undo_actions` обратную операцию. Отменить можно кнопкой (`POST /api/actions/{id}/undo`)
-или голосом («отмени» — последнее действие профиля). Срок на сервере — `UNDO_WINDOW`
-(30 с); кнопку интерфейс показывает 10 с, запас — на сеть и на голосовую команду.
+Сервер даёт на отмену 30 с, интерфейс показывает кнопку 10 с.
+Оставшееся время — запас на сеть и голосовую команду.
 """
 
 from dataclasses import dataclass
@@ -26,10 +24,10 @@ UNDO_WINDOW = timedelta(seconds=30)
 
 
 class UndoOperation(Protocol):
-    """Обратная операция к действию над записью."""
+    """обратная операция к действию над записью."""
 
     async def revert(self, editor: EventEditor, profile_id: UUID, today: date) -> Reply:
-        """Откатывает действие и описывает результат.
+        """откатывает действие и описывает результат.
 
         Raises:
             EventNotFoundError: Записи, которую нужно вернуть, больше нет.
@@ -39,39 +37,39 @@ class UndoOperation(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class RemoveCreated:
-    """Отмена создания: удалить созданную запись."""
+    """отмена создания: удалить созданную запись."""
 
     event_id: int
     operation: Literal["remove_created"] = "remove_created"
 
     async def revert(self, editor: EventEditor, profile_id: UUID, today: date) -> Reply:
-        """Удаляет созданную запись."""
+        """удаляет созданную запись."""
         snapshot = await editor.delete(profile_id, self.event_id)
         return Reply(ReplyKind.CONFIRMATION, phrases.undo_removed(snapshot.title))
 
 
 @dataclass(frozen=True, slots=True)
 class RevertChanges:
-    """Отмена переноса, переименования или отметки: вернуть прежние поля записи."""
+    """отмена переноса, переименования или отметки: вернуть прежние поля записи."""
 
     previous: EventSnapshot
     operation: Literal["revert_changes"] = "revert_changes"
 
     async def revert(self, editor: EventEditor, profile_id: UUID, today: date) -> Reply:
-        """Возвращает записи поля из снимка."""
+        """возвращает записи поля из снимка."""
         card = await editor.update(profile_id, self.previous.id, self.previous.as_changes())
         return Reply(ReplyKind.CONFIRMATION, phrases.undo_reverted(card, today), events=(card,))
 
 
 @dataclass(frozen=True, slots=True)
 class RestoreDeleted:
-    """Отмена удаления: вернуть запись с прежним `id`."""
+    """отмена удаления: вернуть запись с прежним `id`."""
 
     snapshot: EventSnapshot
     operation: Literal["restore_deleted"] = "restore_deleted"
 
     async def revert(self, editor: EventEditor, profile_id: UUID, today: date) -> Reply:
-        """Возвращает удалённую запись."""
+        """возвращает удалённую запись."""
         card = await editor.restore(profile_id, self.snapshot)
         return Reply(ReplyKind.CONFIRMATION, phrases.undo_restored(card), events=(card,))
 
@@ -83,7 +81,7 @@ _OPERATION: TypeAdapter[StoredOperation] = TypeAdapter(StoredOperation)
 
 
 class UndoLog:
-    """Журнал отменяемых действий профиля в транзакции вызывающего сценария."""
+    """журнал отменяемых действий профиля в транзакции вызывающего сценария."""
 
     def __init__(self, storage: UnitOfWork, editor: EventEditor) -> None:
         self._storage = storage
@@ -92,7 +90,7 @@ class UndoLog:
     async def record(
         self, profile_id: UUID, operation: StoredOperation, now: datetime
     ) -> UndoTicket:
-        """Запоминает обратную операцию; заодно забывает действия с прошедшим сроком."""
+        """запоминает обратную операцию; заодно забывает действия с прошедшим сроком."""
         await self._storage.undo_actions.delete_expired(profile_id, now)
         action = UndoActionRecord(
             action_id=new_action_id(),
@@ -104,7 +102,7 @@ class UndoLog:
         return UndoTicket(action_id=action.action_id, expires_at=action.expires_at)
 
     async def undo(self, profile_id: UUID, action_id: str, now: datetime) -> Reply:
-        """Отменяет действие по кнопке.
+        """отменяет действие по кнопке.
 
         Raises:
             UndoUnavailableError: Действия нет, оно чужое, уже отменено или срок прошёл.
@@ -115,7 +113,7 @@ class UndoLog:
         return await self._revert(action, now)
 
     async def undo_latest(self, profile_id: UUID, now: datetime) -> Reply:
-        """Отменяет последнее действие профиля по голосовой команде «отмени»."""
+        """отменяет последнее действие профиля по голосовой команде «отмени»."""
         action = await self._storage.undo_actions.latest(profile_id)
         if action is None:
             return Reply(ReplyKind.INFO, phrases.NOTHING_TO_UNDO)

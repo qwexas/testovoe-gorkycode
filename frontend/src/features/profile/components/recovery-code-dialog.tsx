@@ -6,7 +6,7 @@ import { Dialog, DialogClose, DialogContent, DialogFooter } from "@/components/u
 
 import { useProfile } from "../profile-context";
 
-/** Код восстановления: сервер отдаёт его только при создании профиля, показываем один раз. */
+/** код восстановления: сервер отдаёт его только при создании профиля, показываем один раз. */
 export function RecoveryCodeDialog({
   onCloseAutoFocus,
 }: {

@@ -1,8 +1,6 @@
 /**
- * Быстрые ответы на вопрос ассистента. В контракте их нет и не нужно: они выводятся из
- * `pending.expects`, а время по умолчанию взято из решения Q31 (утро 9:00, день 13:00,
- * вечер 19:00). Каждая кнопка отправляет обычную реплику — так же, как её сказали бы
- * голосом, — поэтому сервер разбирает её тем же путём.
+ * кнопки отправляют обычные реплики. Варианты зависят от `pending.expects`.
+ * Время по умолчанию: 9:00, 13:00 и 19:00 (Q31).
  */
 import type { AssistantReply, Pending } from "@/types/api";
 
@@ -55,12 +53,12 @@ export function quickReplies(reply: AssistantReply): QuickReply[] {
   }
 }
 
-/** Что «говорит» кнопка варианта в списке совпадений. Проверено на живом разборе. */
+/** реплика для выбора совпадения по номеру. */
 export function choiceText(index: number): string {
   return `вариант ${index}`;
 }
 
-/** Подсказка, что ответить можно и голосом. */
+/** подсказка, что ответить можно и голосом. */
 export function voiceHint(pending: Pending | null): string | null {
   switch (pending?.expects) {
     case "time":
@@ -80,7 +78,7 @@ export function voiceHint(pending: Pending | null): string | null {
   }
 }
 
-/** Пример в строке ввода под ожидаемый ответ. */
+/** пример в строке ввода под ожидаемый ответ. */
 export function inputPlaceholder(pending: Pending | null): string {
   switch (pending?.expects) {
     case "time":

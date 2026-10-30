@@ -16,7 +16,7 @@ import {
 } from "../model/conversation";
 import { type FailureCopy, describeRequestFailure, describeUndoFailure } from "../model/failures";
 
-/** Кнопку «Отменить» показываем 10 с (решение Q33); сервер принимает отмену 30 с. */
+/** кнопку «Отменить» показываем 10 с (решение Q33); сервер принимает отмену 30 с. */
 export const UNDO_WINDOW_MS = 10_000;
 
 function nowIso(): string {
@@ -26,7 +26,7 @@ function nowIso(): string {
 type Options = {
   /** null — профиля нет или он ещё грузится: история не запрашивается, отправлять нельзя. */
   profileId: string | null;
-  /** Каждый новый ответ ассистента (для озвучки и обновления плана дня). */
+  /** каждый новый ответ ассистента (для озвучки и обновления плана дня). */
   onReply: (reply: AssistantReply, via: "voice" | "text" | "undo") => void;
 };
 
@@ -43,11 +43,6 @@ export type Conversation = {
   clearFailure: () => void;
 };
 
-/**
- * Разговор с сервером: история (GET /api/dialog), реплики текстом и голосом
- * (POST /api/chat, /api/voice) и отмена (POST /api/actions/{id}/undo). Ошибки не
- * роняют экран, а становятся строками лога с подсказкой, что делать.
- */
 export function useConversation({ profileId, onReply }: Options): Conversation {
   const [state, dispatch] = useReducer(conversationReducer, initialConversation);
   const onReplyRef = useRef(onReply);
@@ -66,7 +61,6 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
     firstId.current = first ? Number(first.key.slice(1)) : null;
   }, [state.entries]);
 
-  // История — только после того, как профиль пришёл из GET /api/me (контракт API).
   useEffect(() => {
     if (!profileId) return undefined;
     let cancelled = false;
@@ -228,7 +222,7 @@ export function useConversation({ profileId, onReply }: Options): Conversation {
   );
   const clearFailure = useCallback(() => dispatch({ type: "clear_failure" }), []);
 
-  // Пока история нового профиля не пришла, прежняя не показывается.
+  // пока история нового профиля не пришла, прежняя не показывается.
   const view: ConversationState =
     state.profileId === profileId ? state : { ...initialConversation, profileId };
 

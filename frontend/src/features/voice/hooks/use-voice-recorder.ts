@@ -21,7 +21,7 @@ type Options = {
 };
 
 /**
- * Запись голоса для интерфейса: состояние, уровень голоса в ref (без перерисовки на
+ * запись голоса для интерфейса: состояние, уровень голоса в ref (без перерисовки на
  * каждый кадр) и команды start / stop / cancel. При размонтировании запись отменяется.
  */
 export function useVoiceRecorder(options: Options): {
@@ -34,7 +34,7 @@ export function useVoiceRecorder(options: Options): {
   const [recorder, setRecorder] = useState<RecorderStatus>({ status: "idle" });
   const levelRef = useRef(0);
   const handleRef = useRef<RecordingHandle | null>(null);
-  /** Номер текущей попытки: отменённая или устаревшая попытка не трогает состояние. */
+  /** номер текущей попытки: отменённая или устаревшая попытка не трогает состояние. */
   const attempt = useRef(0);
   const busyRef = useRef(false);
   const optionsRef = useRef(options);
@@ -72,7 +72,7 @@ export function useVoiceRecorder(options: Options): {
           optionsRef.current.onError(error);
         },
       });
-      // Отменили (Esc или кнопка), пока браузер спрашивал разрешение на микрофон.
+      // отменили (Esc или кнопка), пока браузер спрашивал разрешение на микрофон.
       if (current !== attempt.current) {
         handle.cancel();
         return;

@@ -1,4 +1,4 @@
-"""Выгрузка OpenAPI в `contracts/openapi.json`: `uv run python -m app.export_openapi`.
+"""выгрузка OpenAPI в `contracts/openapi.json`: `uv run python -m app.export_openapi`.
 
 Схема не зависит от окружения, поэтому приложение собирается с заглушечными
 настройками — `.env` для выгрузки не нужен.
@@ -27,7 +27,7 @@ _EXPORT_SETTINGS: dict[str, Any] = {
 
 
 def build_openapi_app() -> FastAPI:
-    """Приложение для выгрузки схемы, независимое от окружения."""
+    """приложение для выгрузки схемы, независимое от окружения."""
     return create_app(Settings(_env_file=None, **_EXPORT_SETTINGS))
 
 
@@ -37,7 +37,7 @@ def render_openapi(app: FastAPI) -> str:
 
 
 def main() -> None:
-    """Пишет схему в путь из аргумента или в `contracts/openapi.json`."""
+    """пишет схему в путь из аргумента или в `contracts/openapi.json`."""
     target = Path(sys.argv[1]) if len(sys.argv) > 1 else OPENAPI_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render_openapi(build_openapi_app()), encoding="utf-8")

@@ -1,4 +1,4 @@
-"""Единый формат ошибок API."""
+"""единый формат ошибок API."""
 
 from pydantic import Field
 

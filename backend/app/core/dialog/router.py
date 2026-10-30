@@ -1,4 +1,4 @@
-"""Что делать с разобранной репликой: новая команда или ответ на вопрос ассистента.
+"""что делать с разобранной репликой: новая команда или ответ на вопрос ассистента.
 
 Ответ, выбор, «да» и «нет» относятся к отложенному шагу (`Turn.pending`). Любая
 другая команда отложенный шаг сбрасывает и выполняется как новая.
@@ -27,7 +27,7 @@ from app.nlu.interfaces import Action, Intent
 from app.storage.database import UnitOfWork
 
 CHOICE_LIMIT = 5
-"""Сколько вариантов показывать, когда подходит несколько записей."""
+"""сколько вариантов показывать, когда подходит несколько записей."""
 MIN_MATCH_WORD_LENGTH = 3
 
 Command = Callable[[Turn, Intent], Awaitable[Outcome]]
@@ -36,7 +36,7 @@ FollowUp = Callable[[Turn, Intent, PendingStep], Awaitable[Outcome]]
 _WITHOUT_QUESTION: Mapping[Action, str] = MappingProxyType(
     {Action.DENY: phrases.NOTHING_TO_DECLINE}
 )
-"""Ответ на «нет» и т. п., когда ассистент ни о чём не спрашивал; иначе — `NOT_UNDERSTOOD`."""
+"""ответ на «нет» и т. п., когда ассистент ни о чём не спрашивал; иначе — `NOT_UNDERSTOOD`."""
 
 _REPEATED_KINDS: Mapping[PendingExpectation, ReplyKind] = MappingProxyType(
     {
@@ -47,7 +47,7 @@ _REPEATED_KINDS: Mapping[PendingExpectation, ReplyKind] = MappingProxyType(
 
 
 class DialogRouter:
-    """Выбирает сценарий по `Intent` и состоянию диалога."""
+    """выбирает сценарий по `Intent` и состоянию диалога."""
 
     def __init__(self, storage: UnitOfWork, search: SearchService, undo: UndoLog) -> None:
         self._editor = EventEditor(storage, search)
@@ -81,7 +81,7 @@ class DialogRouter:
         )
 
     async def route(self, turn: Turn, intent: Intent) -> Outcome:
-        """Ответ ассистента на реплику.
+        """ответ ассистента на реплику.
 
         Выполняется одна команда — первая. Остальные команды реплики (`intent.unhandled`)
         не теряются молча: ответ называет их и просит повторить отдельно.
@@ -112,7 +112,7 @@ class DialogRouter:
         return _offer_choice(intent, lookup, turn.now)
 
     async def _unknown(self, turn: Turn, intent: Intent) -> Outcome:
-        """Не про задачи и встречи: без вопроса — подсказка, при вопросе — повторить его."""
+        """не про задачи и встречи: без вопроса — подсказка, при вопросе — повторить его."""
         if turn.pending is None:
             return Outcome.say(phrases.OFF_TOPIC)
         return await self._repeat(turn, turn.pending, phrases.REPLY_NOT_UNDERSTOOD)
@@ -146,7 +146,7 @@ class DialogRouter:
         return await self._changes.apply(turn, pending.intent, target)
 
     async def _chosen_id(self, turn: Turn, choice: Intent, pending: PendingStep) -> int | None:
-        """Выбранный вариант: по номеру («вторую») или по словам названия («с Ольгой»)."""
+        """выбранный вариант: по номеру («вторую») или по словам названия («с Ольгой»)."""
         option_ids = pending.option_ids
         if choice.choice_index is not None:
             in_range = 1 <= choice.choice_index <= len(option_ids)
@@ -165,7 +165,7 @@ class DialogRouter:
         return await self._changes.confirm(turn, pending.intent, target)
 
     async def _repeat(self, turn: Turn, pending: PendingStep, lead: str | None = None) -> Outcome:
-        """Повторяет вопрос, если ответ к нему не подошёл; отложенный шаг сохраняется."""
+        """повторяет вопрос, если ответ к нему не подошёл; отложенный шаг сохраняется."""
         question = pending.question
         kind = _REPEATED_KINDS.get(question.expects, ReplyKind.CLARIFICATION)
         target = await self._pending_target(turn, pending)
@@ -210,14 +210,14 @@ def _moves_pending_record(intent: Intent, pending: PendingStep) -> bool:
 
 
 def _nothing_to_change(lookup: TargetLookup) -> str:
-    """Ссылка «её» без контекста — непонятно о чём; поиск без результата — не нашёл."""
+    """ссылка «её» без контекста — непонятно о чём; поиск без результата — не нашёл."""
     if lookup.query is not None:
         return phrases.target_not_found(lookup.query)
     return phrases.TARGET_UNCLEAR if lookup.moment is None else phrases.NOTHING_AT_MOMENT
 
 
 def _offer_choice(intent: Intent, lookup: TargetLookup, now: datetime) -> Outcome:
-    """Несколько подходящих записей — пронумерованный список (Q33).
+    """несколько подходящих записей — пронумерованный список (Q33).
 
     Если подходящих больше `CHOICE_LIMIT`, показываются самые актуальные: ближайшие будущие,
     затем самые свежие прошедшие. Варианты нумеруются по дате, записи без даты — в конце.
@@ -245,7 +245,7 @@ def _offer_choice(intent: Intent, lookup: TargetLookup, now: datetime) -> Outcom
 
 
 def _match_by_title(options: list[EventCard], choice: Intent) -> EventCard | None:
-    """Вариант, в названии которого больше всего слов ответа; `None` — неоднозначно."""
+    """вариант, в названии которого больше всего слов ответа; `None` — неоднозначно."""
     spoken = choice.title or choice.query or choice.text
     words = {word for word in spoken.casefold().split() if len(word) >= MIN_MATCH_WORD_LENGTH}
     scores = [sum(word in card.title.casefold() for word in words) for card in options]

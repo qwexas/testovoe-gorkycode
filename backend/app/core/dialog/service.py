@@ -1,4 +1,4 @@
-"""Диалог с ассистентом: реплика → разбор → действие → ответ, история и отмена.
+"""диалог с ассистентом: реплика → разбор → действие → ответ, история и отмена.
 
 Сервис не знает про HTTP. Разбор реплики делает `IntentParser` (ИИ-часть), решения
 принимает `DialogRouter`, тексты ответов — шаблоны `phrases` (Q24).
@@ -32,17 +32,17 @@ from app.voice.interfaces import AudioClip, SpeechToText
 MESSAGES_PER_WINDOW = 20
 MESSAGE_WINDOW_SECONDS = 60
 TEXT_TURN_SECONDS = 50.0
-"""Сколько может длиться текстовый ход — меньше таймаута nginx (60 с)."""
+"""сколько может длиться текстовый ход — меньше таймаута nginx (60 с)."""
 VOICE_TURN_SECONDS = 85.0
-"""Сколько может длиться голосовой ход — меньше таймаута nginx для `/api/voice` (95 с)."""
+"""сколько может длиться голосовой ход — меньше таймаута nginx для `/api/voice` (95 с)."""
 ACTION_RESERVE_SECONDS = 3.0
-"""Запас на выполнение действия и запись в БД после разбора."""
+"""запас на выполнение действия и запись в БД после разбора."""
 
 Clock = Callable[[], datetime]
 
 
 class MessageThrottle(Throttle):
-    """Не больше `MESSAGES_PER_WINDOW` реплик в минуту на профиль (текст и голос вместе)."""
+    """не больше `MESSAGES_PER_WINDOW` реплик в минуту на профиль (текст и голос вместе)."""
 
     max_hits = MESSAGES_PER_WINDOW
     window_seconds = MESSAGE_WINDOW_SECONDS
@@ -51,7 +51,7 @@ class MessageThrottle(Throttle):
 
 @dataclass(frozen=True, slots=True)
 class DialogDependencies:
-    """Долгоживущие зависимости диалога; собираются в `app.factory`."""
+    """долгоживущие зависимости диалога; собираются в `app.factory`."""
 
     parser: IntentParser
     search: SearchService
@@ -59,11 +59,11 @@ class DialogDependencies:
     speech: SpeechToText
     clock: Clock = field(default=moscow_now)
     admission: DialogAdmission = field(default_factory=DialogAdmission)
-    """Общая на процесс очередь реплик: в `app.factory` — одна на все запросы."""
+    """общая на процесс очередь реплик: в `app.factory` — одна на все запросы."""
 
 
 class DialogService:
-    """Сценарии диалога одного запроса; изменения фиксируются транзакцией `storage`."""
+    """сценарии диалога одного запроса; изменения фиксируются транзакцией `storage`."""
 
     def __init__(self, storage: UnitOfWork, dependencies: DialogDependencies) -> None:
         self._storage = storage
@@ -78,7 +78,7 @@ class DialogService:
     async def handle(
         self, profile_id: UUID, text: str, source: MessageSource, client: str = LOCAL_CLIENT
     ) -> AssistantAnswer:
-        """Отвечает на реплику пользователя и сохраняет обе реплики в историю.
+        """отвечает на реплику пользователя и сохраняет обе реплики в историю.
 
         Реплика пользователя фиксируется до разбора: если LLM недоступна, она остаётся
         в истории, а ошибка `llm_unavailable` уходит вызывающему без ответа ассистента.
@@ -99,7 +99,7 @@ class DialogService:
     async def handle_voice(
         self, profile_id: UUID, audio: AudioClip, client: str = LOCAL_CLIENT
     ) -> AssistantAnswer:
-        """Голосовая реплика: распознаёт речь и отвечает, как на текст (`source=voice`).
+        """голосовая реплика: распознаёт речь и отвечает, как на текст (`source=voice`).
 
         Лимит реплик общий с текстом и учитывается до распознавания: модель речи
         дорогая. В историю попадает только распознанный текст, аудио не сохраняется (Q35).
@@ -120,7 +120,7 @@ class DialogService:
             return await self._answer(profile_id, text, MessageSource.VOICE, deadline)
 
     async def undo_action(self, profile_id: UUID, action_id: str) -> AssistantAnswer:
-        """Отменяет действие по кнопке «Отменить»; ответ попадает в историю.
+        """отменяет действие по кнопке «Отменить»; ответ попадает в историю.
 
         Raises:
             UndoUnavailableError: Действия нет, оно чужое, уже отменено или срок прошёл.
@@ -135,7 +135,7 @@ class DialogService:
     async def history(
         self, profile_id: UUID, limit: int, before_id: int | None = None
     ) -> list[DialogEntry]:
-        """Последние `limit` реплик (раньше `before_id`, если задан), новые в конце."""
+        """последние `limit` реплик (раньше `before_id`, если задан), новые в конце."""
         messages = await self._storage.messages.list_before(profile_id, before_id, limit)
         return [
             DialogEntry(
@@ -150,7 +150,7 @@ class DialogService:
 
     @asynccontextmanager
     async def _turn(self, profile_id: UUID, client: str, deadline: float) -> AsyncIterator[None]:
-        """Очередь хода: ждать её дольше срока хода нельзя."""
+        """очередь хода: ждать её дольше срока хода нельзя."""
         try:
             async with self._admission.enter(profile_id, client, deadline):
                 yield
@@ -160,9 +160,7 @@ class DialogService:
     async def _answer(
         self, profile_id: UUID, text: str, source: MessageSource, deadline: float
     ) -> AssistantAnswer:
-        # Ходы профиля уже идут по очереди (`DialogAdmission`), поэтому состояние,
-        # прочитанное до разбора, к записи не устареет. Соединение с БД на время
-        # разбора возвращается в пул: commit сохраняет реплику и закрывает транзакцию.
+        # сохраняем реплику и освобождаем соединение с БД перед разбором.
         await self._add_user_message(profile_id, text)
         now = self._clock()
         state = DialogState.from_record(await self._storage.dialog_states.get(profile_id))
@@ -172,7 +170,7 @@ class DialogService:
         async with _until(deadline - ACTION_RESERVE_SECONDS):
             intent = await self._parser.parse(text, _parser_context(now, state, focus))
 
-        # Запасная блокировка строки профиля — на случай нескольких процессов.
+        # запасная блокировка строки профиля — на случай нескольких процессов.
         await self._storage.profiles.lock(profile_id)
         peer_ids = set(state.peer_ids)
         turn = Turn(
@@ -197,7 +195,7 @@ class DialogService:
     async def _save_answer(
         self, profile_id: UUID, reply: Reply, recognized_text: str | None
     ) -> AssistantAnswer:
-        """Сохраняет ответ ассистента; JSON ответа содержит `message_id` своей реплики."""
+        """сохраняет ответ ассистента; JSON ответа содержит `message_id` своей реплики."""
         message = ChatMessageRecord(
             profile_id=profile_id, role=MessageRole.ASSISTANT, text=reply.text
         )
@@ -217,7 +215,7 @@ def _deadline(seconds: float) -> float:
 
 @asynccontextmanager
 async def _until(deadline: float) -> AsyncIterator[None]:
-    """Блок должен закончиться до `deadline`; иначе ход прерывается до любых изменений."""
+    """блок должен закончиться до `deadline`; иначе ход прерывается до любых изменений."""
     try:
         async with asyncio.timeout_at(deadline):
             yield

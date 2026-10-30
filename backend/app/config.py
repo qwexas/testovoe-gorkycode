@@ -1,4 +1,4 @@
-"""Настройки приложения из переменных окружения и корневого `.env`."""
+"""настройки приложения из переменных окружения и корневого `.env`."""
 
 from enum import StrEnum
 from functools import lru_cache
@@ -19,9 +19,9 @@ class SearchBackend(StrEnum):
     """Чем считать векторы, леммы и ранжирование поиска."""
 
     REAL = "real"
-    """Модель эмбеддингов, pymorphy3 и гибридное ранжирование из `app.search`."""
+    """модель эмбеддингов, pymorphy3 и гибридное ранжирование из `app.search`."""
     PLACEHOLDER = "placeholder"
-    """Быстрые заглушки без модели из `app.search.placeholders` — для тестов."""
+    """быстрые заглушки без модели из `app.search.placeholders` — для тестов."""
 
 
 class LLMBackend(StrEnum):
@@ -30,22 +30,22 @@ class LLMBackend(StrEnum):
     GIGACHAT = "gigachat"
     """GigaChat API; ключ и модель — в переменных `GIGACHAT_*` (`app.llm.settings`)."""
     DISABLED = "disabled"
-    """Без языковой модели: `/api/chat` отвечает 503 `llm_unavailable` — для тестов."""
+    """без языковой модели: `/api/chat` отвечает 503 `llm_unavailable` — для тестов."""
 
 
 class VoiceBackend(StrEnum):
     """Чем распознавать и озвучивать речь."""
 
     REAL = "real"
-    """Распознавание (GigaAM или Whisper) и Silero из `app.voice`.
+    """распознавание (GigaAM или Whisper) и Silero из `app.voice`.
 
     Если модели нет — `/api/voice` и `/api/tts` отвечают 503."""
     DISABLED = "disabled"
-    """Без моделей речи: `/api/voice` и `/api/tts` отвечают 503 — для тестов и выгрузки OpenAPI."""
+    """без моделей речи: `/api/voice` и `/api/tts` отвечают 503 — для тестов и выгрузки OpenAPI."""
 
 
 class Settings(BaseSettings):
-    """Конфигурация бэкенда.
+    """конфигурация бэкенда.
 
     Значения берутся из окружения, затем из корневого `.env` репозитория
     (в контейнере файла нет — переменные приходят из docker-compose).
@@ -117,11 +117,11 @@ class Settings(BaseSettings):
 
     @property
     def public_host(self) -> str:
-        """Хост (с портом, если он указан) из `PUBLIC_BASE_URL`."""
+        """хост (с портом, если он указан) из `PUBLIC_BASE_URL`."""
         return urlsplit(str(self.public_base_url)).netloc
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Настройки процесса; читаются один раз."""
+    """настройки процесса; читаются один раз."""
     return Settings()

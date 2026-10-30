@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 
 type IconProps = Omit<ComponentProps<"svg">, "children"> & { size?: number };
 
-/** Декоративная иконка: имя действия всегда несёт кнопка, а не svg. */
+/** декоративная иконка: имя действия всегда несёт кнопка, а не svg. */
 function Icon({ size = 18, children, ...props }: IconProps & { children: ReactNode }) {
   return (
     <svg

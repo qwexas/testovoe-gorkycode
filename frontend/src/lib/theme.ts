@@ -1,5 +1,5 @@
 /**
- * Тема интерфейса (решение Q36): светлая / тёмная / системная, по умолчанию системная.
+ * тема интерфейса (решение Q36): светлая / тёмная / системная, по умолчанию системная.
  * Выбор хранится в localStorage; тема применяется атрибутом data-theme на <html>.
  */
 
@@ -50,7 +50,7 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
 export function applyTheme(theme: ResolvedTheme): void {
   const root = document.documentElement;
   if (root.dataset.theme === theme) return;
-  // На время смены темы гасим переходы цвета, иначе все кнопки «перетекают» разом.
+  // на время смены темы гасим переходы цвета, иначе все кнопки «перетекают» разом.
   const freeze = document.createElement("style");
   freeze.textContent = "*,*::before,*::after{transition:none!important}";
   document.head.append(freeze);
@@ -60,7 +60,7 @@ export function applyTheme(theme: ResolvedTheme): void {
   requestAnimationFrame(() => freeze.remove());
 }
 
-/** Подписка на смену системной темы и на выбор темы в другой вкладке. */
+/** подписка на смену системной темы и на выбор темы в другой вкладке. */
 export function subscribeToThemeSources(onChange: () => void): () => void {
   const media = window.matchMedia(DARK_QUERY);
   const onStorage = (event: StorageEvent) => {
@@ -75,7 +75,7 @@ export function subscribeToThemeSources(onChange: () => void): () => void {
 }
 
 /**
- * Инлайн-скрипт для <head>: ставит data-theme до первой отрисовки, чтобы не было
+ * инлайн-скрипт для <head>: ставит data-theme до первой отрисовки, чтобы не было
  * вспышки неверной темы. Повторяет readThemePreference + resolveTheme + applyTheme.
  */
 export const themeInitScript = `(function(){var d=document.documentElement,p=${JSON.stringify(

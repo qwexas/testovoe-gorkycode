@@ -1,11 +1,11 @@
 import { apiErrorFromException, apiErrorFromResponse } from "@/lib/api/errors";
 import { sessionFetch } from "@/lib/api/profile-session";
 
-/** Сервер озвучивает до 1000 символов за раз. */
+/** сервер озвучивает до 1000 символов за раз. */
 export const SPEECH_TEXT_LIMIT = 1000;
 
 /**
- * Озвучка ответа Silero (POST /api/tts) → аудио OGG/Opus. Бинарный ответ, поэтому
+ * озвучка ответа Silero (POST /api/tts) → аудио OGG/Opus. Бинарный ответ, поэтому
  * обычный fetch, а не JSON-клиент; ошибки — те же ApiError, что у остального API.
  */
 export async function fetchSpeech(text: string, signal?: AbortSignal): Promise<Blob> {

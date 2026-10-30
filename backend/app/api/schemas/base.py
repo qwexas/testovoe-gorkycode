@@ -1,4 +1,4 @@
-"""Базовые классы схем."""
+"""базовые классы схем."""
 
 from pydantic import BaseModel, ConfigDict
 

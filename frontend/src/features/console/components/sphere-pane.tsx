@@ -7,8 +7,7 @@ import { LevelMeter } from "@/features/voice/components/level-meter";
 import { cn } from "@/lib/cn";
 
 /**
- * Панель-монитор: ASCII-сфера голоса и крупная строка состояния. На телефоне — узкая
- * полоса сверху со строкой «дальше: 17:00 …» из плана дня.
+ * сфера показывает состояние ассистента, под ней — ближайшая запись из плана
  */
 export function SpherePane({
   assistant,

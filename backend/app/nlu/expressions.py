@@ -1,4 +1,4 @@
-"""Как пользователь назвал день и время — словарь, общий для LLM и кода.
+"""как пользователь назвал день и время — словарь, общий для LLM и кода.
 
 LLM не считает даты: она только относит выражение к одному из видов (`DateKind`,
 `DayPart`) и переписывает названные числа. Конкретные дату и время считает
@@ -13,7 +13,7 @@ class DateKind(StrEnum):
     """Вид выражения дня или периода."""
 
     NONE = "none"
-    """День не назван."""
+    """день не назван."""
     TODAY = "today"
     TOMORROW = "tomorrow"
     AFTER_TOMORROW = "after_tomorrow"
@@ -35,7 +35,7 @@ class DateKind(StrEnum):
     NEXT_SATURDAY = "next_sat"
     NEXT_SUNDAY = "next_sun"
     EXACT = "exact"
-    """Число и месяц: «26 октября», «5.11» — «ДД.ММ» в `DateExpression.value`."""
+    """число и месяц: «26 октября», «5.11» — «ДД.ММ» в `DateExpression.value`."""
     IN_DAYS = "in_days"
     """«через неделю», «через 3 дня» — число дней в `DateExpression.value`."""
     THIS_WEEK = "this_week"
@@ -59,7 +59,7 @@ WEEKDAY_KINDS: dict[DateKind, int] = {
     DateKind.SATURDAY: 5,
     DateKind.SUNDAY: 6,
 }
-"""День недели «в пятницу» → номер дня (пн = 0), как в `date.weekday()`."""
+"""день недели «в пятницу» → номер дня (пн = 0), как в `date.weekday()`."""
 
 NEXT_WEEKDAY_KINDS: dict[DateKind, int] = {
     DateKind.NEXT_MONDAY: 0,
@@ -86,19 +86,19 @@ class DayPart(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class DateExpression:
-    """Названный день или период, ещё не переведённый в дату."""
+    """названный день или период, ещё не переведённый в дату."""
 
     kind: DateKind = DateKind.NONE
     value: str = ""
-    """Для `EXACT` — «ДД.ММ» или «ДД.ММ.ГГГГ», для `IN_DAYS` — число дней («7»)."""
+    """для `EXACT` — «ДД.ММ» или «ДД.ММ.ГГГГ», для `IN_DAYS` — число дней («7»)."""
 
 
 @dataclass(frozen=True, slots=True)
 class TimeExpression:
-    """Названное время суток, ещё не приведённое к правилам Q31."""
+    """названное время суток, ещё не приведённое к правилам Q31."""
 
     clock: str = ""
-    """Время, как его назвали: «15:30», «3:00» (для «в 3»), пусто — не названо."""
+    """время, как его назвали: «15:30», «3:00» (для «в 3»), пусто — не названо."""
     day_part: DayPart = DayPart.NONE
     in_minutes: int = 0
     """«через два часа» → 120; 0 — не названо."""

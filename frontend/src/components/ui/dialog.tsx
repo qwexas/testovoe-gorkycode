@@ -17,7 +17,7 @@ type DialogContentProps = Omit<ComponentProps<typeof RadixDialog.Content>, "titl
 };
 
 /**
- * Модальное окно: фокус внутри, Esc и клик по фону закрывают, фон недоступен.
+ * модальное окно: фокус внутри, Esc и клик по фону закрывают, фон недоступен.
  * Заголовок обязателен — он же доступное имя окна.
  */
 export function DialogContent({

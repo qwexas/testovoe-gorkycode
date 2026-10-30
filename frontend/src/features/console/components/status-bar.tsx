@@ -34,7 +34,7 @@ const SPEAK_LABEL = "озвучивать ответы";
 
 const subscribeNever = () => () => undefined;
 
-/** На Mac Alt называется Option и рисуется значком ⌥. */
+/** на Mac Alt называется Option и рисуется значком ⌥. */
 function useRecordHotkeyLabel(): string {
   return useSyncExternalStore(
     subscribeNever,
@@ -43,7 +43,7 @@ function useRecordHotkeyLabel(): string {
   );
 }
 
-/** Меню для узких экранов: тема, озвучка, уведомления и профиль (паттерн APG «меню»). */
+/** меню для узких экранов: тема, озвучка, уведомления и профиль (паттерн APG «меню»). */
 function MobileMenu({
   speakReplies,
   onSpeakChange,
@@ -95,7 +95,7 @@ function MobileMenu({
   );
 }
 
-/** Меню профиля в статусной строке десктопа. */
+/** меню профиля в статусной строке десктопа. */
 function ProfileMenu({
   openDialog,
 }: {
@@ -125,7 +125,7 @@ function Sep() {
 }
 
 /**
- * Статусная строка tmux: на десктопе — подсказки клавиш, озвучка, тема, профиль и часы;
+ * статусная строка tmux: на десктопе — подсказки клавиш, озвучка, тема, профиль и часы;
  * на телефоне — вкладки «0:диалог / 1:день» (tablist со стрелками) и общее меню.
  */
 export function StatusBar({

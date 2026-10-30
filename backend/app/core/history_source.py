@@ -1,4 +1,4 @@
-"""Исходные данные истории из CSV (решение Q22) и правила определения типа записи.
+"""исходные данные истории из CSV (решение Q22) и правила определения типа записи.
 
 CSV `voice_assistant_events_1000.csv` содержит только дату, время и текст. Тип
 определяется по первому слову названия: встреча начинается с названия формата
@@ -38,17 +38,17 @@ MEETING_WORD_STEMS = (
     "митинг",
     "собеседован",
 )
-"""Начала слов, которыми называют встречу: «встреча», «обсудить», «планёрку»…"""
+"""начала слов, которыми называют встречу: «встреча», «обсудить», «планёрку»…"""
 
 LEADING_VERBS = frozenset({"провести"})
-"""Глагол перед названием встречи: «Провести планёрку» — встреча."""
+"""глагол перед названием встречи: «Провести планёрку» — встреча."""
 
 _WORD = re.compile(r"[а-яёa-z0-9]+")
 
 
 @dataclass(frozen=True, slots=True)
 class HistoryEntry:
-    """Запись истории: строка CSV с определённым типом и временем по Москве."""
+    """запись истории: строка CSV с определённым типом и временем по Москве."""
 
     id: int
     type: EventType
@@ -62,7 +62,7 @@ _ENTRIES = TypeAdapter(list[HistoryEntry])
 
 
 def classify_event_type(title: str) -> EventType:
-    """Встреча, если название начинается с формата встречи, иначе задача."""
+    """встреча, если название начинается с формата встречи, иначе задача."""
     words = _WORD.findall(title.lower())
     if words and words[0] in LEADING_VERBS:
         words = words[1:]
@@ -71,7 +71,7 @@ def classify_event_type(title: str) -> EventType:
 
 
 def entry_from_csv_row(row: Mapping[str, str]) -> HistoryEntry:
-    """Строка CSV (`id`, `date`, `time`, `text`) → запись; дата не сдвигается."""
+    """строка CSV (`id`, `date`, `time`, `text`) → запись; дата не сдвигается."""
     title = row["text"].strip()
     event_type = classify_event_type(title)
     starts_at = datetime.combine(
@@ -96,5 +96,5 @@ def render_history_file(entries: Sequence[HistoryEntry]) -> str:
 
 
 def read_history_file(path: Path = SEED_FILE) -> list[HistoryEntry]:
-    """Записи истории из JSON-файла с проверкой типов полей."""
+    """записи истории из JSON-файла с проверкой типов полей."""
     return _ENTRIES.validate_json(path.read_bytes())

@@ -1,4 +1,4 @@
-/** Форматирование для интерфейса. Язык и часовой пояс фиксированы (решение Q9). */
+/** форматирование для интерфейса. Язык и часовой пояс фиксированы (решение Q9). */
 
 export const LOCALE = "ru-RU";
 export const TIME_ZONE = "Europe/Moscow";
@@ -106,17 +106,17 @@ export function formatShortDate(value: string | Date): string {
   return shortNumericDateFormatter.format(toDate(value));
 }
 
-/** Календарный день по Москве: «2026-10-25». */
+/** календарный день по Москве: «2026-10-25». */
 export function moscowDateKey(value: string | Date): string {
   return dateKeyFormatter.format(toDate(value));
 }
 
-/** Полночь по Москве для календарного дня «2026-10-25», со сдвигом на `days` дней. */
+/** полночь по Москве для календарного дня «2026-10-25», со сдвигом на `days` дней. */
 export function moscowMidnight(dateKey: string, days = 0): Date {
   return new Date(Date.parse(`${dateKey}T00:00:00${MOSCOW_OFFSET}`) + days * DAY_MS);
 }
 
-/** Сдвиг в календарных днях по Москве: 0 — тот же день, 1 — следующий. */
+/** сдвиг в календарных днях по Москве: 0 — тот же день, 1 — следующий. */
 export function dayOffset(value: string | Date, now: Date): number {
   const target = Date.parse(`${moscowDateKey(value)}T12:00:00${MOSCOW_OFFSET}`);
   const today = Date.parse(`${moscowDateKey(now)}T12:00:00${MOSCOW_OFFSET}`);
@@ -125,7 +125,7 @@ export function dayOffset(value: string | Date, now: Date): number {
 
 export type PluralForms = { one: string; few: string; many: string };
 
-/** Нужная форма слова после числа: 1 запись, 3 записи, 5 записей. */
+/** нужная форма слова после числа: 1 запись, 3 записи, 5 записей. */
 export function pluralWord(count: number, forms: PluralForms): string {
   const category = pluralRules.select(count);
   return category === "one" ? forms.one : category === "few" ? forms.few : forms.many;

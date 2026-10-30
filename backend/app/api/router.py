@@ -1,4 +1,4 @@
-"""Все маршруты `/api`."""
+"""все маршруты `/api`."""
 
 from fastapi import APIRouter
 

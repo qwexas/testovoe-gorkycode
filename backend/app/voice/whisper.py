@@ -1,4 +1,4 @@
-"""Распознавание русской речи faster-whisper на CPU, int8, с VAD-фильтром (Q5, Q20).
+"""распознавание русской речи faster-whisper на CPU, int8, с VAD-фильтром (Q5, Q20).
 
 Запись декодируется в памяти (`app.voice.audio`), модель грузится лениво — при первой
 фразе или в `warm_up()` при старте — и работает в отдельном потоке, не блокируя event loop.
@@ -27,26 +27,26 @@ COMPUTE_TYPE = "int8"
 """GPU сервера (GTX 960, CC 5.2) не умеет int8/float16 в CTranslate2 — только CPU (Q20)."""
 LANGUAGE = "ru"
 DOMAIN_PROMPT = "Горький, напомни завтра в 15:00 про созвон. Встреча, задача, напоминание."
-"""Подсказка декодеру: имя ассистента, лексика и запись времени цифрами. По замеру
+"""подсказка декодеру: имя ассистента, лексика и запись времени цифрами. По замеру
 (`scripts/voice_roundtrip.py`) на large-v3-turbo без изменений, на small +2,4 п. п. точных."""
 
 
 class WhisperSegment(Protocol):
-    """Отрезок распознанной речи."""
+    """отрезок распознанной речи."""
 
     @property
     def text(self) -> str:
-        """Текст отрезка."""
+        """текст отрезка."""
         ...
 
 
 class WhisperModelLike(Protocol):
-    """То, что нужно от `faster_whisper.WhisperModel`."""
+    """то, что нужно от `faster_whisper.WhisperModel`."""
 
     def transcribe(
         self, audio: NDArray[np.float32], **options: object
     ) -> tuple[Iterable[WhisperSegment], object]:
-        """Отрезки (ленивый итератор) и сведения о записи."""
+        """отрезки (ленивый итератор) и сведения о записи."""
         ...
 
 
@@ -54,7 +54,7 @@ ModelLoader = Callable[[SpeechToTextSettings], WhisperModelLike]
 
 
 def load_whisper_model(settings: SpeechToTextSettings) -> WhisperModelLike:
-    """Загружает модель (при необходимости скачивает в `cache_dir`); импорт отложен."""
+    """загружает модель (при необходимости скачивает в `cache_dir`); импорт отложен."""
     from faster_whisper import WhisperModel  # type: ignore[import-untyped]
 
     model: WhisperModelLike = WhisperModel(
@@ -69,7 +69,7 @@ def load_whisper_model(settings: SpeechToTextSettings) -> WhisperModelLike:
 
 
 class WhisperSpeechToText:
-    """Реализация `SpeechToText` на faster-whisper.
+    """реализация `SpeechToText` на faster-whisper.
 
     Без аргументов настройки читаются из `STT_*` и корневого `.env`.
     """
@@ -94,7 +94,7 @@ class WhisperSpeechToText:
         }
 
     async def warm_up(self) -> None:
-        """Загружает модель заранее, если включён `STT_WARM_UP_ON_STARTUP`.
+        """загружает модель заранее, если включён `STT_WARM_UP_ON_STARTUP`.
 
         Холостой прогон не нужен: по замеру первая фраза после загрузки не медленнее
         следующих. Ошибку только пишет в лог: `/api/health` покажет `fail`, а первая
@@ -108,7 +108,7 @@ class WhisperSpeechToText:
             logger.exception("Модель распознавания речи не загрузилась при старте")
 
     async def transcribe(self, audio: AudioClip) -> str:
-        """Текст фразы; пустая строка, если речи нет (тишина или шум).
+        """текст фразы; пустая строка, если речи нет (тишина или шум).
 
         Raises:
             AudioTooLargeError: Запись больше 10 МБ или длиннее 60 с.
@@ -121,7 +121,7 @@ class WhisperSpeechToText:
         return await self._in_slot(samples)
 
     async def _in_slot(self, samples: NDArray[np.float32]) -> str:
-        """Распознавание в слоте модели; слот освобождается, когда закончит поток.
+        """распознавание в слоте модели; слот освобождается, когда закончит поток.
 
         Если запрос отменён (срок хода, обрыв связи), поток Whisper всё равно дорабатывает —
         освобождать слот раньше нельзя, иначе на CPU окажется больше моделей, чем слотов.
@@ -134,7 +134,7 @@ class WhisperSpeechToText:
     def _release_slot(self, work: "asyncio.Future[str]") -> None:
         self._slots.release()
         if not work.cancelled():
-            # Ошибку получает ожидающий запрос; после его отмены — пусть не пишет в лог
+            # ошибку получает ожидающий запрос; после его отмены — пусть не пишет в лог
             # «exception was never retrieved».
             work.exception()
 

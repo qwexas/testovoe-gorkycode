@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class LLMIntentParser:
-    """Разбор реплики через `LLMClient` по схеме `EXTRACTION_SCHEMA`.
+    """разбор реплики через `LLMClient` по схеме `EXTRACTION_SCHEMA`.
 
     Модель только относит реплику к действию и переписывает названное (вид дня, время
     как сказано, название); конкретные даты, периоды и правила Q31 считает
@@ -23,7 +23,7 @@ class LLMIntentParser:
         self._llm = llm
 
     async def parse(self, text: str, context: DialogContext) -> Intent:
-        """Разбирает реплику; недоступная модель — `DomainError` с кодом `llm_unavailable`."""
+        """разбирает реплику; недоступная модель — `DomainError` с кодом `llm_unavailable`."""
         answer = await self._llm.complete_json(build_messages(text, context), EXTRACTION_SCHEMA)
         extraction = Extraction.model_validate(answer)
         logger.debug("Разбор реплики: %s", extraction.model_dump(exclude_defaults=True))

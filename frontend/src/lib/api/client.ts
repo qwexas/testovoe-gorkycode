@@ -5,8 +5,7 @@ import type { paths } from "./schema";
 import { sessionFetch } from "./profile-session";
 
 /**
- * Типизированный клиент API. Фронт и API на одном домене (`/api` → FastAPI),
- * поэтому baseUrl пустой, а профиль едет в first-party cookie.
+ * ходим в API через /api на том же домене, сессия передаётся в cookie
  */
 export const apiClient = createClient<paths>({
   baseUrl: "",
@@ -21,8 +20,7 @@ type FetchResult<TData> = {
 };
 
 /**
- * Ждёт ответ openapi-fetch и возвращает данные успешного ответа.
- * Любая неудача (нет сети, 4xx/5xx, не-JSON) превращается в ApiError.
+ * возвращаем данные ответа, ошибки сети и API приводим к ApiError
  */
 export async function unwrap<TData>(request: Promise<FetchResult<TData>>): Promise<TData> {
   let result: FetchResult<TData>;

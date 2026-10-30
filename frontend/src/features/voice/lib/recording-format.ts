@@ -1,5 +1,5 @@
 /**
- * Формат записи: Chrome и Firefox пишут webm/opus, Safari — mp4/aac (решение Q34).
+ * формат записи: Chrome и Firefox пишут webm/opus, Safari — mp4/aac (решение Q34).
  * Сервер принимает webm/opus, ogg, mp4/aac и wav.
  */
 const CANDIDATES = [
@@ -11,7 +11,7 @@ const CANDIDATES = [
   "audio/aac",
 ] as const;
 
-/** Первый формат из списка, который умеет MediaRecorder; undefined — пусть выберет сам. */
+/** первый формат из списка, который умеет MediaRecorder; undefined — пусть выберет сам. */
 export function pickRecordingMimeType(): string | undefined {
   if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
     return undefined;
@@ -19,7 +19,7 @@ export function pickRecordingMimeType(): string | undefined {
   return CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type));
 }
 
-/** Имя файла для multipart: по расширению сервер тоже понимает формат. */
+/** имя файла для multipart: по расширению сервер тоже понимает формат. */
 export function recordingFileName(mimeType: string): string {
   const type = mimeType.toLowerCase();
   if (type.includes("webm")) return "speech.webm";

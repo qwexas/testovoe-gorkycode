@@ -1,4 +1,4 @@
-"""Тексты ответов Горького (решение Q24): шаблоны в коде, LLM ответы не пишет.
+"""тексты ответов Горького (решение Q24): шаблоны в коде, LLM ответы не пишет.
 
 Все формулировки диалога — здесь: по-русски, человеческим языком, без эмодзи.
 Даты — относительно сегодняшнего дня по Москве: «сегодня, 27 октября, в 15:00»,
@@ -31,12 +31,12 @@ class Gender(Enum):
 
 @dataclass(frozen=True, slots=True)
 class Noun:
-    """Существительное в нужных ответам формах."""
+    """существительное в нужных ответам формах."""
 
     nominative: str
     accusative: str
     counted: tuple[str, str, str]
-    """Формы после числа: 1 задача, 2 задачи, 5 задач."""
+    """формы после числа: 1 задача, 2 задачи, 5 задач."""
     gender: Gender
 
     @property
@@ -72,14 +72,14 @@ _SUCH = MappingProxyType({Gender.FEMININE: "такая", Gender.NEUTER: "так�
 _ONE_MORE = MappingProxyType({Gender.FEMININE: "ещё одну", Gender.NEUTER: "ещё одно"})
 
 EN_DASH = "\u2013"
-"""Короткое тире в диапазоне времени встречи: «15:00» + тире + «16:00»."""
+"""короткое тире в диапазоне времени встречи: «15:00» + тире + «16:00»."""
 
 TYPE_ORDER = (EventType.MEETING, EventType.TASK, EventType.REMINDER)
-"""Порядок типов в сводке: «2 встречи и задача»."""
+"""порядок типов в сводке: «2 встречи и задача»."""
 
 
 def plural(count: int, forms: tuple[str, str, str]) -> str:
-    """Форма слова после числа: 1 и 21 — первая, от 2 до 4 и от 22 до 24 — вторая, иначе третья."""
+    """форма слова после числа: 1 и 21 — первая, от 2 до 4 и от 22 до 24 — вторая, иначе третья."""
     last_two = abs(count) % 100
     last = last_two % 10
     if 11 <= last_two <= 14 or last == 0 or last >= 5:
@@ -95,7 +95,7 @@ def count_phrase(count: int, noun: Noun) -> str:
 
 
 def noun_of(event_type: EventType) -> Noun:
-    """Существительное для типа записи."""
+    """существительное для типа записи."""
     return TYPE_NOUNS[event_type]
 
 
@@ -127,13 +127,13 @@ MONTHS_GENITIVE = (
     "декабря",
 )
 WEEKDAY_HORIZON_DAYS = 6
-"""До скольких дней вперёд день называется днём недели: «в пятницу, 30 октября»."""
+"""до скольких дней вперёд день называется днём недели: «в пятницу, 30 октября»."""
 DAYS_PER_WEEK = 7
 
 
 @dataclass(frozen=True, slots=True)
 class _DayWords:
-    """Как назвать день: «завтра» / «в пятницу» или «на завтра» / «на пятницу»."""
+    """как назвать день: «завтра» / «в пятницу» или «на завтра» / «на пятницу»."""
 
     named: Mapping[int, str]
     weekdays: tuple[str, ...]
@@ -211,13 +211,13 @@ def when_text(moment: datetime, has_time: bool, today: date) -> str:
 
 
 def onto_text(moment: datetime, has_time: bool, today: date) -> str:
-    """Куда перенесли: «на завтра, 27 октября, в 15:00», «на пятницу, 30 октября»."""
+    """куда перенесли: «на завтра, 27 октября, в 15:00», «на пятницу, 30 октября»."""
     day = _day_phrase(moment.date(), today, _ONTO_DAY)
     return _with_time(day, f"в {time_text(moment.time())}") if has_time else day.text
 
 
 def schedule_text(card: EventCard, today: date) -> str:
-    """Когда запись: «без срока», «завтра, 27 октября, в 15:00», «… с 15:00 до 16:30»."""
+    """когда запись: «без срока», «завтра, 27 октября, в 15:00», «… с 15:00 до 16:30»."""
     if card.starts_at is None:
         return "без срока"
     if not _has_custom_duration(card):
@@ -257,7 +257,7 @@ ONE_DAY = timedelta(days=1)
 
 
 def _moment_in_period(card: EventCard, period: Period, today: date) -> str:
-    """Время записи в сводке за период: за один день — только « в 17:00», иначе и день."""
+    """время записи в сводке за период: за один день — только « в 17:00», иначе и день."""
     if card.starts_at is None:
         return ""
     if period.end - period.start <= ONE_DAY:
@@ -266,7 +266,7 @@ def _moment_in_period(card: EventCard, period: Period, today: date) -> str:
 
 
 def _nearest_moment(card: EventCard, today: date) -> str:
-    """Когда ближайшая запись сводки: «сегодня в 16:45», «завтра в 10:00», иначе полностью."""
+    """когда ближайшая запись сводки: «сегодня в 16:45», «завтра в 10:00», иначе полностью."""
     starts_at = card.starts_at
     if starts_at is None:
         return ""
@@ -339,7 +339,7 @@ _PREPOSITIONS = frozenset({"на", "в", "во", "за", "с", "со", "до", "
 def list_summary(
     events: Sequence[EventCard], period: Period, now: datetime, asked_type: EventType | None
 ) -> str:
-    """Сводка за период: «Сегодня у вас 3 дела: 2 встречи и задача. Ближайшее — «…» в 17:00.»."""
+    """сводка за период: «Сегодня у вас 3 дела: 2 встречи и задача. Ближайшее — «…» в 17:00.»."""
     if not events:
         missing = noun_of(asked_type).genitive_plural if asked_type else "ничего"
         return f"{_closed(_empty_period(period.label))} {missing} нет."
@@ -359,12 +359,12 @@ def list_summary(
 
 
 def _closed(lead: str) -> str:
-    """Период с уточнением через запятую закрывается запятой: «На пятницу, 30 октября, у вас…»."""
+    """период с уточнением через запятую закрывается запятой: «На пятницу, 30 октября, у вас…»."""
     return f"{lead}," if "," in lead else lead
 
 
 _DAY_PARTS = frozenset({"утром", "днём", "днем", "вечером", "ночью"})
-"""Подпись с частью суток уже обстоятельство времени: «Завтра вечером ничего нет», без «На»."""
+"""подпись с частью суток уже обстоятельство времени: «Завтра вечером ничего нет», без «На»."""
 
 
 def _empty_period(label: str) -> str:
@@ -387,7 +387,7 @@ def _breakdown(events: Sequence[EventCard]) -> str:
 
 
 def _nearest_upcoming(events: Sequence[EventCard], now: datetime) -> EventCard | None:
-    """Первая невыполненная запись со временем, которая ещё не началась."""
+    """первая невыполненная запись со временем, которая ещё не началась."""
     upcoming = [
         (card.starts_at, card)
         for card in events
@@ -431,17 +431,17 @@ def search_nearest_future(card: EventCard, today: date) -> str:
 
 
 def search_no_past(card: EventCard, today: date) -> str:
-    """Спросили «когда была», а есть только будущая."""
+    """спросили «когда была», а есть только будущая."""
     return f"Раньше такого не было. {search_nearest_future(card, today)}"
 
 
 def search_no_future(card: EventCard, today: date) -> str:
-    """Спросили «когда будет», а есть только прошедшая."""
+    """спросили «когда будет», а есть только прошедшая."""
     return f"Впереди такого нет. {search_latest_past(card, today)}"
 
 
 def search_undated(card: EventCard) -> str:
-    """Нашлась только запись без даты."""
+    """нашлась только запись без даты."""
     return f"Нашёл {noun_of(card.type).accusative} «{card.title}» — без срока."
 
 
@@ -483,12 +483,12 @@ NOTHING_AT_MOMENT = (
 
 
 def target_not_found(query: str) -> str:
-    """Поиск цели команды ничего не дал."""
+    """поиск цели команды ничего не дал."""
     return f"Не нашёл ничего похожего на «{query}». Попробуйте сказать иначе."
 
 
 def unhandled_commands(rest: str) -> str:
-    """Остальные команды реплики: выполняется только первая, их нужно повторить отдельно."""
+    """остальные команды реплики: выполняется только первая, их нужно повторить отдельно."""
     return f"А «{rest}» пока не сделал: выполняю по одной команде — скажите это отдельно."
 
 
@@ -512,7 +512,7 @@ def choice_text(action: Action, noun: Noun, shown: int, total: int) -> str:
 
 
 def choice_out_of_range(count: int) -> str:
-    """Выбрали номер, которого нет в списке."""
+    """выбрали номер, которого нет в списке."""
     return f"Такого варианта нет — назовите номер от 1 до {count}."
 
 
@@ -545,12 +545,12 @@ def renamed(old_title: str, card: EventCard) -> str:
 
 
 def completed(card: EventCard) -> str:
-    """Отметка о выполнении."""
+    """отметка о выполнении."""
     return f"Отметил как сделанное: «{card.title}»."
 
 
 def already_completed(card: EventCard) -> str:
-    """Запись уже выполнена — менять нечего."""
+    """запись уже выполнена — менять нечего."""
     return f"«{card.title}» уже отмечено как сделанное."
 
 
@@ -563,7 +563,7 @@ def delete_question(card: EventCard, today: date) -> str:
 
 
 def deleted(card: EventCard) -> str:
-    """Запись удалена."""
+    """запись удалена."""
     return f"Удалил {noun_of(card.type).accusative} «{card.title}»."
 
 
@@ -583,7 +583,7 @@ _DECLINED_CONFIRMATIONS: Final[Mapping[Action, str]] = MappingProxyType(
 
 
 def declined(expects: PendingExpectation, action: Action) -> str:
-    """Ответ на «нет» / «не надо», когда ассистент чего-то ждал."""
+    """ответ на «нет» / «не надо», когда ассистент чего-то ждал."""
     if expects is PendingExpectation.CONFIRM:
         return _DECLINED_CONFIRMATIONS.get(action, DECLINED_CHANGE)
     return DECLINED_CREATE if action is Action.CREATE else DECLINED_CHANGE
@@ -596,18 +596,18 @@ UNDO_EXPIRED = "Отменить уже нельзя."
 
 
 def undo_removed(title: str) -> str:
-    """Отменено создание записи."""
+    """отменено создание записи."""
     return f"Отменил: «{title}» больше нет в плане."
 
 
 def undo_reverted(card: EventCard, today: date) -> str:
-    """Отменено изменение: запись снова такая, как была."""
+    """отменено изменение: запись снова такая, как была."""
     noun = noun_of(card.type)
     return f"Вернул как было: {noun.nominative} «{card.title}» — {schedule_text(card, today)}."
 
 
 def undo_restored(card: EventCard) -> str:
-    """Отменено удаление."""
+    """отменено удаление."""
     return f"Вернул {noun_of(card.type).accusative} «{card.title}»."
 
 
@@ -625,8 +625,8 @@ OFF_TOPIC = (
     "Это не по моей части: я веду задачи, напоминания и встречи. "
     f"Скажите, например: {EXAMPLE_PHRASES[1]} или {EXAMPLE_PHRASES[0]}."
 )
-"""Реплика не про задачи и встречи («какая завтра погода?»), и ассистент ни о чём не спрашивал."""
+"""реплика не про задачи и встречи («какая завтра погода?»), и ассистент ни о чём не спрашивал."""
 NOTHING_TO_DECLINE = "Хорошо, ничего не делаю."
 """«Нет, не надо», когда ассистент ни о чём не спрашивал."""
 REPLY_NOT_UNDERSTOOD = "Не понял ответ."
-"""Начало повторного вопроса, если ответ на него не разобран."""
+"""начало повторного вопроса, если ответ на него не разобран."""

@@ -1,7 +1,7 @@
-/** Режим сферы и подписи к нему. Режим выводится из записи, запроса, озвучки и вопроса. */
+/** режим сферы и подписи к нему. Режим выводится из записи, запроса, озвучки и вопроса. */
 import type { FailureKind, Via } from "./conversation";
 
-/** Слушает → думает → отвечает → ждёт ответа / ошибка / покой. */
+/** слушает → думает → отвечает → ждёт ответа / ошибка / покой. */
 export type SphereMode = "idle" | "listening" | "thinking" | "speaking" | "waiting" | "error";
 
 export function sphereMode(input: {
@@ -28,7 +28,7 @@ const FAILURE_HEADLINES: Record<FailureKind, string> = {
   error: "не получилось",
 };
 
-/** Крупная строка состояния (она же — live-регион для экранного диктора). */
+/** крупная строка состояния (она же — live-регион для экранного диктора). */
 export function sphereHeadline(
   mode: SphereMode,
   failure: FailureKind | null,
@@ -50,7 +50,7 @@ export function sphereHeadline(
   }
 }
 
-/** Подсказка под строкой состояния: что можно сделать сейчас. */
+/** подсказка под строкой состояния: что можно сделать сейчас. */
 export function sphereSubline(mode: SphereMode, failure: FailureKind | null): string {
   switch (mode) {
     case "listening":

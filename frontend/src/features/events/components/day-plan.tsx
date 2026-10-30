@@ -28,7 +28,7 @@ import {
 function Row({ event, now, fresh }: { event: CalendarEvent; now: Date; fresh: boolean }) {
   const timing = eventTiming(event, now);
   const muted = timing === "done" || timing === "past";
-  // Только для сегодняшних: у завтрашних день и так в заголовке.
+  // только для сегодняшних: у завтрашних день и так в заголовке.
   const soon =
     timing === "later" && event.starts_at && event.has_time && dayOffset(event.starts_at, now) === 0
       ? formatIn(event.starts_at, now)
@@ -108,7 +108,7 @@ function Message({ children, tone }: { children: ReactNode; tone?: "danger" }) {
 }
 
 /**
- * План дня: сегодня по времени с линией «сейчас», ниже — завтра.
+ * план дня: сегодня по времени с линией «сейчас», ниже — завтра.
  * `footer` — место для настроек напоминаний (их ведёт другая фича).
  */
 export function DayPlanView({

@@ -1,4 +1,4 @@
-"""Проверка живости сервиса и его зависимостей."""
+"""проверка живости сервиса и его зависимостей."""
 
 import asyncio
 import logging
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class StatusProbe(Protocol):
-    """Проверка одной внешней зависимости (LLM, распознавание, синтез речи)."""
+    """проверка одной внешней зависимости (LLM, распознавание, синтез речи)."""
 
     async def check(self) -> ServiceStatus:
         """`ok` — отвечает, `fail` — недоступна, `unknown` — проверить пока нельзя."""
@@ -23,7 +23,7 @@ class StatusProbe(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class DependencyProbes:
-    """Проверки подключённых зависимостей; `None` — зависимость не подключена."""
+    """проверки подключённых зависимостей; `None` — зависимость не подключена."""
 
     llm: StatusProbe | None = None
     stt: StatusProbe | None = None
@@ -32,7 +32,7 @@ class DependencyProbes:
 
 @dataclass(frozen=True, slots=True)
 class HealthReport:
-    """Состояние зависимостей; не подключённая зависимость — `unknown`."""
+    """состояние зависимостей; не подключённая зависимость — `unknown`."""
 
     db: DatabaseStatus
     llm: ServiceStatus = ServiceStatus.UNKNOWN
@@ -41,7 +41,7 @@ class HealthReport:
 
 
 async def check_health(database: Database, probes: DependencyProbes) -> HealthReport:
-    """Опрашивает базу и подключённые зависимости одновременно."""
+    """опрашивает базу и подключённые зависимости одновременно."""
     db_available, llm, stt, tts = await asyncio.gather(
         database.is_available(), _status(probes.llm), _status(probes.stt), _status(probes.tts)
     )

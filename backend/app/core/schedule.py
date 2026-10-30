@@ -1,4 +1,4 @@
-"""Время записи: часовой пояс, «только дата», длительность встречи и проверка полей.
+"""время записи: часовой пояс, «только дата», длительность встречи и проверка полей.
 
 Правила общие для интерфейса, голоса и импорта истории: что обязательно у встречи
 и напоминания — решение Q30, длительность встречи по умолчанию — Q31.
@@ -15,7 +15,7 @@ PROFILE_TIMEZONE = "Europe/Moscow"
 MOSCOW = ZoneInfo(PROFILE_TIMEZONE)
 DEFAULT_MEETING_DURATION = timedelta(minutes=60)
 DEADLINE_TIME = time(23, 59)
-"""Срок задачи «до конца дня / недели» и «на следующей неделе» — 23:59 (Q31)."""
+"""срок задачи «до конца дня / недели» и «на следующей неделе» — 23:59 (Q31)."""
 
 TYPES_WITH_REQUIRED_TIME = {
     EventType.MEETING: "У встречи должны быть дата и время.",
@@ -27,7 +27,7 @@ END_BEFORE_START = "Встреча не может закончиться ран
 
 @dataclass(frozen=True, slots=True)
 class Schedule:
-    """Когда запись: начало (срок), есть ли у него время и конец встречи."""
+    """когда запись: начало (срок), есть ли у него время и конец встречи."""
 
     starts_at: datetime | None
     has_time: bool
@@ -35,7 +35,7 @@ class Schedule:
 
 
 def settle_schedule(event_type: EventType, schedule: Schedule) -> Schedule:
-    """Приводит время записи к правилам и проверяет его.
+    """приводит время записи к правилам и проверяет его.
 
     Время переводится в Europe/Moscow; без времени (`has_time=False`) начало — 00:00
     по Москве; у встречи без конца конец = начало + 60 минут.
@@ -54,12 +54,12 @@ def settle_schedule(event_type: EventType, schedule: Schedule) -> Schedule:
 
 
 def moscow_now() -> datetime:
-    """Текущий момент по Москве."""
+    """текущий момент по Москве."""
     return datetime.now(MOSCOW)
 
 
 def start_of_day(moment: datetime) -> datetime:
-    """Полночь по Москве того дня, на который приходится `moment`."""
+    """полночь по Москве того дня, на который приходится `moment`."""
     return datetime.combine(moment.astimezone(MOSCOW).date(), time.min, tzinfo=MOSCOW)
 
 

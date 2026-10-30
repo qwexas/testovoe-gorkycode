@@ -12,7 +12,7 @@ const LABELS: Record<ThemePreference, string> = {
 };
 
 /**
- * Выбор темы радиокнопками: видно все три варианта сразу, стрелки переключают
+ * выбор темы радиокнопками: видно все три варианта сразу, стрелки переключают
  * (нативное поведение radio). Внешний вид задаёт место, где стоит выбор.
  */
 export function ThemeChoice({
@@ -23,7 +23,7 @@ export function ThemeChoice({
 }: {
   className?: string;
   legendClassName?: string;
-  /** Классы подписи; выбранная получает data-checked. */
+  /** классы подписи; выбранная получает data-checked. */
   optionClassName?: string;
   legend?: string;
 }) {

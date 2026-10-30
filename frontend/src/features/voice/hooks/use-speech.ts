@@ -8,10 +8,10 @@ import { SPEECH_TEXT_LIMIT, fetchSpeech } from "../api";
 import { textForBrowserSpeech } from "../lib/speech-text";
 
 const LANG = "ru-RU";
-/** Если сервер не озвучил за это время (модель грузится, очередь) — говорит браузер. */
+/** если сервер не озвучил за это время (модель грузится, очередь) — говорит браузер. */
 const SERVER_SPEECH_TIMEOUT_MS = 8_000;
 
-/** Умеет ли браузер играть OGG/Opus, который отдаёт сервер (старый Safari — нет). */
+/** умеет ли браузер играть OGG/Opus, который отдаёт сервер (старый Safari — нет). */
 function canPlayServerAudio(): boolean {
   if (typeof Audio === "undefined") return false;
   return new Audio().canPlayType('audio/ogg; codecs="opus"') !== "";
@@ -26,13 +26,13 @@ function russianVoice(): SpeechSynthesisVoice | null {
   );
 }
 
-/** Огибающая «речи» для сферы, когда настоящий уровень недоступен (браузерный синтез). */
+/** огибающая «речи» для сферы, когда настоящий уровень недоступен (браузерный синтез). */
 function syntheticLevel(t: number): number {
   return 0.25 + 0.35 * Math.abs(Math.sin(t * 8.3)) * (0.6 + 0.4 * Math.sin(t * 2.1));
 }
 
 /**
- * Сколько озвучка может длиться самое большее: если браузер так и не сообщил о конце
+ * сколько озвучка может длиться самое большее: если браузер так и не сообщил о конце
  * (нет звукового устройства, известная ошибка Chrome с длинными фразами), сфера не
  * должна навсегда остаться в «отвечаю». ~14 символов в секунду плюс запас.
  */
@@ -45,7 +45,7 @@ type Playback = {
 };
 
 /**
- * Озвучка ответов (решение Q13): голос Silero с сервера (POST /api/tts), а если сервер
+ * озвучка ответов (решение Q13): голос Silero с сервера (POST /api/tts), а если сервер
  * не озвучил (503, нет сети) или браузер не играет OGG/Opus — браузерный speechSynthesis
  * (ru-RU). `speaking` — для сферы; уровень звука — в `levelRef` (без перерисовок).
  */
@@ -126,7 +126,7 @@ export function useSpeech(): {
       let frame = 0;
       let analyser: AnalyserNode | null = null;
 
-      // Уровень звука для сферы — только если Web Audio уже разбужен жестом: иначе
+      // уровень звука для сферы — только если Web Audio уже разбужен жестом: иначе
       // звук, пропущенный через спящий контекст, получился бы беззвучным.
       const audio = getAudioContext();
       if (audio && isAudioRunning()) {
@@ -186,7 +186,7 @@ export function useSpeech(): {
       try {
         await element.play();
       } catch {
-        // Автовоспроизведение запрещено (нет жеста) или формат не играет.
+        // автовоспроизведение запрещено (нет жеста) или формат не играет.
         cleanup();
         return false;
       }

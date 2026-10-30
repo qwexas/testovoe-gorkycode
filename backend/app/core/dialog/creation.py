@@ -1,4 +1,4 @@
-"""Создание задач, напоминаний и встреч: уточнение (Q30), дубль, конфликт встреч, отмена."""
+"""создание задач, напоминаний и встреч: уточнение (Q30), дубль, конфликт встреч, отмена."""
 
 from dataclasses import replace
 
@@ -14,7 +14,7 @@ from app.nlu.interfaces import Intent
 
 
 class CreationFlow:
-    """Команда «создай»: спросить недостающее, предупредить о пересечении, создать."""
+    """команда «создай»: спросить недостающее, предупредить о пересечении, создать."""
 
     def __init__(self, editor: EventEditor, conflicts: ConflictFinder, undo: UndoLog) -> None:
         self._editor = editor
@@ -22,7 +22,7 @@ class CreationFlow:
         self._undo = undo
 
     async def start(self, turn: Turn, intent: Intent) -> Outcome:
-        """Создаёт запись или задаёт уточняющий вопрос.
+        """создаёт запись или задаёт уточняющий вопрос.
 
         Отложенный шаг хранит разбор с уже определённым типом: ответ на вопрос
         («в 15») дополняет именно его.
@@ -41,7 +41,7 @@ class CreationFlow:
         return await self._create(turn, draft)
 
     async def create_confirmed(self, turn: Turn, intent: Intent) -> Outcome:
-        """Создаёт запись, несмотря на дубль или пересечение: пользователь согласился."""
+        """создаёт запись, несмотря на дубль или пересечение: пользователь согласился."""
         return await self._create(turn, creation_draft(intent, turn.now))
 
     async def _meeting_conflicts(self, turn: Turn, draft: EventDraft) -> list[EventCard]:

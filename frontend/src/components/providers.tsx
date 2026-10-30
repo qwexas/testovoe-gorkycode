@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 import { TooltipProvider } from "./ui/tooltip";
 
-/** Клиентские провайдеры всего приложения. */
+/** клиентские провайдеры всего приложения. */
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">

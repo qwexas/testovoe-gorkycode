@@ -16,7 +16,7 @@ function notify(): void {
 
 function subscribe(onChange: () => void): () => void {
   listeners.add(onChange);
-  // Разрешение могут поменять в настройках сайта, не перезагружая страницу.
+  // разрешение могут поменять в настройках сайта, не перезагружая страницу.
   let status: PermissionStatus | null = null;
   let disposed = false;
   void navigator.permissions
@@ -38,7 +38,7 @@ function getServerSnapshot(): NotificationState {
   return "unsupported";
 }
 
-/** Состояние разрешения на уведомления и запрос разрешения по нажатию. */
+/** состояние разрешения на уведомления и запрос разрешения по нажатию. */
 export function useNotificationState(): {
   state: NotificationState;
   request: () => Promise<NotificationState>;

@@ -1,4 +1,4 @@
-"""Эмбеддинги локальной моделью sentence-transformers (эмбеддинги GigaChat недоступны).
+"""эмбеддинги локальной моделью sentence-transformers (эмбеддинги GigaChat недоступны).
 
 Модель грузится лениво — при первом запросе или явном `warm_up()` при старте
 приложения — и считает векторы в отдельном потоке, не блокируя event loop.
@@ -21,12 +21,12 @@ logger = logging.getLogger(__name__)
 
 ENCODE_BATCH_SIZE = 32
 MAX_SEQUENCE_TOKENS = 256
-"""Названия записей и запросы короткие; предел защищает от вставки огромного текста."""
+"""названия записей и запросы короткие; предел защищает от вставки огромного текста."""
 
 
 @dataclass(frozen=True, slots=True)
 class TextPrefixes:
-    """Префиксы, с которыми модель обучалась различать запросы и документы."""
+    """префиксы, с которыми модель обучалась различать запросы и документы."""
 
     query: str = ""
     document: str = ""
@@ -38,17 +38,17 @@ MODEL_PREFIXES: Mapping[str, TextPrefixes] = {
     "BAAI/bge-m3": NO_PREFIXES,
     "intfloat/multilingual-e5-large": TextPrefixes(query="query: ", document="passage: "),
 }
-"""Префиксы по карточкам моделей: bge-m3 и USER-bge-m3 обходятся без них, e5 — нет."""
+"""префиксы по карточкам моделей: bge-m3 и USER-bge-m3 обходятся без них, e5 — нет."""
 
 
 class EmbeddingDimensionError(RuntimeError):
-    """Модель выдаёт векторы не той длины, что колонка `events.embedding`."""
+    """модель выдаёт векторы не той длины, что колонка `events.embedding`."""
 
 
 def load_sentence_transformer(
     model_name: str, cache_dir: Path | None, device: str
 ) -> "SentenceTransformer":
-    """Загружает модель; импорт torch отложен, чтобы не замедлять старт и тесты."""
+    """загружает модель; импорт torch отложен, чтобы не замедлять старт и тесты."""
     from sentence_transformers import SentenceTransformer
 
     cache_folder = str(cache_dir) if cache_dir is not None else None
@@ -56,7 +56,7 @@ def load_sentence_transformer(
 
 
 class SentenceTransformerEmbedder:
-    """Реализация `Embedder` на sentence-transformers с нормированными векторами.
+    """реализация `Embedder` на sentence-transformers с нормированными векторами.
 
     `cache_dir` — каталог весов (в репозитории `models/`, он в `.gitignore`);
     `None` — стандартный кэш Hugging Face (`HF_HOME`).
@@ -72,22 +72,22 @@ class SentenceTransformerEmbedder:
 
     @property
     def dimension(self) -> int:
-        """Длина каждого вектора; длину модели проверяет загрузка."""
+        """длина каждого вектора; длину модели проверяет загрузка."""
         return EMBEDDING_DIMENSION
 
     async def warm_up(self) -> None:
-        """Загружает модель заранее, чтобы первый запрос пользователя не ждал загрузки."""
+        """загружает модель заранее, чтобы первый запрос пользователя не ждал загрузки."""
         await asyncio.to_thread(self._loaded_model)
 
     async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
-        """Векторы записей (названий задач и встреч) в том же порядке, что и `texts`."""
+        """векторы записей (названий задач и встреч) в том же порядке, что и `texts`."""
         if not texts:
             return []
         prefixed = [self._prefixes.document + text for text in texts]
         return await asyncio.to_thread(self._encode, prefixed)
 
     async def embed_query(self, text: str) -> list[float]:
-        """Вектор поискового запроса пользователя."""
+        """вектор поискового запроса пользователя."""
         [vector] = await asyncio.to_thread(self._encode, [self._prefixes.query + text])
         return vector
 

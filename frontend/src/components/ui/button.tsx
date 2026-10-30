@@ -23,7 +23,7 @@ export type ButtonProps = ComponentProps<"button"> & {
   size?: ButtonSize;
 };
 
-/** Классы кнопки — и для <a>, который должен выглядеть как кнопка. */
+/** классы кнопки — и для <a>, который должен выглядеть как кнопка. */
 export function buttonClasses({
   variant = "secondary",
   size = "md",
@@ -39,7 +39,7 @@ export function buttonClasses({
 }
 
 /**
- * Кнопка. Пока идёт запрос, ставьте aria-busy вместо disabled: отключённая кнопка
+ * кнопка. Пока идёт запрос, ставьте aria-busy вместо disabled: отключённая кнопка
  * теряет фокус, и клавиатурный пользователь оказывается в начале страницы.
  */
 export function Button({ variant, size, type = "button", className, ...props }: ButtonProps) {

@@ -20,7 +20,7 @@ function toServerHealth(health: HealthResponse): ServerHealth {
 }
 
 /**
- * Статус сервера по GET /api/health: при открытии, раз в 30 с, пока вкладка видима,
+ * статус сервера по GET /api/health: при открытии, раз в 30 с, пока вкладка видима,
  * при возврате на вкладку и при восстановлении сети.
  */
 export function useServerHealth(): {

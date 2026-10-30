@@ -1,4 +1,4 @@
-"""Схемы профиля."""
+"""схемы профиля."""
 
 from datetime import datetime
 from typing import Annotated

@@ -1,4 +1,4 @@
-"""Столкновения при создании и переносе: новая запись не должна молча лечь поверх другой.
+"""столкновения при создании и переносе: новая запись не должна молча лечь поверх другой.
 
 - Пересечение встреч: новая или перенесённая встреча занимает время открытой встречи.
 - Дубль: открытая запись того же типа с тем же названием (без учёта регистра, «ё»,
@@ -18,18 +18,18 @@ _WORD = re.compile(r"\w+")
 
 
 class ConflictFinder:
-    """Ищет открытые записи профиля, с которыми столкнётся новая или перенесённая."""
+    """ищет открытые записи профиля, с которыми столкнётся новая или перенесённая."""
 
     def __init__(self, storage: UnitOfWork) -> None:
         self._storage = storage
 
     async def find(self, slot: MeetingSlot) -> list[EventCard]:
-        """Встречи, пересекающиеся со `slot`, по времени начала."""
+        """встречи, пересекающиеся со `slot`, по времени начала."""
         records = await self._storage.events.find_overlapping_meetings(slot)
         return [EventCard.from_record(record) for record in records]
 
     async def duplicate_of(self, profile_id: UUID, draft: EventDraft) -> EventCard | None:
-        """Открытая запись, которую повторяет `draft`: тот же тип, название и время."""
+        """открытая запись, которую повторяет `draft`: тот же тип, название и время."""
         moment = SameMoment(profile_id, draft.type, draft.starts_at)
         records = await self._storage.events.list_at_moment(moment)
         title = normalized_title(draft.title)
@@ -43,12 +43,12 @@ class ConflictFinder:
 
 
 def normalized_title(title: str) -> str:
-    """Название для сравнения: слова в нижнем регистре, «ё» как «е», без знаков."""
+    """название для сравнения: слова в нижнем регистре, «ё» как «е», без знаков."""
     return " ".join(_WORD.findall(title.casefold().replace("ё", "е")))
 
 
 def meeting_duration(card: EventCard) -> timedelta:
-    """Длительность встречи; без конца — длительность по умолчанию."""
+    """длительность встречи; без конца — длительность по умолчанию."""
     if card.starts_at is None or card.ends_at is None:
         return DEFAULT_MEETING_DURATION
     return card.ends_at - card.starts_at

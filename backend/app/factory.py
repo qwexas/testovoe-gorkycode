@@ -1,4 +1,4 @@
-"""Сборка приложения FastAPI: настройки, сервисы, ошибки, cookie, маршруты."""
+"""сборка приложения FastAPI: настройки, сервисы, ошибки, cookie, маршруты."""
 
 import asyncio
 import logging
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Создаёт приложение; без аргумента настройки читаются из окружения и `.env`."""
+    """создаёт приложение; без аргумента настройки читаются из окружения и `.env`."""
     settings = settings or get_settings()
     language = _build_language(settings)
     voice = _build_voice(settings)
@@ -77,7 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 @dataclass(frozen=True, slots=True)
 class _LanguageServices:
-    """Разбор реплик, проверка LLM для `/api/health` (`None` — LLM не подключена)
+    """разбор реплик, проверка LLM для `/api/health` (`None` — LLM не подключена)
     и закрытие соединений клиента при остановке приложения."""
 
     parser: IntentParser
@@ -85,13 +85,13 @@ class _LanguageServices:
     closer: Callable[[], Awaitable[None]] | None = None
 
     async def close(self) -> None:
-        """Закрывает соединения клиента LLM, если он есть."""
+        """закрывает соединения клиента LLM, если он есть."""
         if self.closer is not None:
             await self.closer()
 
 
 class _UnavailableIntentParser:
-    """Разбор без языковой модели: любая реплика — 503 `llm_unavailable`."""
+    """разбор без языковой модели: любая реплика — 503 `llm_unavailable`."""
 
     async def parse(self, text: str, context: DialogContext) -> Intent:
         raise LLMUnavailableError()
@@ -99,7 +99,7 @@ class _UnavailableIntentParser:
 
 @dataclass(frozen=True, slots=True)
 class _VoiceServices:
-    """Распознавание и синтез речи и их проверки для `/api/health` (`None` — голос выключен)."""
+    """распознавание и синтез речи и их проверки для `/api/health` (`None` — голос выключен)."""
 
     speech_to_text: SpeechToText
     text_to_speech: TextToSpeech
@@ -108,7 +108,7 @@ class _VoiceServices:
 
 
 class _UnavailableSpeechToText:
-    """Распознавание без модели: любая запись — 503 `stt_unavailable`."""
+    """распознавание без модели: любая запись — 503 `stt_unavailable`."""
 
     async def transcribe(self, audio: AudioClip) -> str:
         raise SpeechToTextUnavailableError()
@@ -118,7 +118,7 @@ class _UnavailableSpeechToText:
 
 
 class _UnavailableTextToSpeech:
-    """Синтез без модели: любая озвучка — 503 `tts_unavailable`, голосов нет."""
+    """синтез без модели: любая озвучка — 503 `tts_unavailable`, голосов нет."""
 
     @property
     def voices(self) -> Sequence[str]:
@@ -132,7 +132,7 @@ class _UnavailableTextToSpeech:
 
 
 def _build_voice(settings: Settings) -> _VoiceServices:
-    """Единственное место, где выбираются модели речи (`VOICE_BACKEND`).
+    """единственное место, где выбираются модели речи (`VOICE_BACKEND`).
 
     Если модулей распознавания / Silero ещё нет или модель не создаётся, приложение
     работает, а `/api/voice` и `/api/tts` отвечают 503 — так же, как при сбое модели;
@@ -152,7 +152,7 @@ def _build_voice(settings: Settings) -> _VoiceServices:
 
 
 def _warm_up_in_background(*models: object) -> list[asyncio.Task[None]]:
-    """Грузит модели речи в фоне сразу после старта, не задерживая готовность API.
+    """грузит модели речи в фоне сразу после старта, не задерживая готовность API.
 
     Без прогрева распознавание и Silero грузятся на первой реплике (минуты при холодном кэше).
     `warm_up()` есть у настоящих моделей и сам решает, включён ли прогрев (`*_WARM_UP_ON_STARTUP`),
@@ -169,7 +169,7 @@ def _warm_up_in_background(*models: object) -> list[asyncio.Task[None]]:
 def _model_or_unavailable[Model](
     build: Callable[[], Model], unavailable: Callable[[], Model], endpoint: str
 ) -> Model:
-    """Модель речи для `endpoint` или заглушка «недоступно» с предупреждением в логе."""
+    """модель речи для `endpoint` или заглушка «недоступно» с предупреждением в логе."""
     try:
         return build()
     except Exception as error:  # нет модуля, зависимости или настроек — приложение работает
@@ -224,7 +224,7 @@ def _build_services(
 
 
 def _build_language(settings: Settings) -> _LanguageServices:
-    """Единственное место, где выбирается разбор реплик (`LLM_BACKEND`).
+    """единственное место, где выбирается разбор реплик (`LLM_BACKEND`).
 
     Если модулей GigaChat ещё нет или ключ не задан, приложение работает, а
     `/api/chat` отвечает 503 `llm_unavailable` — так же, как при сбое GigaChat.
@@ -253,7 +253,7 @@ def _gigachat_language() -> _LanguageServices:
 
 
 def _build_search(settings: Settings, history: Sequence[HistoryEntry]) -> SearchService:
-    """Единственное место, где выбираются реализации поиска (`SEARCH_BACKEND`)."""
+    """единственное место, где выбираются реализации поиска (`SEARCH_BACKEND`)."""
     if settings.search_backend is SearchBackend.REAL:
         try:
             return _model_search(settings, history)
@@ -266,7 +266,7 @@ def _build_search(settings: Settings, history: Sequence[HistoryEntry]) -> Search
 
 
 def _model_search(settings: Settings, history: Sequence[HistoryEntry]) -> SearchService:
-    """Модель эмбеддингов, pymorphy3 и гибридное ранжирование.
+    """модель эмбеддингов, pymorphy3 и гибридное ранжирование.
 
     Импорт внутри функции: если модулей или их зависимостей нет, `_build_search`
     переключается на заглушки, а не роняет приложение. Модель грузится лениво —

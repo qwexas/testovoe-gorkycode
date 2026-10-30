@@ -1,4 +1,4 @@
-"""Поиск записей по смыслу и поисковый индекс названий.
+"""поиск записей по смыслу и поисковый индекс названий.
 
 Сервис не знает ни про HTTP, ни про таблицы: векторы и леммы считают `Embedder` и
 `Lemmatizer`, кандидатов из хранилища приносит переданная функция, итоговый порядок
@@ -12,19 +12,19 @@ from app.core.enums import EventType
 from app.search.interfaces import Embedder, Lemmatizer, RankedResult, Ranker, SearchCandidate
 
 CandidateFinder = Callable[[Sequence[float], Sequence[str]], Awaitable[list[SearchCandidate]]]
-"""Достаёт кандидатов по вектору запроса и его леммам: `(vector, lemmas) -> candidates`."""
+"""достаёт кандидатов по вектору запроса и его леммам: `(vector, lemmas) -> candidates`."""
 
 
 @dataclass(frozen=True, slots=True)
 class TitleIndex:
-    """Поисковый индекс названия записи: вектор и значимые леммы."""
+    """поисковый индекс названия записи: вектор и значимые леммы."""
 
     embedding: list[float]
     lemmas: list[str]
 
 
 class SearchService:
-    """Индексирует названия записей и ищет записи по запросу пользователя."""
+    """индексирует названия записей и ищет записи по запросу пользователя."""
 
     def __init__(self, embedder: Embedder, lemmatizer: Lemmatizer, ranker: Ranker) -> None:
         self._embedder = embedder
@@ -32,12 +32,12 @@ class SearchService:
         self._ranker = ranker
 
     async def index_title(self, title: str) -> TitleIndex:
-        """Индекс одного названия — при создании записи и смене названия."""
+        """индекс одного названия — при создании записи и смене названия."""
         [index] = await self.index_titles([title])
         return index
 
     async def index_titles(self, titles: Sequence[str]) -> list[TitleIndex]:
-        """Индексы названий в том же порядке; векторы считаются одним пакетом."""
+        """индексы названий в том же порядке; векторы считаются одним пакетом."""
         embeddings = await self._embedder.embed_documents(titles)
         return [
             TitleIndex(embedding=embedding, lemmas=self._lemmatizer.lemmas(title))
@@ -52,7 +52,7 @@ class SearchService:
         limit: int | None,
         preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
-        """Лучшие записи по запросу, по убыванию релевантности; пусто — ничего похожего.
+        """лучшие записи по запросу, по убыванию релевантности; пусто — ничего похожего.
 
         `limit=None` — все подходящие записи: выбирающему по времени предел выдачи по оценке
         отрезал бы ближайшую из многих одинаковых. `preferred_type` — тип записи из разбора

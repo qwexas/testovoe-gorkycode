@@ -1,4 +1,4 @@
-"""Состояние диалога между репликами (Q23) и его хранение в `dialog_state`.
+"""состояние диалога между репликами (Q23) и его хранение в `dialog_state`.
 
 - `pending` — отложенный шаг: вопрос ассистента и действие, которое ждёт ответа;
 - `focus_ids` — записи в фокусе для «её», «эту»: последняя упомянутая — первой,
@@ -32,7 +32,7 @@ _RECENT = TypeAdapter(tuple[DialogTurn, ...])
 
 @dataclass(frozen=True, slots=True)
 class DialogState:
-    """Что помнит ассистент о разговоре с профилем."""
+    """что помнит ассистент о разговоре с профилем."""
 
     pending: PendingStep | None = None
     focus_ids: tuple[int, ...] = ()
@@ -41,7 +41,7 @@ class DialogState:
 
     @classmethod
     def from_record(cls, record: DialogStateRecord | None) -> Self:
-        """Состояние из строки таблицы; без строки — пустое.
+        """состояние из строки таблицы; без строки — пустое.
 
         Отложенный шаг в старом формате (после обновления приложения) забывается:
         пользователь просто повторит команду.
@@ -56,7 +56,7 @@ class DialogState:
         )
 
     def to_record(self, profile_id: UUID) -> DialogStateRecord:
-        """Строка таблицы `dialog_state` для профиля."""
+        """строка таблицы `dialog_state` для профиля."""
         return DialogStateRecord(
             profile_id=profile_id,
             pending=_PENDING.dump_python(self.pending, mode="json"),
@@ -66,7 +66,7 @@ class DialogState:
         )
 
     def after_turn(self, user_text: str, outcome: Outcome) -> Self:
-        """Состояние после реплики пользователя и ответа ассистента."""
+        """состояние после реплики пользователя и ответа ассистента."""
         return type(self)(
             pending=outcome.pending,
             focus_ids=_merged_focus(outcome.focus, self.focus_ids),
@@ -80,7 +80,7 @@ class DialogState:
         )
 
     def after_undo(self, reply: Reply) -> Self:
-        """Состояние после отмены действия кнопкой: отложенный вопрос остаётся."""
+        """состояние после отмены действия кнопкой: отложенный вопрос остаётся."""
         return type(self)(
             pending=self.pending,
             focus_ids=_merged_focus([card.id for card in reply.events], self.focus_ids),
@@ -90,7 +90,7 @@ class DialogState:
 
     @property
     def peer_ids(self) -> tuple[int, ...]:
-        """Записи последнего ответа-списка, если их больше одной; иначе пусто."""
+        """записи последнего ответа-списка, если их больше одной; иначе пусто."""
         return self.focus_ids[: self.focus_peers] if self.focus_peers > 1 else ()
 
     def _with_turns(self, *turns: DialogTurn) -> tuple[DialogTurn, ...]:
@@ -98,7 +98,7 @@ class DialogState:
 
 
 def _merged_focus(leading: Sequence[int], previous: Sequence[int]) -> tuple[int, ...]:
-    """Новые записи — первыми, затем прежние без повторов."""
+    """новые записи — первыми, затем прежние без повторов."""
     return tuple(dict.fromkeys([*leading, *previous]))[:FOCUS_LIMIT]
 
 

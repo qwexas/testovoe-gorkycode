@@ -3,18 +3,17 @@ import { apiErrorFromException, apiErrorFromResponse } from "@/lib/api/errors";
 import type { AssistantReply, ChatMessage } from "@/types/api";
 import { sessionFetch } from "@/lib/api/profile-session";
 
-/** Сервер принимает реплику до 1000 символов. */
+/** сервер принимает реплику до 1000 символов. */
 export const CHAT_TEXT_LIMIT = 1000;
 export const DIALOG_PAGE = 50;
 
-/** Текстовая реплика. Реплика пользователя сохраняется в историю до разбора. */
+/** текстовая реплика. Реплика пользователя сохраняется в историю до разбора. */
 export function sendChat(text: string): Promise<AssistantReply> {
   return unwrap(apiClient.POST("/api/chat", { body: { text } }));
 }
 
 /**
- * Голосовая реплика: multipart с полем `audio`. В ответе заполнен `recognized_text`.
- * Обычный fetch: тело — файл, а не JSON.
+ * голосовая реплика: multipart с полем `audio`. В ответе заполнен `recognized_text`.
  */
 export async function sendVoice(audio: Blob, fileName: string): Promise<AssistantReply> {
   const body = new FormData();
@@ -41,7 +40,7 @@ export async function sendVoice(audio: Blob, fileName: string): Promise<Assistan
   return data as AssistantReply;
 }
 
-/** История диалога: последние `limit` реплик с id < beforeId, новые в конце. */
+/** история диалога: последние `limit` реплик с id < beforeId, новые в конце. */
 export async function fetchDialog(beforeId?: number): Promise<ChatMessage[]> {
   const { messages } = await unwrap(
     apiClient.GET("/api/dialog", {
@@ -52,7 +51,7 @@ export async function fetchDialog(beforeId?: number): Promise<ChatMessage[]> {
   return messages;
 }
 
-/** Отмена действия (сервер принимает 30 с). Позже или повторно — 404 «Отменить уже нельзя». */
+/** отмена действия (сервер принимает 30 с). Позже или повторно — 404 «Отменить уже нельзя». */
 export function undoAction(actionId: string): Promise<AssistantReply> {
   return unwrap(
     apiClient.POST("/api/actions/{action_id}/undo", { params: { path: { action_id: actionId } } }),

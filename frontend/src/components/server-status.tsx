@@ -12,7 +12,7 @@ import { tty } from "./ui/tty";
 type Tone = "neutral" | "success" | "warning" | "danger";
 
 /**
- * Пиксельные глифы 5×5: у каждого статуса своя форма, не только цвет (WCAG 1.4.1) —
+ * пиксельные глифы 5×5: у каждого статуса своя форма, не только цвет (WCAG 1.4.1) —
  * на узком экране текст скрыт. «#» — закрашенный пиксель.
  */
 const TONE_GLYPHS: Record<Tone, readonly string[]> = {
@@ -85,12 +85,12 @@ function describe(health: ServerHealth): { label: string; tone: Tone; details: s
   }
 }
 
-/** Статус сервера — сегмент статусной строки. Нажатие — проверить ещё раз. */
+/** статус сервера — сегмент статусной строки. Нажатие — проверить ещё раз. */
 export function ServerStatus({ className }: { className?: string }) {
   const { health, isChecking, recheck } = useServerHealth();
   const { label, tone, details } = describe(health);
 
-  // Озвучиваем только смену статуса, а не первый результат при загрузке страницы.
+  // озвучиваем только смену статуса, а не первый результат при загрузке страницы.
   const [previousStatus, setPreviousStatus] = useState(health.status);
   const [announcement, setAnnouncement] = useState("");
   if (health.status !== previousStatus) {

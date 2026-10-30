@@ -7,7 +7,7 @@ import { tty } from "@/components/ui/tty";
 import { type SphereFrame, useSphereLoop } from "../hooks/use-sphere-loop";
 import type { SphereMode } from "../model/sphere";
 
-/** Шкала яркости: от пустоты до плотного символа. */
+/** шкала яркости: от пустоты до плотного символа. */
 const RAMP = " .·:-=+*#%@";
 
 function hash(n: number): number {
@@ -20,10 +20,7 @@ function cssVar(element: Element, name: string, fallback: string): string {
 }
 
 /**
- * Сфера из символов, как в терминале: освещённый шар, яркость — плотность глифа.
- * Слушает — край дрожит волной от голоса и вокруг рассыпаются точки; разбирает —
- * по шару бежит строка развёртки; отвечает — от центра расходятся кольца; ошибка —
- * строки сбиваются, как помеха.
+ * яркость шара передаётся плотностью символов, анимация зависит от состояния ассистента.
  */
 function drawAsciiSphere(ctx: CanvasRenderingContext2D, frame: SphereFrame) {
   const { width, height, t, mode, level, calm } = frame;
@@ -52,7 +49,7 @@ function drawAsciiSphere(ctx: CanvasRenderingContext2D, frame: SphereFrame) {
     (listening ? 1 + 0.1 * level : 1) *
     (mode === "error" ? 0.94 : 1);
 
-  // Свет медленно обходит шар; в покое движение затухает (calm → 0).
+  // свет медленно обходит шар; в покое движение затухает (calm → 0).
   const speed = mode === "thinking" ? 1.6 : 0.5;
   const angle = -0.9 + Math.sin(t * speed) * 0.9 * calm + (mode === "thinking" ? t * 0.8 : 0);
   const light = { x: Math.cos(angle) * 0.75, y: -0.55, z: Math.sin(angle) * 0.4 + 0.6 };
@@ -93,7 +90,7 @@ function drawAsciiSphere(ctx: CanvasRenderingContext2D, frame: SphereFrame) {
         }
         if (mode === "waiting") brightness *= 0.7 + 0.15 * Math.sin(t * 2) * calm;
       } else if (listening && level > 0.08) {
-        // Брызги вокруг шара: чем громче, тем дальше и гуще.
+        // брызги вокруг шара: чем громче, тем дальше и гуще.
         const dist = Math.sqrt(d2) / radius;
         const spray = hash(col * 13 + row * 101 + Math.floor(t * 14) * 7);
         if (dist < 1 + 0.45 * level && spray > 0.9 - level * 0.25) brightness = 0.18;

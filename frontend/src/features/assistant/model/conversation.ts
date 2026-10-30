@@ -1,20 +1,18 @@
 /**
- * Состояние сессии разговора: лог реплик (с сервера и локальные строки об ошибках и
- * напоминаниях), что происходит прямо сейчас и окна отмены. Чистый редьюсер без React
- * и сети — переходы проверяются без браузера.
+ * история разговора, текущее действие и сроки доступности отмены.
  */
 import type { AssistantReply, ChatMessage, Pending } from "@/types/api";
 
 export type Via = "voice" | "text";
 
-/** Что можно сделать прямо из строки лога. */
+/** что можно сделать прямо из строки лога. */
 export type NoticeAction =
   | { type: "record" }
   | { type: "type" }
   | { type: "resend"; text: string }
   | { type: "reload-history" };
 
-/** Почему сфера в состоянии ошибки — от этого зависит подпись. */
+/** почему сфера в состоянии ошибки — от этого зависит подпись. */
 export type FailureKind = "not-heard" | "microphone" | "offline" | "busy" | "unavailable" | "error";
 
 export type UserEntry = {
@@ -24,7 +22,7 @@ export type UserEntry = {
   createdAt: string;
   /** null — реплика из истории: как её произнесли, сервер не хранит. */
   via: Via | null;
-  /** Ответа не было (сеть, 503, 429): строка остаётся в логе, вопрос ассистента — в силе. */
+  /** ответа не было (сеть, 503, 429): строка остаётся в логе, вопрос ассистента — в силе. */
   failed: boolean;
 };
 
@@ -35,7 +33,7 @@ export type AssistantEntry = {
   text: string;
   createdAt: string;
   reply: AssistantReply | null;
-  /** Пришёл в этой сессии (не из истории): можно подсветить и озвучить. */
+  /** пришёл в этой сессии (не из истории): можно подсветить и озвучить. */
   live: boolean;
 };
 
@@ -53,7 +51,7 @@ export type LogEntry = UserEntry | AssistantEntry | NoticeEntry;
 export type Activity = { name: "idle" } | { name: "sending"; via: Via };
 
 export type ConversationState = {
-  /** Чья это история: при смене профиля всё начинается заново. */
+  /** чья это история: при смене профиля всё начинается заново. */
   profileId: string | null;
   entries: LogEntry[];
   history: "loading" | "ready" | "failed";
@@ -63,7 +61,7 @@ export type ConversationState = {
   failure: FailureKind | null;
   /** id реплики ассистента → до какого момента (performance.now()) показывать «Отменить». */
   undoUntil: Record<number, number>;
-  /** Записи, которые изменил последний ответ (если он что-то менял): подсветка в плане дня. */
+  /** записи, которые изменил последний ответ (если он что-то менял): подсветка в плане дня. */
   changedIds: number[];
 };
 
@@ -80,7 +78,7 @@ export type ConversationAction =
       profileId: string | null;
       reply: AssistantReply;
       at: string;
-      /** Для голоса: распознанная реплика пользователя. */
+      /** для голоса: распознанная реплика пользователя. */
       recognized?: { key: string; text: string };
       undoUntil: number | null;
     }
@@ -89,7 +87,7 @@ export type ConversationAction =
       profileId: string | null;
       notice: NoticeEntry;
       failure: FailureKind;
-      /** Реплика, на которую ответа не было. */
+      /** реплика, на которую ответа не было. */
       userKey?: string;
     }
   | { type: "notice"; notice: NoticeEntry; failure?: FailureKind }
@@ -99,13 +97,13 @@ export type ConversationAction =
 
 let localCounter = 0;
 
-/** Уникальный ключ для строк, которых нет на сервере (реплика в пути, ошибка, напоминание). */
+/** уникальный ключ для строк, которых нет на сервере (реплика в пути, ошибка, напоминание). */
 export function localKey(prefix: string): string {
   localCounter += 1;
   return `${prefix}-${Date.now().toString(36)}-${localCounter}`;
 }
 
-/** Строка лога от интерфейса: ошибка с подсказкой или сработавшее напоминание. */
+/** строка лога от интерфейса: ошибка с подсказкой или сработавшее напоминание. */
 export function createNotice(
   text: string,
   tone: NoticeEntry["tone"] = "error",
@@ -173,7 +171,7 @@ function entriesFromHistory(messages: ChatMessage[], nextRole?: ChatMessage["rol
   );
 }
 
-/** Склеивает реплики без повторов по ключу, сохраняя порядок. */
+/** склеивает реплики без повторов по ключу, сохраняя порядок. */
 function merge(first: LogEntry[], second: LogEntry[]): LogEntry[] {
   const seen = new Set<string>();
   return [...first, ...second].filter((entry) => {
@@ -207,7 +205,7 @@ export function conversationReducer(
       }
       return {
         ...state,
-        // Реплики, пришедшие, пока грузилась история, остаются в конце.
+        // реплики, пришедшие, пока грузилась история, остаются в конце.
         entries: merge(history, state.entries),
         history: "ready",
         hasOlder: action.hasOlder,
@@ -262,15 +260,14 @@ export function conversationReducer(
         entries: merge(state.entries, added),
         activity: { name: "idle" },
         failure: null,
-        // Отменить можно только последнее действие: после нового изменения прежняя
-        // кнопка вернула бы то, чего уже нет (сервер ответит «Отменить уже нельзя»).
+        // после нового изменения убираем прежнюю кнопку отмены.
         undoUntil:
           reply.undo && action.undoUntil !== null
             ? { [reply.message_id]: action.undoUntil }
             : changed
               ? {}
               : state.undoUntil,
-        // Подсветка в плане — только сразу после изменения, следующий ответ её снимает.
+        // подсветка в плане — только сразу после изменения, следующий ответ её снимает.
         changedIds: changed ? reply.events.map((event) => event.id) : [],
       };
     }
@@ -305,7 +302,7 @@ export function conversationReducer(
 }
 
 /**
- * Чего ассистент ждёт от пользователя: вопрос последней реплики ассистента, если после
+ * чего ассистент ждёт от пользователя: вопрос последней реплики ассистента, если после
  * неё пользователь ничего не сказал. Строки об ошибках и неотвеченные реплики не в счёт —
  * вопрос на сервере остаётся в силе.
  */
@@ -322,7 +319,7 @@ export function pendingOf(entries: LogEntry[]): Pending | null {
   return null;
 }
 
-/** Ключ последней реплики ассистента с вопросом — только у неё активны кнопки ответа. */
+/** ключ последней реплики ассистента с вопросом — только у неё активны кнопки ответа. */
 export function activeReplyKey(entries: LogEntry[]): string | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];

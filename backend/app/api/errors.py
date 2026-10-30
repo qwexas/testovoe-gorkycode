@@ -1,4 +1,4 @@
-"""Перевод ошибок в единый формат `{"error": {"code", "message"}}` и их описание в OpenAPI."""
+"""перевод ошибок в единый формат `{"error": {"code", "message"}}` и их описание в OpenAPI."""
 
 from collections.abc import Mapping
 from http import HTTPStatus
@@ -118,5 +118,5 @@ async def _handle_http_exception(_: Request, exc: HTTPException) -> JSONResponse
 
 
 async def _handle_unexpected_error(_: Request, __: Exception) -> JSONResponse:
-    # Трассировку пишет сервер: Starlette пробрасывает исключение дальше после ответа.
+    # трассировку пишет сервер: Starlette пробрасывает исключение дальше после ответа.
     return error_response(ErrorCode.INTERNAL_ERROR, INTERNAL_ERROR_MESSAGE)

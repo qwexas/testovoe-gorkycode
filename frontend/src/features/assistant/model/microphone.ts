@@ -1,9 +1,9 @@
-/** Проблемы с микрофоном и записью → строка лога. Текстовый ввод работает всегда. */
+/** проблемы с микрофоном и записью → строка лога. Текстовый ввод работает всегда. */
 import type { RecorderErrorCode, Recording } from "@/features/voice/lib/recorder";
 
 import type { FailureCopy } from "./failures";
 
-/** Короче этого — случайное нажатие, отправлять нечего. */
+/** короче этого — случайное нажатие, отправлять нечего. */
 const MIN_RECORDING_MS = 400;
 
 export function describeRecorderError(code: RecorderErrorCode): FailureCopy {
@@ -47,7 +47,7 @@ export function describeRecorderError(code: RecorderErrorCode): FailureCopy {
   }
 }
 
-/** Запись, которую нет смысла отправлять на распознавание: что сказать вместо этого. */
+/** запись, которую нет смысла отправлять на распознавание: что сказать вместо этого. */
 export function rejectRecording(recording: Recording): FailureCopy | null {
   if (recording.durationMs < MIN_RECORDING_MS || recording.blob.size === 0) {
     return {

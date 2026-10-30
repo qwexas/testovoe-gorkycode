@@ -1,7 +1,5 @@
 /**
- * Ошибки запросов и записи → строки лога сессии: что случилось и что делать дальше.
- * Сервер присылает `message` по-русски, но для голоса и лимитов нужен свой текст
- * с подсказкой и кнопками.
+ * подбираем текст ошибки и кнопки повтора для лога разговора
  */
 import type { ApiError } from "@/lib/api/errors";
 
@@ -16,7 +14,7 @@ function retryActions(via: Via, text: string | null): NoticeAction[] {
   return text ? [{ type: "resend", text }] : [];
 }
 
-/** Ошибка POST /api/chat или /api/voice. `text` — что повторить для текстовой реплики. */
+/** ошибка POST /api/chat или /api/voice. `text` — что повторить для текстовой реплики. */
 export function describeRequestFailure(
   error: ApiError,
   via: Via,
@@ -51,8 +49,7 @@ export function describeRequestFailure(
         actions: [{ type: "type" }],
       };
     case "validation_error":
-      // Голосовая команда после распознавания тоже проходит проверку даты и других полей.
-      // Ошибки декодирования и распознавания имеют коды audio_* или speech_not_recognized.
+      // validation_error может относиться к дате в команде, а не к самой записи голоса
       return {
         text: error.message,
         kind: "error",
@@ -87,7 +84,7 @@ export function describeRequestFailure(
   }
 }
 
-/** Ошибка отмены действия. */
+/** ошибка отмены действия. */
 export function describeUndoFailure(error: ApiError): FailureCopy {
   if (error.code === "not_found") {
     return { text: "Отменить уже нельзя: прошло больше 30 секунд.", kind: "error", actions: [] };

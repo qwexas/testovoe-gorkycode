@@ -8,7 +8,7 @@ type TextFieldProps = ComponentProps<"input"> & {
   error?: string | null;
 };
 
-/** Поле с видимой подписью; подсказка и ошибка связаны через aria-describedby. */
+/** поле с видимой подписью; подсказка и ошибка связаны через aria-describedby. */
 export function TextField({ label, hint, error, id, className, ...props }: TextFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;

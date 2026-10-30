@@ -23,14 +23,14 @@ import { RestoreProfileDialog } from "./restore-profile-dialog";
 export type ProfileDialogId = "calendar" | "new-profile" | "restore" | "delete";
 
 export type ProfileMenuControls = {
-  /** Открыть окно; фокус после закрытия вернётся на `returnFocusTo`. */
+  /** открыть окно; фокус после закрытия вернётся на `returnFocusTo`. */
   openDialog: (id: ProfileDialogId, returnFocusTo: HTMLElement | null) => void;
-  /** Окна профиля — смонтировать один раз рядом с меню. */
+  /** окна профиля — смонтировать один раз рядом с меню. */
   dialogs: ReactNode;
 };
 
 /**
- * Окна профиля и код восстановления. Меню профиля бывает в двух местах (статусная строка
+ * окна профиля и код восстановления. Меню профиля бывает в двух местах (статусная строка
  * на десктопе и общее меню на телефоне), а окна — одни на всех.
  */
 export function useProfileDialogs(): ProfileMenuControls {
@@ -44,7 +44,7 @@ export function useProfileDialogs(): ProfileMenuControls {
     setOpenId(id);
   }, []);
 
-  // Окна открыты пунктом меню, которого после закрытия уже нет: фокус — на кнопку меню.
+  // окна открыты пунктом меню, которого после закрытия уже нет: фокус — на кнопку меню.
   const onCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
     returnFocusRef.current?.focus();
@@ -116,7 +116,7 @@ function ProfileSummary({ status }: { status: ProfileStatus }) {
 }
 
 /**
- * Пункты меню профиля: сводка, календарь (.ics и подписка), новый профиль, вход по коду,
+ * пункты меню профиля: сводка, календарь (.ics и подписка), новый профиль, вход по коду,
  * удаление данных. Вставляются в любой DropdownMenuContent.
  */
 export function ProfileMenuItems({
@@ -124,7 +124,7 @@ export function ProfileMenuItems({
   trigger,
 }: {
   openDialog: ProfileMenuControls["openDialog"];
-  /** Кнопка, открывшая меню: на неё вернётся фокус после окна. */
+  /** кнопка, открывшая меню: на неё вернётся фокус после окна. */
   trigger: RefObject<HTMLElement | null>;
 }) {
   const { profile: status, notify } = useProfile();

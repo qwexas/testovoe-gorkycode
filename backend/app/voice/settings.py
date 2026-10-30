@@ -1,4 +1,4 @@
-"""Настройки распознавания (`STT_*`) и синтеза речи (`TTS_*`) из окружения и корневого `.env`."""
+"""настройки распознавания (`STT_*`) и синтеза речи (`TTS_*`) из окружения и корневого `.env`."""
 
 from pathlib import Path
 from typing import Literal
@@ -9,28 +9,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.config import ENV_FILE
 
 SpeechEngine = Literal["gigaam", "whisper"]
-"""Чем распознавать речь: GigaAM-v3 (onnx-asr) или faster-whisper."""
+"""чем распознавать речь: GigaAM-v3 (onnx-asr) или faster-whisper."""
 DEFAULT_SPEECH_ENGINE: SpeechEngine = "gigaam"
-"""GigaAM-v3 обучен на русском: на фразах ТЗ WER 5,4 % при 0,18 с на фразу на CPU сервера
-и пишет время цифрами; Whisper medium — 5-6 с на фразу. Whisper оставлен запасным."""
 DEFAULT_GIGAAM_MODEL = "gigaam-v3-e2e-rnnt"
-"""Вариант e2e: пунктуация и числа цифрами («в 15:00»); на тишине и шуме — пустая строка."""
+"""вариант e2e: пунктуация и числа цифрами («в 15:00»); на тишине и шуме — пустая строка."""
 DEFAULT_WHISPER_MODEL = "large-v3-turbo"
-"""По замеру точнее medium и small; medium быстрее лишь на ~20 %."""
 DEFAULT_BEAM_SIZE = 5
-"""Луч 1 быстрее всего на ~0,1 с на фразу и на 1 п. п. менее точен."""
 DEFAULT_STT_CPU_THREADS = 8
 SILERO_VOICES = ("xenia", "baya", "aidar")
-"""Голоса Silero v4_ru, из которых выбирают на слух (Q38)."""
+"""голоса Silero v4_ru, из которых выбирают на слух (Q38)."""
 DEFAULT_VOICE = "baya"
-"""Выбран владельцем на слух 27.10 (Q38)."""
+"""голос по умолчанию (Q38)."""
 
 SileroSampleRate = Literal[8000, 24000, 48000]
-"""Частоты, которые умеет Silero v4_ru."""
+"""частоты, которые умеет Silero v4_ru."""
 
 
 class SpeechToTextSettings(BaseSettings):
-    """Распознавание речи на CPU: GigaAM-v3 (по умолчанию) или faster-whisper.
+    """распознавание речи на CPU: GigaAM-v3 (по умолчанию) или faster-whisper.
 
     `cache_dir` — каталог весов: локально `./models` репозитория (он в `.gitignore`),
     в Docker — том `/models`. Пусто — кэш Hugging Face (`HF_HOME`).
@@ -77,7 +73,7 @@ class SpeechToTextSettings(BaseSettings):
 
 
 class TextToSpeechSettings(BaseSettings):
-    """Синтез речи Silero v4_ru на CPU (Q13).
+    """синтез речи Silero v4_ru на CPU (Q13).
 
     `cache_dir` — куда скачать файл модели; пусто — каталог torch hub (`TORCH_HOME`).
     """

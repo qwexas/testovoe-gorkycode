@@ -1,5 +1,5 @@
 /**
- * Как показывать записи (Event из контракта) в «Консоли»: подписи типов, время,
+ * как показывать записи (Event из контракта) в «Консоли»: подписи типов, время,
  * положение относительно «сейчас». Чистые функции: «сейчас» передаётся явно.
  */
 import {
@@ -21,7 +21,7 @@ export const TYPE_LABELS: Record<EventType, string> = {
   meeting: "встреча",
 };
 
-/** Метка типа формой, а не только цветом (WCAG 1.4.1). Расшифровка — в легенде плана. */
+/** метка типа формой, а не только цветом (WCAG 1.4.1). Расшифровка — в легенде плана. */
 const TYPE_GLYPHS: Record<EventType, string> = {
   task: "[ ]",
   reminder: " ! ",
@@ -34,12 +34,12 @@ export function typeGlyph(event: CalendarEvent): string {
 
 export type EventTiming = "done" | "past" | "now" | "later";
 
-/** Положение записи относительно «сейчас»: сделано, прошло, идёт, впереди. */
+/** положение записи относительно «сейчас»: сделано, прошло, идёт, впереди. */
 export function eventTiming(event: CalendarEvent, now: Date): EventTiming {
   if (event.status === "done") return "done";
   if (!event.starts_at) return "later";
   const start = Date.parse(event.starts_at);
-  // Задача со сроком «на день» актуальна до конца этого дня.
+  // задача со сроком «на день» актуальна до конца этого дня.
   const end = event.ends_at
     ? Date.parse(event.ends_at)
     : event.has_time
@@ -57,7 +57,7 @@ const HOUR_FORMS = { one: "час", few: "часа", many: "часов" };
 const DAY_FORMS = { one: "день", few: "дня", many: "дней" };
 
 /**
- * Сколько осталось: сегодня — «через 20 минут», «через 2 часа 50 минут»; дальше —
+ * сколько осталось: сегодня — «через 20 минут», «через 2 часа 50 минут»; дальше —
  * по дням: «завтра», «через 3 дня». null — уже наступило.
  */
 export function formatIn(iso: string, now: Date): string | null {
@@ -129,14 +129,14 @@ function byStart(a: CalendarEvent, b: CalendarEvent): number {
   return Date.parse(a.starts_at ?? "") - Date.parse(b.starts_at ?? "") || a.id - b.id;
 }
 
-/** Записи на день со смещением от сегодня (0 — сегодня, 1 — завтра), по времени. */
+/** записи на день со смещением от сегодня (0 — сегодня, 1 — завтра), по времени. */
 export function eventsOnDay(events: CalendarEvent[], offset: number, now: Date): CalendarEvent[] {
   return events
     .filter((event) => event.starts_at !== null && dayOffset(event.starts_at, now) === offset)
     .sort(byStart);
 }
 
-/** Ближайшая открытая запись со временем, которая ещё не началась. */
+/** ближайшая открытая запись со временем, которая ещё не началась. */
 export function nextEvent(events: CalendarEvent[], now: Date): CalendarEvent | null {
   const at = now.getTime();
   return (
@@ -152,7 +152,7 @@ export function nextEvent(events: CalendarEvent[], now: Date): CalendarEvent | n
   );
 }
 
-/** Где в списке дня провести линию «сейчас»: индекс первой записи после текущего момента. */
+/** где в списке дня провести линию «сейчас»: индекс первой записи после текущего момента. */
 export function nowIndex(events: CalendarEvent[], now: Date): number {
   const at = now.getTime();
   const index = events.findIndex(

@@ -9,17 +9,17 @@ import { formatDuration } from "@/lib/format";
 import { useLevelMeter } from "../hooks/use-level-meter";
 
 const METER_CELLS = 12;
-/** Восемь ступеней, как у блочных символов ▁▂▃▄▅▆▇█. */
+/** восемь ступеней, как у блочных символов ▁▂▃▄▅▆▇█. */
 const STEPS = 8;
 
 /**
- * Уровень голоса столбиками, свежие значения справа. Столбики — элементы с высотой
+ * уровень голоса столбиками, свежие значения справа. Столбики — элементы с высотой
  * в восьмых долях, а не символы ▁…█: у моноширинных шрифтов эти глифы выше строки
  * и наезжают на соседний текст.
  */
 function applyMeter(element: HTMLElement, level: number) {
   const bars = Array.from(element.children) as HTMLElement[];
-  // Корень растягивает тихие уровни: речь в комнате редко доходит до максимума.
+  // корень растягивает тихие уровни: речь в комнате редко доходит до максимума.
   const step = Math.min(STEPS, Math.round(Math.sqrt(level) * STEPS));
   const history = (element.dataset.history ?? "").split(",").filter(Boolean).map(Number);
   history.push(step);
@@ -34,7 +34,7 @@ function applyMeter(element: HTMLElement, level: number) {
 }
 
 /**
- * Индикатор записи для панели сферы: уровень с микрофона и длительность. Это обратная
+ * индикатор записи для панели сферы: уровень с микрофона и длительность. Это обратная
  * связь «микрофон слышит», поэтому работает и при reduced motion (реже).
  */
 export function LevelMeter({

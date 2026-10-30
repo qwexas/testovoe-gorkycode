@@ -1,4 +1,4 @@
-"""Анонимные профили (решение Q11): создание, вход по коду восстановления, удаление.
+"""анонимные профили (решение Q11): создание, вход по коду восстановления, удаление.
 
 Профиль узнаётся по токену сессии из cookie. В базе хранятся только SHA-256
 токена и HMAC кода восстановления, поэтому утечка базы не даёт войти в профиль.
@@ -22,7 +22,7 @@ PROFILE_CREATION_WINDOW_SECONDS = 60 * 60
 
 @dataclass(frozen=True, slots=True)
 class ProfileCard:
-    """Сведения о профиле для показа пользователю.
+    """сведения о профиле для показа пользователю.
 
     `recovery_code` заполнен только сразу после создания профиля — потом код
     восстановить нельзя, в базе лежит лишь его отпечаток.
@@ -37,14 +37,14 @@ class ProfileCard:
 
 @dataclass(frozen=True, slots=True)
 class SessionGrant:
-    """Профиль и новый токен сессии, который нужно отдать устройству."""
+    """профиль и новый токен сессии, который нужно отдать устройству."""
 
     profile: ProfileCard
     session_token: str
 
 
 class ProfileOnboarding:
-    """Появление нового профиля: не чаще лимита с одного адреса и сразу с историей (Q22).
+    """появление нового профиля: не чаще лимита с одного адреса и сразу с историей (Q22).
 
     Лимит — `PROFILE_CREATIONS_PER_ADDRESS` профилей за `PROFILE_CREATION_WINDOW_SECONDS`
     с одного IP; лимит действует при явном создании через POST /api/profiles.
@@ -60,7 +60,7 @@ class ProfileOnboarding:
         )
 
     def admit(self, requester: str) -> None:
-        """Учитывает создание профиля с адреса `requester`.
+        """учитывает создание профиля с адреса `requester`.
 
         Raises:
             TooManyProfilesError: С этого адреса лимит профилей исчерпан.
@@ -70,12 +70,12 @@ class ProfileOnboarding:
             raise TooManyProfilesError(decision.retry_after_seconds)
 
     async def seed(self, storage: UnitOfWork, profile_id: UUID) -> None:
-        """Добавляет только что созданному профилю историю, не фиксируя транзакцию."""
+        """добавляет только что созданному профилю историю, не фиксируя транзакцию."""
         await self._history.seed(storage, profile_id)
 
 
 class ProfileService:
-    """Сценарии работы с профилем. Каждый изменяющий сценарий — одна транзакция."""
+    """сценарии работы с профилем. Каждый изменяющий сценарий — одна транзакция."""
 
     def __init__(
         self,
@@ -88,12 +88,12 @@ class ProfileService:
         self._onboarding = onboarding
 
     async def find_by_session(self, session_token: str | None) -> ProfileCard | None:
-        """Профиль по токену из cookie или `None`, если токена нет или он чужой."""
+        """профиль по токену из cookie или `None`, если токена нет или он чужой."""
         profile = await self._profile_of_session(session_token)
         return None if profile is None else await self._card(profile)
 
     async def create_profile(self, replaced_session: str | None, requester: str) -> SessionGrant:
-        """Создаёт профиль с историей и открывает на этом устройстве новую сессию.
+        """создаёт профиль с историей и открывает на этом устройстве новую сессию.
 
         Args:
             replaced_session: Прежний токен устройства; его сессия закрывается.
@@ -117,7 +117,7 @@ class ProfileService:
     async def restore(
         self, recovery_code: str, requester: str, replaced_session: str | None
     ) -> SessionGrant:
-        """Входит в профиль по коду восстановления.
+        """входит в профиль по коду восстановления.
 
         Args:
             recovery_code: Код в том виде, как его ввёл пользователь.
@@ -138,7 +138,7 @@ class ProfileService:
         return SessionGrant(profile=card, session_token=session_token)
 
     async def delete_profile(self, session_token: str | None) -> None:
-        """Удаляет профиль сессии со всеми данными; без профиля ничего не делает."""
+        """удаляет профиль сессии со всеми данными; без профиля ничего не делает."""
         profile = await self._profile_of_session(session_token)
         if profile is None:
             return

@@ -1,4 +1,4 @@
-"""Голос в бизнес-логике: распознанная реплика и озвучка ответа.
+"""голос в бизнес-логике: распознанная реплика и озвучка ответа.
 
 Модели речи спрятаны за интерфейсами `SpeechToText` и `TextToSpeech` (`app.voice`).
 Аудио живёт только в памяти запроса: его не сохраняют и не пишут в лог (Q35).
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 async def recognize_speech(speech: SpeechToText, audio: AudioClip) -> str:
-    """Текст фразы без пробелов по краям.
+    """текст фразы без пробелов по краям.
 
     Raises:
         SpeechNotRecognizedError: Запись пустая или речи в ней нет.
@@ -48,7 +48,7 @@ async def recognize_speech(speech: SpeechToText, audio: AudioClip) -> str:
 
 
 class SynthesisThrottle(Throttle):
-    """Не больше `SYNTHESES_PER_WINDOW` озвучек в минуту на профиль."""
+    """не больше `SYNTHESES_PER_WINDOW` озвучек в минуту на профиль."""
 
     max_hits = SYNTHESES_PER_WINDOW
     window_seconds = SYNTHESIS_WINDOW_SECONDS
@@ -56,7 +56,7 @@ class SynthesisThrottle(Throttle):
 
 
 class SpeechSynthesis:
-    """Озвучка ответов ассистента с проверкой голоса и лимитами на профиль, IP и очередь."""
+    """озвучка ответов ассистента с проверкой голоса и лимитами на профиль, IP и очередь."""
 
     def __init__(
         self,
@@ -71,7 +71,7 @@ class SpeechSynthesis:
     async def synthesize(
         self, profile_id: UUID, text: str, voice_name: str | None, client: str = LOCAL_CLIENT
     ) -> AudioClip:
-        """Аудио OGG/Opus с текстом `text`; `voice_name=None` — голос по умолчанию.
+        """аудио OGG/Opus с текстом `text`; `voice_name=None` — голос по умолчанию.
 
         Raises:
             UnknownVoiceError: Такого голоса у синтезатора нет.
@@ -85,7 +85,7 @@ class SpeechSynthesis:
             return await self._synthesizer.synthesize(text, voice_name)
 
     def _check_voice(self, voice_name: str | None) -> None:
-        """Голос должен быть из списка синтезатора.
+        """голос должен быть из списка синтезатора.
 
         Пустой список значит, что синтезатор не готов: голос не проверяем, а сам
         синтез ответит `tts_unavailable` — это честнее, чем «нет такого голоса».
@@ -98,7 +98,7 @@ class SpeechSynthesis:
 
 @contextmanager
 def _model_failure_as(unavailable: type[DomainError]) -> Iterator[None]:
-    """Неожиданный сбой модели речи → ошибка контракта `unavailable` (503)."""
+    """неожиданный сбой модели речи → ошибка контракта `unavailable` (503)."""
     try:
         yield
     except DomainError:

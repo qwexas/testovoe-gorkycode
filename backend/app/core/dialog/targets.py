@@ -1,4 +1,4 @@
-"""На какую запись ссылается команда изменения: «её» — из контекста, иначе поиск."""
+"""на какую запись ссылается команда изменения: «её» — из контекста, иначе поиск."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -14,19 +14,19 @@ from app.core.schedule import MOSCOW
 from app.nlu.interfaces import Action, Intent, TargetRef, When
 
 MOMENT_LIST_LIMIT = 100
-"""Сколько записей брать при поиске по дню и времени: список идёт по времени начала,
+"""сколько записей брать при поиске по дню и времени: список идёт по времени начала,
 так что ближайшие не отрезаются."""
 DAYS_PER_WEEK = 7
 OPEN_ONLY_ACTIONS = frozenset({Action.RESCHEDULE, Action.COMPLETE})
-"""Переносят и отмечают невыполненное; если такого нет — ищем среди всех записей."""
+"""переносят и отмечают невыполненное; если такого нет — ищем среди всех записей."""
 FOCUS_TIE_MARGIN = 0.015
-"""Упомянутая в разговоре запись решает выбор, только если почти не уступает лидеру:
+"""упомянутая в разговоре запись решает выбор, только если почти не уступает лидеру:
 иначе только что созданная «Встреча с Иваном» перехватила бы «отметь звонок Ивану»."""
 
 
 @dataclass(frozen=True, slots=True)
 class TargetLookup:
-    """Подходящие записи по убыванию уместности.
+    """подходящие записи по убыванию уместности.
 
     `query` — что искали; `None` — команда ссылалась на запись из контекста («её»)
     или описала её только днём и временем — тогда они в `moment`.
@@ -38,7 +38,7 @@ class TargetLookup:
 
 
 class TargetFinder:
-    """Находит записи, к которым относится команда изменения."""
+    """находит записи, к которым относится команда изменения."""
 
     def __init__(self, reader: EventService) -> None:
         self._reader = reader
@@ -80,7 +80,7 @@ class TargetFinder:
     async def _search_with(
         self, criteria: EventFilter, query: str, target: TargetRef
     ) -> list[ScoredCard]:
-        """Все подходящие записи, без предела выдачи.
+        """все подходящие записи, без предела выдачи.
 
         Варианты выбора — самые актуальные по времени (`router.CHOICE_LIMIT`): предел по
         оценке до этого выбора отрезал бы ближайшую из многих одинаковых записей.
@@ -93,7 +93,7 @@ class TargetFinder:
     async def _at_moment(
         self, turn: Turn, action: Action, target: TargetRef, when: When
     ) -> list[EventCard]:
-        """Записи названного типа в названные день и время, по времени начала.
+        """записи названного типа в названные день и время, по времени начала.
 
         Названо время — только записи ровно в это время, как и при поиске по описанию:
         другая запись того же дня не подменяет названную. Время без дня ищется с сегодняшнего
@@ -123,7 +123,7 @@ class TargetFinder:
 
 
 def _referenced(turn: Turn, target: TargetRef) -> tuple[EventCard, ...]:
-    """На что указывает «её / эту встречу»: записи ответа-списка или одна запись фокуса."""
+    """на что указывает «её / эту встречу»: записи ответа-списка или одна запись фокуса."""
     if turn.peers:
         return tuple(_matching(turn.peers, target))
     card = _from_focus(_matching(turn.focus, target), target.event_type)
@@ -131,7 +131,7 @@ def _referenced(turn: Turn, target: TargetRef) -> tuple[EventCard, ...]:
 
 
 def _matching(cards: Sequence[EventCard], target: TargetRef) -> list[EventCard]:
-    """Явные ограничения действуют и для записей из контекста."""
+    """явные ограничения действуют и для записей из контекста."""
     start, end = _day_bounds(target.when)
     typed = _of_type(cards, target.event_type)
     return [
@@ -153,15 +153,15 @@ def _of_type(cards: Sequence[EventCard], event_type: EventType | None) -> list[E
 
 
 def _from_focus(focus: Sequence[EventCard], event_type: EventType | None) -> EventCard | None:
-    """Первая запись в фокусе; если назван тип («перенеси встречу») — первая такого типа."""
+    """первая запись в фокусе; если назван тип («перенеси встречу») — первая такого типа."""
     typed = _of_type(focus, event_type)
     if typed:
         return typed[0]
-    return None  # if !focus - перейти в уточнение
+    return None
 
 
 def _day_bounds(when: When | None) -> tuple[datetime | None, datetime | None]:
-    """Период, в котором стоит запись: названный день или неделя; иначе без ограничения."""
+    """период, в котором стоит запись: названный день или неделя; иначе без ограничения."""
     if when is None:
         return None, None
     if when.date is not None:
@@ -183,11 +183,11 @@ def _midnight(day: date) -> datetime:
 
 
 def _prefer_exact_time(found: list[ScoredCard], when: When | None) -> list[ScoredCard]:
-    """Если названо время («созвон в 15»), записи ровно в это время — единственные кандидаты."""
+    """если названо время («созвон в 15»), записи ровно в это время — единственные кандидаты."""
     if when is None or when.time is None:
         return found
     exact = [item for item in found if _starts_exactly_at(item.card, when.time)]
-    return exact  # изменить на строгий ( if (exact) ? return exact : exeption - не найдено)
+    return exact
 
 
 def _starts_exactly_at(card: EventCard, moment: time) -> bool:
@@ -195,7 +195,7 @@ def _starts_exactly_at(card: EventCard, moment: time) -> bool:
 
 
 def _narrow(found: Sequence[ScoredCard], focus: Sequence[EventCard]) -> list[EventCard]:
-    """Оставляет только кандидатов рядом с лидером; упомянутая запись разрешает ничью.
+    """оставляет только кандидатов рядом с лидером; упомянутая запись разрешает ничью.
 
     Пользователь только что создал «Позвонить Ивану» и говорит «отметь звонок Ивану» — без
     вопроса «какую?» отмечаем её. Но упоминание не перевешивает заметно более похожую

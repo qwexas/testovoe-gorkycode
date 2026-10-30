@@ -1,4 +1,4 @@
-"""Зависимости FastAPI: сервисы приложения, транзакция, текущий профиль, IP клиента."""
+"""зависимости FastAPI: сервисы приложения, транзакция, текущий профиль, IP клиента."""
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -165,10 +165,9 @@ async def get_current_profile(
     profiles: Profiles,
     storage: Storage,
 ) -> ProfileCard:
-    """Только проверка существующей сессии; никаких созданий, seed и новых cookie.
+    """Профиль существующей сессии.
 
-    После проверки транзакция закрывается: соединение с БД возвращается в пул и не
-    простаивает, пока маршрут ждёт LLM, распознавание или озвучку.
+    Закрываем транзакцию до вызова моделей, чтобы не занимать соединение с БД.
     """
     profile = await profiles.find_by_session(session_token)
     if profile is None:

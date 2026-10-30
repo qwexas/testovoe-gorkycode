@@ -6,12 +6,12 @@ import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 import type { SphereMode } from "../model/sphere";
 
 export type SphereFrame = {
-  /** Секунды с начала текущего режима. */
+  /** секунды с начала текущего режима. */
   t: number;
   mode: SphereMode;
-  /** Уровень голоса 0..1; при reduced motion всегда 0. */
+  /** уровень голоса 0..1; при reduced motion всегда 0. */
   level: number;
-  /** Амплитуда движения 0..1: в покое затухает до 0, чтобы сфера не двигалась бесконечно. */
+  /** амплитуда движения 0..1: в покое затухает до 0, чтобы сфера не двигалась бесконечно. */
   calm: number;
   width: number;
   height: number;
@@ -21,7 +21,7 @@ export type SphereFrame = {
 export type SphereRenderer = (ctx: CanvasRenderingContext2D, frame: SphereFrame) => void;
 
 /**
- * Сколько длится движение в режиме. Покой и ожидание «дышат» 5 секунд и замирают
+ * сколько длится движение в режиме. Покой и ожидание «дышат» 5 секунд и замирают
  * (WCAG 2.2.2: само по себе ничего не движется дольше 5 с); запись, разбор и речь
  * идут, пока режим активен — это обратная связь на действие пользователя.
  */
@@ -42,15 +42,15 @@ type Options = {
   mode: SphereMode;
   levelRef: RefObject<number>;
   render: SphereRenderer;
-  /** Кадров в секунду: терминалу хватает 24, пиксельной графике — 12. */
+  /** кадров в секунду: терминалу хватает 24, пиксельной графике — 12. */
   fps?: number;
-  /** Фиксированный размер холста в пикселях (пиксель-арт масштабирует CSS). */
+  /** фиксированный размер холста в пикселях (пиксель-арт масштабирует CSS). */
   fixedWidth?: number;
   fixedHeight?: number;
 };
 
 /**
- * Цикл отрисовки сферы на canvas: подгоняет холст под размер и плотность пикселей,
+ * цикл отрисовки сферы на canvas: подгоняет холст под размер и плотность пикселей,
  * останавливается в фоне (requestAnimationFrame) и при prefers-reduced-motion
  * рисует один статичный кадр на каждый режим.
  */
@@ -140,7 +140,7 @@ export function useSphereLoop({
       frame = requestAnimationFrame(loop);
     }
 
-    // Шрифт для текстовой сферы может догрузиться позже первого кадра.
+    // шрифт для текстовой сферы может догрузиться позже первого кадра.
     void document.fonts?.ready.then(() => {
       if (reduced || duration !== Number.POSITIVE_INFINITY) paint(performance.now());
     });

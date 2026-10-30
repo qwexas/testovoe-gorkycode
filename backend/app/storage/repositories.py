@@ -1,4 +1,4 @@
-"""Репозитории: запросы к таблицам. Транзакцией управляет `UnitOfWork`."""
+"""репозитории: запросы к таблицам. Транзакцией управляет `UnitOfWork`."""
 
 from collections.abc import Sequence
 from datetime import datetime
@@ -38,29 +38,29 @@ from app.storage.models import (
 )
 
 NEAREST_CANDIDATES = 100
-"""Сколько ближайших по вектору записей отдавать в ранжирование (плюс совпавшие по леммам)."""
+"""сколько ближайших по вектору записей отдавать в ранжирование (плюс совпавшие по леммам)."""
 
 SEED_LOCK_KEY = 0x676F726B79
-"""Ключ advisory-блокировки заполнения `seed_events`: два процесса не заполняют её дважды."""
+"""ключ advisory-блокировки заполнения `seed_events`: два процесса не заполняют её дважды."""
 
 _COPIED_COLUMNS = ("type", "title", "starts_at", "has_time", "ends_at")
-"""Поля записи истории, которые получает профиль; поисковый индекс остаётся в заготовке."""
+"""поля записи истории, которые получает профиль; поисковый индекс остаётся в заготовке."""
 
 _SEED_COLUMNS = tuple(attribute.key for attribute in inspect(SeedEventRecord).column_attrs)
 
 _INDEXED_EMBEDDING = func.coalesce(EventRecord.embedding, SeedEventRecord.embedding)
 _INDEXED_LEMMAS = func.coalesce(EventRecord.lemmas, SeedEventRecord.lemmas)
-"""Индекс записи: собственный, а у нетронутой записи истории — из `seed_events`."""
+"""индекс записи: собственный, а у нетронутой записи истории — из `seed_events`."""
 
 
 class ProfileRepository:
-    """Профили и их сессии."""
+    """профили и их сессии."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def add(self, recovery_code_digest: str, calendar_token: str) -> ProfileRecord:
-        """Создаёт профиль и возвращает его с заполненными `id` и `created_at`."""
+        """создаёт профиль и возвращает его с заполненными `id` и `created_at`."""
         profile = ProfileRecord(
             recovery_code_digest=recovery_code_digest,
             calendar_token=calendar_token,
@@ -71,7 +71,7 @@ class ProfileRepository:
         return profile
 
     async def get_by_session(self, token_digest: str) -> ProfileRecord | None:
-        """Профиль, которому принадлежит сессия с данным отпечатком токена."""
+        """профиль, которому принадлежит сессия с данным отпечатком токена."""
         statement = (
             select(ProfileRecord)
             .join(ProfileSessionRecord, ProfileSessionRecord.profile_id == ProfileRecord.id)
@@ -80,34 +80,34 @@ class ProfileRepository:
         return await self._session.scalar(statement)
 
     async def get_by_recovery_code(self, recovery_code_digest: str) -> ProfileRecord | None:
-        """Профиль по отпечатку кода восстановления."""
+        """профиль по отпечатку кода восстановления."""
         statement = select(ProfileRecord).where(
             ProfileRecord.recovery_code_digest == recovery_code_digest
         )
         return await self._session.scalar(statement)
 
     async def get_by_calendar_token(self, calendar_token: str) -> ProfileRecord | None:
-        """Профиль по секретному токену подписки на календарь."""
+        """профиль по секретному токену подписки на календарь."""
         statement = select(ProfileRecord).where(ProfileRecord.calendar_token == calendar_token)
         return await self._session.scalar(statement)
 
     async def add_session(self, profile_id: UUID, token_digest: str) -> None:
-        """Привязывает новую сессию устройства к профилю."""
+        """привязывает новую сессию устройства к профилю."""
         self._session.add(ProfileSessionRecord(token_digest=token_digest, profile_id=profile_id))
         await self._session.flush()
 
     async def delete_session(self, token_digest: str) -> None:
-        """Удаляет сессию устройства, если она есть."""
+        """удаляет сессию устройства, если она есть."""
         await self._session.execute(
             delete(ProfileSessionRecord).where(ProfileSessionRecord.token_digest == token_digest)
         )
 
     async def delete(self, profile_id: UUID) -> None:
-        """Удаляет профиль; записи, диалог и сессии удаляются каскадом в базе."""
+        """удаляет профиль; записи, диалог и сессии удаляются каскадом в базе."""
         await self._session.execute(delete(ProfileRecord).where(ProfileRecord.id == profile_id))
 
     async def lock(self, profile_id: UUID) -> None:
-        """Блокирует профиль до завершения текущей транзакции."""
+        """блокирует профиль до завершения текущей транзакции."""
         statement = select(ProfileRecord.id).where(ProfileRecord.id == profile_id).with_for_update()
 
         result = await self._session.execute(statement)
@@ -117,13 +117,13 @@ class ProfileRepository:
 
 
 class EventRepository:
-    """Задачи, напоминания и встречи профиля."""
+    """задачи, напоминания и встречи профиля."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def count_for_profile(self, profile_id: UUID) -> int:
-        """Количество записей профиля."""
+        """количество записей профиля."""
         statement = (
             select(func.count())
             .select_from(EventRecord)
@@ -132,19 +132,19 @@ class EventRepository:
         return await self._session.scalar(statement) or 0
 
     async def add(self, event: EventRecord) -> None:
-        """Сохраняет новую запись; `id` и даты создания заполняются сразу."""
+        """сохраняет новую запись; `id` и даты создания заполняются сразу."""
         self._session.add(event)
         await self._session.flush()
 
     async def get(self, profile_id: UUID, event_id: int) -> EventRecord | None:
-        """Запись профиля; чужая запись — как отсутствующая."""
+        """запись профиля; чужая запись — как отсутствующая."""
         statement = select(EventRecord).where(
             EventRecord.id == event_id, EventRecord.profile_id == profile_id
         )
         return await self._session.scalar(statement)
 
     async def get_many(self, profile_id: UUID, event_ids: Sequence[int]) -> list[EventRecord]:
-        """Записи профиля в порядке `event_ids`; чужие и удалённые пропускаются."""
+        """записи профиля в порядке `event_ids`; чужие и удалённые пропускаются."""
         statement = select(EventRecord).where(
             EventRecord.profile_id == profile_id, EventRecord.id.in_(event_ids)
         )
@@ -152,7 +152,7 @@ class EventRepository:
         return [found[event_id] for event_id in event_ids if event_id in found]
 
     async def delete(self, profile_id: UUID, event_id: int) -> bool:
-        """Удаляет запись профиля; `False`, если такой записи у профиля нет."""
+        """удаляет запись профиля; `False`, если такой записи у профиля нет."""
         statement = (
             delete(EventRecord)
             .where(EventRecord.id == event_id, EventRecord.profile_id == profile_id)
@@ -161,7 +161,7 @@ class EventRepository:
         return await self._session.scalar(statement) is not None
 
     async def list_matching(self, criteria: EventFilter, limit: int) -> list[EventRecord]:
-        """Записи по критериям: по времени начала, записи без даты — в конце."""
+        """записи по критериям: по времени начала, записи без даты — в конце."""
         statement = (
             select(EventRecord)
             .where(*_filter_conditions(criteria))
@@ -173,7 +173,7 @@ class EventRepository:
     async def find_candidates(
         self, criteria: EventFilter, query_vector: Sequence[float], query_lemmas: Sequence[str]
     ) -> list[SearchCandidate]:
-        """Кандидаты поиска среди записей по критериям.
+        """кандидаты поиска среди записей по критериям.
 
         Это `NEAREST_CANDIDATES` ближайших по косинусной близости плюс все записи,
         у которых есть общая лемма с запросом. Близость считается для каждого кандидата.
@@ -209,7 +209,7 @@ class EventRepository:
         ]
 
     async def list_at_moment(self, moment: SameMoment) -> list[EventRecord]:
-        """Открытые записи профиля типа `moment.event_type`, начинающиеся ровно в `starts_at`."""
+        """открытые записи профиля типа `moment.event_type`, начинающиеся ровно в `starts_at`."""
         starts_at = (
             EventRecord.starts_at.is_(None)
             if moment.starts_at is None
@@ -228,7 +228,7 @@ class EventRepository:
         return list(await self._session.scalars(statement))
 
     async def find_overlapping_meetings(self, slot: MeetingSlot) -> list[EventRecord]:
-        """Открытые встречи профиля, пересекающиеся со `slot`, по времени начала.
+        """открытые встречи профиля, пересекающиеся со `slot`, по времени начала.
 
         Встреча без конца считается длящейся `DEFAULT_MEETING_DURATION`.
         """
@@ -249,20 +249,20 @@ class EventRepository:
 
 
 class ChatMessageRepository:
-    """История диалога профиля."""
+    """история диалога профиля."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def add(self, message: ChatMessageRecord) -> None:
-        """Сохраняет реплику; `id` и `created_at` заполняются сразу."""
+        """сохраняет реплику; `id` и `created_at` заполняются сразу."""
         self._session.add(message)
         await self._session.flush()
 
     async def list_before(
         self, profile_id: UUID, before_id: int | None, limit: int
     ) -> list[ChatMessageRecord]:
-        """Последние `limit` реплик профиля (с `id < before_id`, если задан), старые первыми."""
+        """последние `limit` реплик профиля (с `id < before_id`, если задан), старые первыми."""
         statement = select(ChatMessageRecord).where(ChatMessageRecord.profile_id == profile_id)
         if before_id is not None:
             statement = statement.where(ChatMessageRecord.id < before_id)
@@ -273,17 +273,17 @@ class ChatMessageRepository:
 
 
 class DialogStateRepository:
-    """Состояние диалога профиля: одна строка на профиль."""
+    """состояние диалога профиля: одна строка на профиль."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def get(self, profile_id: UUID) -> DialogStateRecord | None:
-        """Состояние диалога или `None`, если профиль ещё не разговаривал."""
+        """состояние диалога или `None`, если профиль ещё не разговаривал."""
         return await self._session.get(DialogStateRecord, profile_id, populate_existing=True)
 
     async def save(self, state: DialogStateRecord) -> None:
-        """Записывает состояние поверх прежнего (`INSERT … ON CONFLICT DO UPDATE`)."""
+        """записывает состояние поверх прежнего (`INSERT … ON CONFLICT DO UPDATE`)."""
         values = {
             "pending": state.pending,
             "last_event_ids": state.last_event_ids,
@@ -300,25 +300,25 @@ class DialogStateRepository:
 
 
 class UndoActionRepository:
-    """Действия профиля, которые ещё можно отменить."""
+    """действия профиля, которые ещё можно отменить."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def add(self, action: UndoActionRecord) -> None:
-        """Сохраняет действие."""
+        """сохраняет действие."""
         self._session.add(action)
         await self._session.flush()
 
     async def get(self, profile_id: UUID, action_id: str) -> UndoActionRecord | None:
-        """Действие профиля; чужое — как отсутствующее."""
+        """действие профиля; чужое — как отсутствующее."""
         statement = select(UndoActionRecord).where(
             UndoActionRecord.action_id == action_id, UndoActionRecord.profile_id == profile_id
         )
         return await self._session.scalar(statement)
 
     async def latest(self, profile_id: UUID) -> UndoActionRecord | None:
-        """Последнее действие профиля (с самым поздним сроком отмены)."""
+        """последнее действие профиля (с самым поздним сроком отмены)."""
         statement = (
             select(UndoActionRecord)
             .where(UndoActionRecord.profile_id == profile_id)
@@ -328,7 +328,7 @@ class UndoActionRepository:
         return await self._session.scalar(statement)
 
     async def delete(self, profile_id: UUID, action_id: str) -> None:
-        """Удаляет действие: отменить его второй раз нельзя."""
+        """удаляет действие: отменить его второй раз нельзя."""
         await self._session.execute(
             delete(UndoActionRecord).where(
                 UndoActionRecord.action_id == action_id, UndoActionRecord.profile_id == profile_id
@@ -336,7 +336,7 @@ class UndoActionRepository:
         )
 
     async def delete_expired(self, profile_id: UUID, moment: datetime) -> None:
-        """Удаляет действия профиля, срок отмены которых прошёл к `moment`."""
+        """удаляет действия профиля, срок отмены которых прошёл к `moment`."""
         await self._session.execute(
             delete(UndoActionRecord).where(
                 UndoActionRecord.profile_id == profile_id, UndoActionRecord.expires_at <= moment
@@ -345,27 +345,27 @@ class UndoActionRepository:
 
 
 class SeedEventRepository:
-    """Общая заготовка истории из CSV (`seed_events`)."""
+    """общая заготовка истории из CSV (`seed_events`)."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def lock(self) -> None:
-        """Блокирует заполнение заготовки до конца транзакции (advisory lock)."""
+        """блокирует заполнение заготовки до конца транзакции (advisory lock)."""
         await self._session.execute(
             text("SELECT pg_advisory_xact_lock(:key)"), {"key": SEED_LOCK_KEY}
         )
 
     async def count(self) -> int:
-        """Количество записей заготовки."""
+        """количество записей заготовки."""
         return await self._session.scalar(select(func.count()).select_from(SeedEventRecord)) or 0
 
     async def get(self, seed_id: int) -> SeedEventRecord | None:
-        """Запись заготовки по номеру строки CSV."""
+        """запись заготовки по номеру строки CSV."""
         return await self._session.get(SeedEventRecord, seed_id)
 
     async def save_all(self, records: Sequence[SeedEventRecord]) -> None:
-        """Записывает заготовку поверх прежней, сохраняя ссылки профилей на её строки.
+        """записывает заготовку поверх прежней, сохраняя ссылки профилей на её строки.
 
         Строки обновляются на месте по `id` (`INSERT … ON CONFLICT`), а строки, которых
         больше нет в `records`, удаляются: у записей профилей ссылка на них обнуляется.
@@ -386,7 +386,7 @@ class SeedEventRepository:
         )
 
     async def copy_to_profile(self, profile_id: UUID) -> None:
-        """Даёт профилю записи истории одним `INSERT … SELECT`.
+        """даёт профилю записи истории одним `INSERT … SELECT`.
 
         Копируются только поля записи и ссылка на заготовку. Статус — «выполнено»,
         если запись раньше момента создания профиля, иначе «открыта»; источник — импорт.
@@ -413,7 +413,7 @@ class SeedEventRepository:
 
 
 def _with_seed_index[Statement: Select[Any]](statement: Statement) -> Statement:
-    """Присоединяет заготовку истории, из которой записи без своего индекса берут его."""
+    """присоединяет заготовку истории, из которой записи без своего индекса берут его."""
     return statement.outerjoin(SeedEventRecord, EventRecord.seed_event_id == SeedEventRecord.id)
 
 

@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import type { CalendarEvent } from "@/types/api";
 
 /**
- * Как подписывать время: `time` — список за один день (только часы), `day` — за несколько
+ * как подписывать время: `time` — список за один день (только часы), `day` — за несколько
  * дней («пн 26.10 10:00»), `date` — поиск по всей истории (с годом и статусом).
  */
 export type TableScale = "time" | "day" | "date";
@@ -45,7 +45,7 @@ function whenText(event: CalendarEvent, scale: TableScale): string {
 
 const WHEN_HEADERS: Record<TableScale, string> = { time: "время", day: "когда", date: "дата" };
 
-/** Вывод «команды» — таблица записей: время, тип, что и статус. */
+/** вывод «команды» — таблица записей: время, тип, что и статус. */
 export function EventsTable({
   events,
   scale,
@@ -57,7 +57,7 @@ export function EventsTable({
   scale: TableScale;
   now: Date | null;
   caption: string;
-  /** Подсветить ближайшую предстоящую запись (для списка «что у меня…»). */
+  /** подсветить ближайшую предстоящую запись (для списка «что у меня…»). */
   highlightNext?: boolean;
 }) {
   if (events.length === 0) return null;

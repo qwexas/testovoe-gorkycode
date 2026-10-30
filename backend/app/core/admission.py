@@ -1,15 +1,7 @@
-"""Допуск тяжёлых запросов: разбор GigaChat, распознавание речи, озвучка Silero.
+"""ограничения очередей LLM, STT и TTS по профилю, IP и всему сервису.
 
-Модели работают по одному запросу за раз, поэтому без ограничений один пользователь —
-или скрипт с пачкой анонимных профилей — занял бы очередь целиком. Здесь:
-
-- ходы одного профиля идут строго по очереди (контекст диалога не теряется), но ждать
-  своей очереди может не больше одного хода — остальные получают 429;
-- с одного IP не больше `per_client` тяжёлых запросов одновременно и `client_rate` в минуту;
-- всего не больше `overall` запросов в работе и в очереди — сверх этого сразу 429,
-  а не ожидание до таймаута.
-
-Состояние живёт в памяти процесса: бэкенд запускается одним воркером uvicorn.
+Ходы профиля выполняются последовательно; в очереди может ждать ещё один.
+Счётчики хранятся в памяти и рассчитаны на один воркер uvicorn.
 """
 
 import asyncio
@@ -22,14 +14,14 @@ from app.core.errors import TooManyAttemptsError
 from app.core.rate_limit import SlidingWindowRateLimiter
 
 LOCAL_CLIENT = "local"
-"""Ключ клиента, когда IP неизвестен (вызов не из HTTP, тесты)."""
+"""ключ клиента, когда IP неизвестен (вызов не из HTTP, тесты)."""
 OVERALL_KEY = "*"
 BUSY_RETRY_SECONDS = 5
 TURN_RETRY_SECONDS = 3
 
 
 class ServiceBusyError(TooManyAttemptsError):
-    """Слишком много тяжёлых запросов в работе — сервис занят."""
+    """слишком много тяжёлых запросов в работе — сервис занят."""
 
     message_template = "Сейчас много запросов. Повторите через несколько секунд."
 
@@ -41,7 +33,7 @@ class TurnInProgressError(TooManyAttemptsError):
 
 
 class InFlightLimit:
-    """Не больше `limit` одновременных запросов на ключ; сверх — `rejection` сразу."""
+    """не больше `limit` одновременных запросов на ключ; сверх — `rejection` сразу."""
 
     def __init__(
         self,
@@ -58,7 +50,7 @@ class InFlightLimit:
 
     @contextmanager
     def hold(self, key: str) -> Iterator[None]:
-        """Занимает место для `key` на время блока.
+        """занимает место для `key` на время блока.
 
         Raises:
             TooManyAttemptsError: Для `key` уже занято `limit` мест.
@@ -81,11 +73,11 @@ class InFlightLimit:
 class _Queue:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     members: int = 0
-    """Ход в работе плюс ждущие."""
+    """ход в работе плюс ждущие."""
 
 
 class ProfileTurns:
-    """Ходы одного профиля по очереди — без удержания соединения с БД.
+    """ходы одного профиля по очереди — без удержания соединения с БД.
 
     Второй ход ждёт первого и видит его контекст. Больше `max_members` ходов
     (в работе и в очереди) одного профиля — `TurnInProgressError`.
@@ -97,7 +89,7 @@ class ProfileTurns:
 
     @asynccontextmanager
     async def turn(self, profile_id: UUID, deadline: float | None = None) -> AsyncIterator[None]:
-        """Ждёт очереди профиля до `deadline` (время `loop.time()`) и держит её на время блока.
+        """ждёт очереди профиля до `deadline` (время `loop.time()`) и держит её на время блока.
 
         Raises:
             TurnInProgressError: Очередь профиля уже полна.
@@ -122,13 +114,13 @@ class ProfileTurns:
 
 
 class ClientRate:
-    """Не больше `max_hits` тяжёлых запросов в минуту с одного IP (на все его профили)."""
+    """не больше `max_hits` тяжёлых запросов в минуту с одного IP (на все его профили)."""
 
     def __init__(self, max_hits: int) -> None:
         self._limiter = SlidingWindowRateLimiter(max_hits=max_hits, window_seconds=60)
 
     def admit(self, client: str) -> None:
-        """Учитывает запрос клиента.
+        """учитывает запрос клиента.
 
         Raises:
             ServiceBusyError: Лимит IP исчерпан.
@@ -139,7 +131,7 @@ class ClientRate:
 
 
 class DialogAdmission:
-    """Допуск реплик (текст и голос): IP → общая очередь → очередь профиля."""
+    """допуск реплик (текст и голос): IP → общая очередь → очередь профиля."""
 
     def __init__(
         self,
@@ -158,7 +150,7 @@ class DialogAdmission:
     async def enter(
         self, profile_id: UUID, client: str, deadline: float | None = None
     ) -> AsyncIterator[None]:
-        """Пропускает реплику, если есть место, и держит её очередь на время блока.
+        """пропускает реплику, если есть место, и держит её очередь на время блока.
 
         Raises:
             TooManyAttemptsError: Лимит IP, общей очереди или очереди профиля.
@@ -171,7 +163,7 @@ class DialogAdmission:
 
 
 class SpeechAdmission:
-    """Допуск озвучки: IP → общая очередь синтеза."""
+    """допуск озвучки: IP → общая очередь синтеза."""
 
     def __init__(self, *, overall: int = 6, per_client: int = 2, client_rate: int = 90) -> None:
         self._overall = InFlightLimit(overall)
@@ -180,7 +172,7 @@ class SpeechAdmission:
 
     @contextmanager
     def enter(self, client: str) -> Iterator[None]:
-        """Пропускает озвучку, если есть место.
+        """пропускает озвучку, если есть место.
 
         Raises:
             ServiceBusyError: Лимит IP или общей очереди.

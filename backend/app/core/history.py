@@ -1,4 +1,4 @@
-"""История записей, которую получает каждый новый профиль (решение Q22).
+"""история записей, которую получает каждый новый профиль (решение Q22).
 
 1000 записей из CSV лежат в общей таблице `seed_events` вместе с векторами и леммами
 названий. `SeedHistoryLoader` заполняет её при старте приложения. `CsvProfileHistory`
@@ -21,40 +21,40 @@ from app.storage.database import UnitOfWork
 from app.storage.models import SeedEventRecord
 
 INDEX_BATCH_SIZE = 64
-"""Сколько названий отдавать модели эмбеддингов за раз при заполнении заготовки."""
+"""сколько названий отдавать модели эмбеддингов за раз при заполнении заготовки."""
 
 SAME_EMBEDDER_MIN_SIMILARITY = 0.999
-"""Если вектор контрольной записи от текущей модели не совпал с сохранённым, модель
+"""если вектор контрольной записи от текущей модели не совпал с сохранённым, модель
 сменилась (например, заглушка → настоящая) и заготовку нужно пересчитать."""
 
 logger = logging.getLogger(__name__)
 
 
 class ProfileHistorySeeder(Protocol):
-    """Заполняет только что созданный профиль историей в той же транзакции."""
+    """заполняет только что созданный профиль историей в той же транзакции."""
 
     async def seed(self, storage: UnitOfWork, profile_id: UUID) -> None:
-        """Добавляет записи истории профилю `profile_id`, не фиксируя транзакцию."""
+        """добавляет записи истории профилю `profile_id`, не фиксируя транзакцию."""
         ...
 
 
 class CsvProfileHistory:
-    """История из CSV: прошедшие записи — «выполнено», будущие — «открыта», источник — импорт."""
+    """история из CSV: прошедшие записи — «выполнено», будущие — «открыта», источник — импорт."""
 
     async def seed(self, storage: UnitOfWork, profile_id: UUID) -> None:
-        """Добавляет профилю записи истории со ссылками на заготовку."""
+        """добавляет профилю записи истории со ссылками на заготовку."""
         await storage.seed_events.copy_to_profile(profile_id)
 
 
 class SeedHistoryLoader:
-    """Готовит `seed_events`: записи из seed-файла с векторами и леммами названий."""
+    """готовит `seed_events`: записи из seed-файла с векторами и леммами названий."""
 
     def __init__(self, search: SearchService, entries: Sequence[HistoryEntry]) -> None:
         self._search = search
         self._entries = entries
 
     async def ensure_loaded(self, storage: UnitOfWork) -> None:
-        """Заполняет заготовку, если она пуста или посчитана другой моделью.
+        """заполняет заготовку, если она пуста или посчитана другой моделью.
 
         Строки обновляются на месте, поэтому записи истории во всех профилях сразу
         ищутся по новым векторам. Параллельные процессы ждут друг друга на
@@ -91,7 +91,7 @@ class SeedHistoryLoader:
         )
 
     async def _index_titles(self) -> dict[str, TitleIndex]:
-        """Индексы уникальных названий: в CSV 1000 записей, но названий меньше."""
+        """индексы уникальных названий: в CSV 1000 записей, но названий меньше."""
         titles = list(dict.fromkeys(entry.title for entry in self._entries))
         indexes: dict[str, TitleIndex] = {}
         for batch in batched(titles, INDEX_BATCH_SIZE):

@@ -1,4 +1,4 @@
-"""Задачи, напоминания и встречи: создание, изменение, удаление, выборка и поиск.
+"""задачи, напоминания и встречи: создание, изменение, удаление, выборка и поиск.
 
 Все сценарии работают только с записями одного профиля: чужая запись неотличима
 от отсутствующей. Название при создании и изменении сразу индексируется для поиска.
@@ -33,7 +33,7 @@ KEEP = Keep.KEEP
 
 @dataclass(frozen=True, slots=True)
 class EventCard:
-    """Запись для показа пользователю; время — по Москве."""
+    """запись для показа пользователю; время — по Москве."""
 
     id: int
     type: EventType
@@ -48,7 +48,7 @@ class EventCard:
 
     @classmethod
     def from_record(cls, record: EventRecord) -> Self:
-        """Карточка из строки таблицы `events`."""
+        """карточка из строки таблицы `events`."""
         return cls(
             id=record.id,
             type=record.type,
@@ -65,7 +65,7 @@ class EventCard:
 
 @dataclass(frozen=True, slots=True)
 class EventDraft:
-    """Новая запись от пользователя."""
+    """новая запись от пользователя."""
 
     type: EventType
     title: str
@@ -76,7 +76,7 @@ class EventDraft:
 
 @dataclass(frozen=True, slots=True)
 class EventChanges:
-    """Изменения записи. `None` у названия, `has_time` и статуса — «не менять»;
+    """изменения записи. `None` у названия, `has_time` и статуса — «не менять»;
     у `starts_at` и `ends_at` «не менять» — это `KEEP`, а `None` стирает значение."""
 
     title: str | None = None
@@ -88,7 +88,7 @@ class EventChanges:
 
 @dataclass(frozen=True, slots=True)
 class EventSnapshot:
-    """Запись целиком: из снимка её можно вернуть после удаления или изменения (отмена)."""
+    """запись целиком: из снимка её можно вернуть после удаления или изменения (отмена)."""
 
     id: int
     type: EventType
@@ -103,7 +103,7 @@ class EventSnapshot:
 
     @classmethod
     def from_record(cls, record: EventRecord) -> Self:
-        """Снимок строки таблицы `events`; время — по Москве."""
+        """снимок строки таблицы `events`; время — по Москве."""
         return cls(
             id=record.id,
             type=record.type,
@@ -118,7 +118,7 @@ class EventSnapshot:
         )
 
     def as_changes(self) -> EventChanges:
-        """Изменения, которые возвращают записи поля этого снимка."""
+        """изменения, которые возвращают записи поля этого снимка."""
         return EventChanges(
             title=self.title,
             starts_at=self.starts_at,
@@ -129,7 +129,7 @@ class EventSnapshot:
 
 
 class EventEditor:
-    """Изменения записей профиля внутри транзакции вызывающего сценария.
+    """изменения записей профиля внутри транзакции вызывающего сценария.
 
     Ничего не фиксирует: так диалог сохраняет запись, её отмену и ответ ассистента
     одной транзакцией. Название при создании и изменении сразу индексируется для поиска.
@@ -140,7 +140,7 @@ class EventEditor:
         self._search = search
 
     async def get(self, profile_id: UUID, event_id: int) -> EventCard:
-        """Запись профиля.
+        """запись профиля.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
@@ -148,7 +148,7 @@ class EventEditor:
         return EventCard.from_record(await self._owned_event(profile_id, event_id))
 
     async def create(self, profile_id: UUID, draft: EventDraft) -> EventCard:
-        """Создаёт запись.
+        """создаёт запись.
 
         Raises:
             EventValidationError: Время не подходит к типу записи (см. `settle_schedule`).
@@ -171,7 +171,7 @@ class EventEditor:
         return EventCard.from_record(record)
 
     async def update(self, profile_id: UUID, event_id: int, changes: EventChanges) -> EventCard:
-        """Меняет запись профиля; новое название сразу индексируется для поиска.
+        """меняет запись профиля; новое название сразу индексируется для поиска.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
@@ -192,7 +192,7 @@ class EventEditor:
         return EventCard.from_record(record)
 
     async def snapshot(self, profile_id: UUID, event_id: int) -> EventSnapshot:
-        """Снимок записи профиля — перед изменением, чтобы его можно было отменить.
+        """снимок записи профиля — перед изменением, чтобы его можно было отменить.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
@@ -200,7 +200,7 @@ class EventEditor:
         return EventSnapshot.from_record(await self._owned_event(profile_id, event_id))
 
     async def delete(self, profile_id: UUID, event_id: int) -> EventSnapshot:
-        """Удаляет запись профиля и возвращает её снимок.
+        """удаляет запись профиля и возвращает её снимок.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
@@ -210,7 +210,7 @@ class EventEditor:
         return snapshot
 
     async def restore(self, profile_id: UUID, snapshot: EventSnapshot) -> EventCard:
-        """Возвращает удалённую запись с прежним `id`, статусом и датой создания."""
+        """возвращает удалённую запись с прежним `id`, статусом и датой создания."""
         index = await self._search.index_title(snapshot.title)
         record = EventRecord(
             id=snapshot.id,
@@ -244,7 +244,7 @@ class EventEditor:
 
 
 class EventService:
-    """Сценарии работы с записями профиля. Изменяющий сценарий — одна транзакция."""
+    """сценарии работы с записями профиля. Изменяющий сценарий — одна транзакция."""
 
     def __init__(self, storage: UnitOfWork, search: SearchService) -> None:
         self._storage = storage
@@ -252,7 +252,7 @@ class EventService:
         self._editor = EventEditor(storage, search)
 
     async def create(self, profile_id: UUID, draft: EventDraft) -> EventCard:
-        """Создаёт запись.
+        """создаёт запись.
 
         Raises:
             EventValidationError: Время не подходит к типу записи (см. `settle_schedule`).
@@ -262,7 +262,7 @@ class EventService:
         return card
 
     async def update(self, profile_id: UUID, event_id: int, changes: EventChanges) -> EventCard:
-        """Меняет запись профиля; новое название сразу индексируется для поиска.
+        """меняет запись профиля; новое название сразу индексируется для поиска.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
@@ -273,7 +273,7 @@ class EventService:
         return card
 
     async def delete(self, profile_id: UUID, event_id: int) -> None:
-        """Удаляет запись профиля.
+        """удаляет запись профиля.
 
         Raises:
             EventNotFoundError: У профиля нет такой записи.
@@ -282,7 +282,7 @@ class EventService:
         await self._storage.commit()
 
     async def list_events(self, criteria: EventFilter, limit: int) -> list[EventCard]:
-        """Записи по критериям в порядке времени начала.
+        """записи по критериям в порядке времени начала.
 
         Raises:
             EventValidationError: Начало периода не раньше его конца.
@@ -299,7 +299,7 @@ class EventService:
         *,
         preferred_type: EventType | None = None,
     ) -> list[EventCard]:
-        """Записи по критериям, похожие на запрос, по убыванию релевантности.
+        """записи по критериям, похожие на запрос, по убыванию релевантности.
 
         `preferred_type` — тип из разбора запроса: такие записи чуть выше, другие не отсекаются.
 
@@ -317,7 +317,7 @@ class EventService:
         *,
         preferred_type: EventType | None = None,
     ) -> list["ScoredCard"]:
-        """То же, что `search_events`, но с оценкой уместности каждой записи.
+        """то же, что `search_events`, но с оценкой уместности каждой записи.
 
         Оценка нужна, чтобы отличить явного лидера от равных кандидатов
         (выбор записи для команды изменения). `limit=None` — все подходящие записи: диалог
@@ -340,7 +340,7 @@ class EventService:
 
 
 def _changed_schedule(record: EventRecord, changes: EventChanges) -> Schedule:
-    """Время записи после изменений. Перенос встречи сохраняет её длительность."""
+    """время записи после изменений. Перенос встречи сохраняет её длительность."""
     starts_at = record.starts_at if changes.starts_at is KEEP else changes.starts_at
     has_time = record.has_time if changes.has_time is None else changes.has_time
     if changes.ends_at is not KEEP:
@@ -365,7 +365,7 @@ def _in_moscow(moment: datetime | None) -> datetime | None:
 
 @dataclass(frozen=True, slots=True)
 class ScoredCard:
-    """Найденная запись и её оценка уместности (чем больше, тем ближе к запросу)."""
+    """найденная запись и её оценка уместности (чем больше, тем ближе к запросу)."""
 
     card: EventCard
     score: float

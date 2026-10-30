@@ -12,7 +12,7 @@ import {
   type ThemePreference,
 } from "@/lib/theme";
 
-// Внешнее хранилище выбора темы. Кэш в памяти нужен, когда localStorage недоступен:
+// внешнее хранилище выбора темы. Кэш в памяти нужен, когда localStorage недоступен:
 // выбор тогда действует до перезагрузки страницы.
 let cachedPreference: ThemePreference | null = null;
 const listeners = new Set<() => void>();
@@ -46,7 +46,7 @@ export function useTheme(): {
   const preference = useSyncExternalStore(subscribe, getPreference, getServerPreference);
 
   useLayoutEffect(() => {
-    // Тему до гидрации ставит инлайн-скрипт; здесь повторяем на случай, если React
+    // тему до гидрации ставит инлайн-скрипт; здесь повторяем на случай, если React
     // сбросил атрибуты <html> (перемонтирование в Strict Mode в dev).
     syncDocumentTheme();
     return subscribeToThemeSources(() => {

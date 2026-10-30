@@ -28,13 +28,13 @@ type ProfileContextValue = {
   profile: ProfileStatus;
   pendingRecoveryCode: string | null;
   dismissRecoveryCode: () => void;
-  /** Повторная загрузка после ошибки; статус остаётся «failed», пока не придёт ответ. */
+  /** повторная загрузка после ошибки; статус остаётся «failed», пока не придёт ответ. */
   reload: () => Promise<void>;
-  /** Действия ниже бросают ApiError — окно, из которого их вызвали, показывает ошибку. */
+  /** действия ниже бросают ApiError — окно, из которого их вызвали, показывает ошибку. */
   createProfile: () => Promise<void>;
   restoreProfile: (code: string) => Promise<void>;
   deleteAllData: () => Promise<void>;
-  /** Короткое сообщение под шапкой (озвучивается экранным диктором). */
+  /** короткое сообщение под шапкой (озвучивается экранным диктором). */
   notify: (message: string) => void;
 };
 
@@ -43,7 +43,7 @@ const ProfileContext = createContext<ProfileContextValue | null>(null);
 const TOAST_DURATION_MS = 5000;
 const PROFILE_CHANGE_KEY = "gorky-profile-change";
 function announceProfileChange() {
-  // Только сигнал, без ID, кода восстановления и других данных профиля.
+  // только сигнал, без ID, кода восстановления и других данных профиля.
   try {
     localStorage.setItem(PROFILE_CHANGE_KEY, crypto.randomUUID());
   } catch {

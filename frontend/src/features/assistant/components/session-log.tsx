@@ -9,7 +9,7 @@ import type { NoticeAction, NoticeEntry } from "../model/conversation";
 import { ReplyBlock } from "./reply-block";
 import { Spinner } from "./spinner";
 
-/** Фразы из ТЗ: по одной на каждое ключевое действие. */
+/** фразы из ТЗ: по одной на каждое ключевое действие. */
 const EXAMPLE_PHRASES = [
   "Напомни мне завтра в 10 утра позвонить Ивану",
   "Добавь встречу с командой завтра в 15:00",
@@ -106,7 +106,7 @@ function Notice({
   );
 }
 
-/** История диалога как лог терминальной сессии. */
+/** история диалога как лог терминальной сессии. */
 export function SessionLog({
   assistant,
   now,
@@ -219,7 +219,7 @@ export function SessionLog({
                   type="button"
                   onClick={(event) => {
                     assistant.sendText(phrase);
-                    // Кнопка исчезнет вместе с подсказками — с клавиатуры фокус в строку ввода.
+                    // кнопка исчезнет вместе с подсказками — с клавиатуры фокус в строку ввода.
                     if (event.detail === 0) handlers.focusInput();
                   }}
                   className={cn(tty.btn, tty.btnCmd)}

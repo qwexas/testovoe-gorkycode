@@ -36,13 +36,13 @@ function Question({ active, children }: { active: boolean; children: ReactNode }
 }
 
 export type ReplyActions = {
-  /** Отправить реплику от имени пользователя (быстрый ответ, выбор варианта). */
+  /** отправить реплику от имени пользователя (быстрый ответ, выбор варианта). */
   send: (text: string) => void;
   undo: () => void;
   focusInput: () => void;
 };
 
-/** Ответ ассистента в логе: вид зависит от `kind` (контракт AssistantReply). */
+/** ответ ассистента в логе: вид зависит от `kind` (контракт AssistantReply). */
 export function ReplyBlock({
   entry,
   active,
@@ -52,9 +52,9 @@ export function ReplyBlock({
   actions,
 }: {
   entry: AssistantEntry;
-  /** На вопрос этой реплики ещё можно ответить кнопками. */
+  /** на вопрос этой реплики ещё можно ответить кнопками. */
   active: boolean;
-  /** Идёт запрос — кнопки ответа недоступны, но остаются в фокусе. */
+  /** идёт запрос — кнопки ответа недоступны, но остаются в фокусе. */
   busy: boolean;
   now: Date | null;
   undoSeconds: number | null;
@@ -65,7 +65,7 @@ export function ReplyBlock({
 
   const options = active ? quickReplies(reply) : [];
   const hint = active ? voiceHint(reply.pending) : null;
-  // Кнопка ответа исчезнет вместе с вопросом: с клавиатуры (detail = 0) фокус — в строку ввода.
+  // кнопка ответа исчезнет вместе с вопросом: с клавиатуры (detail = 0) фокус — в строку ввода.
   const sendIfIdle = (text: string, event: MouseEvent<HTMLButtonElement>) => {
     if (busy) return;
     actions.send(text);

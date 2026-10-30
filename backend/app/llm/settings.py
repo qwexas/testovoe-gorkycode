@@ -1,4 +1,4 @@
-"""Настройки GigaChat из переменных окружения `GIGACHAT_*` и корневого `.env`."""
+"""настройки GigaChat из переменных окружения `GIGACHAT_*` и корневого `.env`."""
 
 from pathlib import Path
 
@@ -8,14 +8,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.config import ENV_FILE, REPOSITORY_ROOT
 
 DEFAULT_FALLBACK_MODEL = "GigaChat-3-Ultra"
-"""Почти так же точна на eval (от 0,979 до 0,989), быстрее, входит во freemium и, в отличие от
-семейства GigaChat-2, не молчит на новой команде в ответ на уточнение с длинным контекстом."""
+"""запасная модель на случай пустого или некорректного ответа основной."""
 DEFAULT_MODEL = "GigaChat-2-Pro"
 DEFAULT_SCOPE = "GIGACHAT_API_PERS"
 DEFAULT_BASE_URL = "https://api.giga.chat/v1"
 DEFAULT_AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 BUNDLED_ROOT_CA = REPOSITORY_ROOT / "infra" / "certs" / "russian_trusted_root_ca.pem"
-"""Корневой сертификат Минцифры в репозитории. В Docker его нет: он в системном хранилище."""
+"""корневой сертификат Минцифры в репозитории. В Docker его нет: он в системном хранилище."""
 
 
 def _bundled_root_ca() -> Path | None:
@@ -23,7 +22,7 @@ def _bundled_root_ca() -> Path | None:
 
 
 class GigaChatSettings(BaseSettings):
-    """Подключение к GigaChat API.
+    """подключение к GigaChat API.
 
     Читаются переменные с префиксом `GIGACHAT_`, затем корневой `.env` (в контейнере
     переменные приходят из docker-compose). Ключ хранится как `SecretStr` и не попадает
@@ -60,5 +59,5 @@ class GigaChatSettings(BaseSettings):
 
     @property
     def is_configured(self) -> bool:
-        """Задан ли ключ: без него запросы к модели не отправляются."""
+        """задан ли ключ: без него запросы к модели не отправляются."""
         return self.credentials is not None and bool(self.credentials.get_secret_value())

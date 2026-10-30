@@ -11,7 +11,7 @@ import { fetchEvents } from "../api";
 const REFRESH_MS = 60_000;
 
 export type DayPlan =
-  /** Профиль ещё не готов: показывать нечего. */
+  /** профиль ещё не готов: показывать нечего. */
   | { status: "idle" }
   | { status: "loading" }
   /** `error` — не удалось обновить, показаны прежние данные. */
@@ -21,7 +21,7 @@ export type DayPlan =
 type Loaded = { key: string; events: CalendarEvent[] | null; error: ApiError | null };
 
 /**
- * План на сегодня и завтра по Москве: GET /api/events за [сегодня 00:00, послезавтра 00:00).
+ * план на сегодня и завтра по Москве: GET /api/events за [сегодня 00:00, послезавтра 00:00).
  * Обновляется раз в минуту (пока вкладка видна), при смене дня, профиля и по `refresh()` —
  * после ответов ассистента, которые меняли записи.
  */
@@ -45,7 +45,7 @@ export function useDayPlan(
       (cause: unknown) => {
         if (controller.signal.aborted) return;
         const error = apiErrorFromException(cause);
-        // Неудачное фоновое обновление не стирает уже показанный план.
+        // неудачное фоновое обновление не стирает уже показанный план.
         setLoaded((previous) => ({
           key,
           events: previous?.key === key ? previous.events : null,

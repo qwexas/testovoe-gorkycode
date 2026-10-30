@@ -1,4 +1,4 @@
-"""Таблицы PostgreSQL (SQLAlchemy 2, декларативные модели).
+"""таблицы PostgreSQL (SQLAlchemy 2, декларативные модели).
 
 Схема меняется только миграциями Alembic (`migrations/versions`); `alembic check`
 сверяет миграции с этими моделями.
@@ -49,14 +49,14 @@ ProfileId = Annotated[UUID, mapped_column(ForeignKey("profiles.id", ondelete="CA
 
 
 class Base(DeclarativeBase):
-    """Общая база моделей: соглашение об именах ограничений и время с часовым поясом."""
+    """общая база моделей: соглашение об именах ограничений и время с часовым поясом."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
     type_annotation_map: ClassVar[dict[Any, Any]] = {datetime: DateTime(timezone=True)}
 
 
 def _string_enum(enum_class: type[StrEnum], name: str) -> Enum:
-    """Строковая колонка с CHECK-ограничением по значениям перечисления."""
+    """строковая колонка с CHECK-ограничением по значениям перечисления."""
     return Enum(
         enum_class,
         name=name,
@@ -68,7 +68,7 @@ def _string_enum(enum_class: type[StrEnum], name: str) -> Enum:
 
 
 class ProfileRecord(Base):
-    """Анонимный профиль: отпечаток кода восстановления и токен подписки на календарь."""
+    """анонимный профиль: отпечаток кода восстановления и токен подписки на календарь."""
 
     __tablename__ = "profiles"
 
@@ -79,7 +79,7 @@ class ProfileRecord(Base):
 
 
 class ProfileSessionRecord(Base):
-    """Сессия устройства: SHA-256 токена из cookie. У профиля может быть несколько устройств."""
+    """сессия устройства: SHA-256 токена из cookie. У профиля может быть несколько устройств."""
 
     __tablename__ = "profile_sessions"
 
@@ -89,7 +89,7 @@ class ProfileSessionRecord(Base):
 
 
 class EventRecord(Base):
-    """Задача, напоминание или встреча.
+    """задача, напоминание или встреча.
 
     `embedding` и `lemmas` — поисковый индекс названия; загружаются только по явному
     запросу (`deferred`), списку записей они не нужны. Запись истории из CSV хранит
@@ -129,7 +129,7 @@ class EventRecord(Base):
 
 
 class SeedEventRecord(Base):
-    """Запись истории из CSV (Q22): общая заготовка, которую получает каждый новый профиль.
+    """запись истории из CSV (Q22): общая заготовка, которую получает каждый новый профиль.
 
     `id` — номер строки в CSV. Вектор и леммы считаются один раз при старте приложения
     и общие для всех профилей: в записи профиля копируются только поля записи.
@@ -148,7 +148,7 @@ class SeedEventRecord(Base):
 
 
 class ChatMessageRecord(Base):
-    """Реплика истории диалога; у ответов ассистента — полный `AssistantReply` в `reply`."""
+    """реплика истории диалога; у ответов ассистента — полный `AssistantReply` в `reply`."""
 
     __tablename__ = "chat_messages"
     __table_args__ = (Index("ix_chat_messages_profile_id_id", "profile_id", "id"),)
@@ -163,7 +163,7 @@ class ChatMessageRecord(Base):
 
 
 class DialogStateRecord(Base):
-    """Состояние диалога (Q23): чего ждёт ассистент, записи в фокусе, последние реплики.
+    """состояние диалога (Q23): чего ждёт ассистент, записи в фокусе, последние реплики.
 
     `pending` — отложенный шаг диалога, `last_event_ids` — записи в фокусе (последняя
     упомянутая первой), `focus_peers` — сколько первых из них пришли одним ответом-списком
@@ -184,7 +184,7 @@ class DialogStateRecord(Base):
 
 
 class UndoActionRecord(Base):
-    """Действие, которое можно отменить в течение короткого окна."""
+    """действие, которое можно отменить в течение короткого окна."""
 
     __tablename__ = "undo_actions"
 

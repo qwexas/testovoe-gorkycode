@@ -1,4 +1,4 @@
-"""Коды восстановления профиля: «сирень-лиса-кедр-4821».
+"""коды восстановления профиля: «сирень-лиса-кедр-4821».
 
 Код — три слова из `RECOVERY_WORDS` и четыре цифры. В базе хранится только
 HMAC-SHA256 канонического вида кода с ключом `APP_SECRET`. При вводе регистр,
@@ -31,14 +31,14 @@ _CANONICAL_CODE = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class IssuedRecoveryCode:
-    """Новый код: `code` показывается пользователю один раз, `digest` сохраняется в базе."""
+    """новый код: `code` показывается пользователю один раз, `digest` сохраняется в базе."""
 
     code: str
     digest: str
 
 
 def generate_recovery_code(rng: random.Random | None = None) -> str:
-    """Три разных слова и четыре цифры через дефис."""
+    """три разных слова и четыре цифры через дефис."""
     chooser = rng or secrets.SystemRandom()
     words = chooser.sample(RECOVERY_WORDS, WORD_COUNT)
     digits = "".join(chooser.choice(string.digits) for _ in range(DIGIT_COUNT))
@@ -46,14 +46,14 @@ def generate_recovery_code(rng: random.Random | None = None) -> str:
 
 
 def normalize_recovery_code(raw_code: str) -> str | None:
-    """Канонический вид введённого кода или `None`, если ввод не похож на код."""
+    """канонический вид введённого кода или `None`, если ввод не похож на код."""
     lowered = raw_code.casefold().replace("ё", "е")
     candidate = SEPARATOR.join(_CODE_TOKEN.findall(lowered))
     return candidate if _CANONICAL_CODE.fullmatch(candidate) else None
 
 
 class RecoveryCodes:
-    """Выдаёт коды восстановления и проверяет попытки входа по ним.
+    """выдаёт коды восстановления и проверяет попытки входа по ним.
 
     Попытки считаются по `requester` (IP клиента): не больше
     `RESTORE_ATTEMPTS_LIMIT` за `RESTORE_WINDOW_SECONDS`.
@@ -67,17 +67,17 @@ class RecoveryCodes:
         )
 
     def issue(self) -> IssuedRecoveryCode:
-        """Генерирует новый код и его отпечаток для базы."""
+        """генерирует новый код и его отпечаток для базы."""
         code = generate_recovery_code()
         return IssuedRecoveryCode(code=code, digest=self._sign(code))
 
     def digest(self, raw_code: str) -> str | None:
-        """Отпечаток введённого кода или `None`, если ввод не похож на код."""
+        """отпечаток введённого кода или `None`, если ввод не похож на код."""
         code = normalize_recovery_code(raw_code)
         return None if code is None else self._sign(code)
 
     def digest_attempt(self, raw_code: str, requester: str) -> str:
-        """Учитывает попытку входа и возвращает отпечаток кода.
+        """учитывает попытку входа и возвращает отпечаток кода.
 
         Raises:
             TooManyAttemptsError: Лимит попыток для `requester` исчерпан.

@@ -1,4 +1,4 @@
-"""Числа словами по-русски в нужном падеже и роде: для озвучки времени, дат и количеств."""
+"""числа словами по-русски в нужном падеже и роде: для озвучки времени, дат и количеств."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -40,12 +40,12 @@ OPENCORPORA_CASES: Final[Mapping[Case, str]] = MappingProxyType(
         Case.PREPOSITIONAL: "loct",
     }
 )
-"""Граммемы падежей в pymorphy3."""
+"""граммемы падежей в pymorphy3."""
 
 
 @cache
 def morph() -> pymorphy3.MorphAnalyzer:
-    """Общий анализатор: словари грузятся один раз, дальше только читаются."""
+    """общий анализатор: словари грузятся один раз, дальше только читаются."""
     return pymorphy3.MorphAnalyzer()
 
 
@@ -87,7 +87,7 @@ def takes_singular(count: int) -> bool:
 
 
 def plural_form_index(count: int) -> int:
-    """Номер формы слова после числа: 0 — «задача» (1, 21), 1 — «задачи» (2, 3, 4, 22),
+    """номер формы слова после числа: 0 — «задача» (1, 21), 1 — «задачи» (2, 3, 4, 22),
     2 — «задач» (0, от 5 до 20, 25)."""
     last_two = count % 100
     last = last_two % 10
@@ -97,18 +97,18 @@ def plural_form_index(count: int) -> int:
 
 
 def inflected(lemma: str, grammemes: frozenset[str]) -> str | None:
-    """Форма слова с граммемами pymorphy3: («минута», {"gent", "plur"}) → «минут»."""
+    """форма слова с граммемами pymorphy3: («минута», {"gent", "plur"}) → «минут»."""
     form = morph().parse(lemma)[0].inflect(set(grammemes))
     return None if form is None else str(form.word)
 
 
 @dataclass(frozen=True, slots=True)
 class CountedNoun:
-    """Единица после числа, которую нужно согласовать: «5 мин.» → «пять минут»."""
+    """единица после числа, которую нужно согласовать: «5 мин.» → «пять минут»."""
 
     lemma: str
     forms: tuple[str, str, str]
-    """Формы после 1, после 2, 3, 4 и после 5: «минута», «минуты», «минут»."""
+    """формы после 1, после 2, 3, 4 и после 5: «минута», «минуты», «минут»."""
     gender: Gender
 
     def agreed(self, count: int, case: Case) -> str:

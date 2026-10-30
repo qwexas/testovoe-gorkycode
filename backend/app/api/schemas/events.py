@@ -1,4 +1,4 @@
-"""Схемы записей: задач, напоминаний и встреч."""
+"""схемы записей: задач, напоминаний и встреч."""
 
 from datetime import datetime
 from typing import Annotated

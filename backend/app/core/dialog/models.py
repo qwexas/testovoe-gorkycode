@@ -1,4 +1,4 @@
-"""Модели диалога: ответ ассистента, отложенный шаг, итог обработки реплики.
+"""модели диалога: ответ ассистента, отложенный шаг, итог обработки реплики.
 
 Слой `core` не знает про HTTP: здесь доменные структуры, а схемы контракта —
 в `app.api.schemas.dialog`. JSON ответа для истории и API собирает `app.core.dialog.payloads`.
@@ -19,7 +19,7 @@ JsonObject = dict[str, Any]
 
 @dataclass(frozen=True, slots=True)
 class PendingQuestion:
-    """Вопрос ассистента и чего он ждёт в ответ."""
+    """вопрос ассистента и чего он ждёт в ответ."""
 
     expects: PendingExpectation
     question: str
@@ -27,7 +27,7 @@ class PendingQuestion:
 
 @dataclass(frozen=True, slots=True)
 class UndoTicket:
-    """Действие можно отменить до `expires_at`."""
+    """действие можно отменить до `expires_at`."""
 
     action_id: str
     expires_at: datetime
@@ -35,14 +35,14 @@ class UndoTicket:
 
 @dataclass(frozen=True, slots=True)
 class Reply:
-    """Что ассистент говорит и показывает в ответ на реплику."""
+    """что ассистент говорит и показывает в ответ на реплику."""
 
     kind: ReplyKind
     text: str
     events: Sequence[EventCard] = ()
     period: Period | None = None
     choices: Sequence[EventCard] = ()
-    """Варианты выбора по порядку: номер варианта — позиция с 1."""
+    """варианты выбора по порядку: номер варианта — позиция с 1."""
     conflicts: Sequence[EventCard] = ()
     pending: PendingQuestion | None = None
     undo: UndoTicket | None = None
@@ -50,7 +50,7 @@ class Reply:
 
 @dataclass(frozen=True, slots=True)
 class PendingStep:
-    """Незавершённое действие: ассистент задал вопрос и ждёт ответа.
+    """незавершённое действие: ассистент задал вопрос и ждёт ответа.
 
     `intent` — что пользователь хотел сделать (уже дополненное прежними ответами);
     `target_id` — выбранная запись для изменения; `option_ids` — варианты выбора по порядку.
@@ -64,7 +64,7 @@ class PendingStep:
 
 @dataclass(frozen=True, slots=True)
 class Outcome:
-    """Итог обработки реплики: ответ, следующий отложенный шаг и записи для фокуса.
+    """итог обработки реплики: ответ, следующий отложенный шаг и записи для фокуса.
 
     `focus` — записи, которые становятся первыми в фокусе диалога (созданная, найденная…).
     `peer_focus` — это равноправные записи ответа-списка (список за период, найденные,
@@ -78,17 +78,17 @@ class Outcome:
 
     @property
     def focus_peers(self) -> int:
-        """Сколько первых записей `focus` равноправны: все из ответа-списка, иначе первая."""
+        """сколько первых записей `focus` равноправны: все из ответа-списка, иначе первая."""
         return len(self.focus) if self.peer_focus else min(len(self.focus), 1)
 
     @classmethod
     def say(cls, text: str) -> Self:
-        """Ответ-сообщение (`info`) без записей и без вопроса."""
+        """ответ-сообщение (`info`) без записей и без вопроса."""
         return cls(Reply(ReplyKind.INFO, text))
 
     @classmethod
     def clarify(cls, step: PendingStep) -> Self:
-        """Уточняющий вопрос (Q30): чего не хватает для действия."""
+        """уточняющий вопрос (Q30): чего не хватает для действия."""
         return cls(
             Reply(ReplyKind.CLARIFICATION, step.question.question, pending=step.question),
             pending=step,
@@ -97,26 +97,26 @@ class Outcome:
 
 @dataclass(frozen=True, slots=True)
 class Turn:
-    """Обстановка, в которой обрабатывается реплика."""
+    """обстановка, в которой обрабатывается реплика."""
 
     profile_id: UUID
     now: datetime
-    """Текущий момент по Москве."""
+    """текущий момент по Москве."""
     pending: PendingStep | None = None
     focus: Sequence[EventCard] = field(default_factory=tuple)
-    """Записи в фокусе, последняя упомянутая — первой."""
+    """записи в фокусе, последняя упомянутая — первой."""
     peers: Sequence[EventCard] = field(default_factory=tuple)
-    """Записи последнего ответа-списка, если их больше одной: для «её» нужно переспросить."""
+    """записи последнего ответа-списка, если их больше одной: для «её» нужно переспросить."""
 
     @property
     def today(self) -> date:
-        """Сегодняшний день по Москве."""
+        """сегодняшний день по Москве."""
         return self.now.date()
 
 
 @dataclass(frozen=True, slots=True)
 class AssistantAnswer:
-    """Сохранённый ответ ассистента: реплика в истории с полным ответом."""
+    """сохранённый ответ ассистента: реплика в истории с полным ответом."""
 
     message_id: int
     reply: Reply
@@ -125,7 +125,7 @@ class AssistantAnswer:
 
 @dataclass(frozen=True, slots=True)
 class DialogEntry:
-    """Реплика истории диалога; у ответов ассистента — полный ответ в формате контракта."""
+    """реплика истории диалога; у ответов ассистента — полный ответ в формате контракта."""
 
     id: int
     role: MessageRole

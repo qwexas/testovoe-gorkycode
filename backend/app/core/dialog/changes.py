@@ -1,4 +1,4 @@
-"""Изменение найденной записи: перенос, переименование, отметка о выполнении, удаление.
+"""изменение найденной записи: перенос, переименование, отметка о выполнении, удаление.
 
 Перенос, переименование и отметка выполняются сразу и возвращают кнопку отмены;
 удаление всегда переспрашивается (Q33). Перенос встречи сохраняет её длительность,
@@ -37,7 +37,7 @@ ChangeHandler = Callable[[Turn, Intent, EventCard], Awaitable[Outcome]]
 
 
 class ChangeFlow:
-    """Команды над одной уже найденной записью."""
+    """команды над одной уже найденной записью."""
 
     def __init__(self, editor: EventEditor, conflicts: ConflictFinder, undo: UndoLog) -> None:
         self._editor = editor
@@ -59,11 +59,11 @@ class ChangeFlow:
         )
 
     async def apply(self, turn: Turn, intent: Intent, target: EventCard) -> Outcome:
-        """Выполняет команду `intent.action` над записью `target`."""
+        """выполняет команду `intent.action` над записью `target`."""
         return await self._handlers[intent.action](turn, intent, target)
 
     async def confirm(self, turn: Turn, intent: Intent, target: EventCard) -> Outcome:
-        """Выполняет команду, которую пользователь подтвердил («да», «всё равно перенеси»)."""
+        """выполняет команду, которую пользователь подтвердил («да», «всё равно перенеси»)."""
         return await self._confirmed[intent.action](turn, intent, target)
 
     async def _reschedule(self, turn: Turn, intent: Intent, target: EventCard) -> Outcome:
@@ -152,7 +152,7 @@ class ChangeFlow:
     async def _change(
         self, turn: Turn, target: EventCard, changes: EventChanges
     ) -> tuple[EventCard, UndoTicket]:
-        """Меняет запись и запоминает, как вернуть её прежние поля."""
+        """меняет запись и запоминает, как вернуть её прежние поля."""
         before = await self._editor.snapshot(turn.profile_id, target.id)
         card = await self._editor.update(turn.profile_id, target.id, changes)
         return card, await self._record(turn, RevertChanges(before))
@@ -162,7 +162,7 @@ class ChangeFlow:
 
 
 def _new_schedule(target: EventCard, intent: Intent, turn: Turn) -> Schedule:
-    """Куда переносится запись; `ends_at` задан, только если названа новая длительность."""
+    """куда переносится запись; `ends_at` задан, только если названа новая длительность."""
     return rescheduled_schedule(target, intent.when or When(), turn.now, intent.duration_minutes)
 
 

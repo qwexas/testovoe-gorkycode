@@ -1,4 +1,4 @@
-"""Чтение латиницы и аббревиатур по-русски: Silero не знает латинских букв, а «ТЗ» читает
+"""чтение латиницы и аббревиатур по-русски: Silero не знает латинских букв, а «ТЗ» читает
 как одно невнятное слово."""
 
 import re
@@ -9,7 +9,7 @@ from typing import Final
 from app.voice.russian_numerals import cardinal
 
 STRESS_MARK = "+"
-"""Ударение в разметке Silero: «+» перед ударной гласной."""
+"""ударение в разметке Silero: «+» перед ударной гласной."""
 
 LATIN_WORDS: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -47,7 +47,7 @@ LATIN_WORDS: Final[Mapping[str, str]] = MappingProxyType(
         "sprint": "спринт",
     }
 )
-"""Слова, которые транслитерация прочла бы неверно."""
+"""слова, которые транслитерация прочла бы неверно."""
 
 LATIN_LETTER_NAMES: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -113,14 +113,14 @@ CYRILLIC_LETTER_NAMES: Final[Mapping[str, str]] = MappingProxyType(
         "Я": "+я",
     }
 )
-"""Названия букв, как их говорят в аббревиатурах: «КП» — «кэпэ», а не «капэ».
+"""названия букв, как их говорят в аббревиатурах: «КП» — «кэпэ», а не «капэ».
 
 Й, Ъ и Ь в аббревиатурах не встречаются: слово капсом с ними читается как слово."""
 
 WORD_ACRONYMS = frozenset({"ВУЗ", "МИД", "ГОСТ", "ЗАГС", "ООН", "НАТО", "МКАД", "ГУМ", "ЦУМ"})
-"""Аббревиатуры, которые читаются словом, а не по буквам."""
+"""аббревиатуры, которые читаются словом, а не по буквам."""
 MAX_SPELLED_LETTERS = 4
-"""Слово капсом длиннее — скорее выделение («СРОЧНО»), чем аббревиатура."""
+"""слово капсом длиннее — скорее выделение («СРОЧНО»), чем аббревиатура."""
 MAX_SPELLED_LATIN_LETTERS = 5
 
 _TRANSLITERATION: Final[tuple[tuple[str, str], ...]] = (
@@ -147,7 +147,7 @@ _TRANSLITERATION: Final[tuple[tuple[str, str], ...]] = (
     ("x", "кс"),
     ("j", "дж"),
 )
-"""Сочетания букв — раньше отдельных букв."""
+"""сочетания букв — раньше отдельных букв."""
 _SINGLE_LETTERS = str.maketrans("abcdefghiklmnopqrstuvwyz", "абкдефгхиклмнопкрстуввиз")
 _SOFT_C_PATTERN = re.compile(r"c(?=[eiy])")
 _LATIN_TOKEN_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[-'\u2019][A-Za-z0-9]+)*")
@@ -166,7 +166,7 @@ def spell_letters(letters: str, names: Mapping[str, str]) -> str:
 
 
 def transliterate(word: str) -> str:
-    """Латинское слово по-русски: по словарю («Notion» → «ноушн») или по буквам («Asana»)."""
+    """латинское слово по-русски: по словарю («Notion» → «ноушн») или по буквам («Asana»)."""
     lowered = word.lower()
     known = LATIN_WORDS.get(lowered)
     if known is not None:
@@ -178,12 +178,12 @@ def transliterate(word: str) -> str:
 
 
 def read_latin(text: str) -> str:
-    """Все латинские слова — кириллицей: «CRM» → «сиар+эм», «Q3» → «кь+ю три»."""
+    """все латинские слова — кириллицей: «CRM» → «сиар+эм», «Q3» → «кь+ю три»."""
     return _LATIN_TOKEN_PATTERN.sub(lambda match: _latin_token_words(match[0]), text)
 
 
 def spell_abbreviations(text: str) -> str:
-    """Аббревиатуры кириллицей — по буквам: «ТЗ» → «тэз+э»; «ВУЗ» и «СРОЧНО» — словом."""
+    """аббревиатуры кириллицей — по буквам: «ТЗ» → «тэз+э»; «ВУЗ» и «СРОЧНО» — словом."""
     return _CYRILLIC_CAPS_PATTERN.sub(lambda match: _caps_word(match[0]), text)
 
 

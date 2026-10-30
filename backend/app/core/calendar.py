@@ -1,4 +1,4 @@
-"""Экспорт записей профиля в iCalendar (RFC 5545): файл `.ics` и подписка `webcal://` (Q27).
+"""экспорт записей профиля в iCalendar (RFC 5545): файл `.ics` и подписка `webcal://` (Q27).
 
 В календарь попадают открытые записи с датой, начиная с сегодняшнего дня по Москве.
 Выполненные, прошедшие и задачи «без срока» — нет. Предупреждения `VALARM` — это
@@ -44,19 +44,19 @@ from app.storage.database import UnitOfWork
 CALENDAR_NAME = "Горький"
 PRODUCT_ID = "-//GORKYCODE//Gorky voice assistant//RU"
 UID_DOMAIN = "voice.wexasas.online"
-"""Пространство имён `UID`: постоянное, чтобы клиент узнавал событие при каждом обновлении."""
+"""пространство имён `UID`: постоянное, чтобы клиент узнавал событие при каждом обновлении."""
 
 MEETING_ALERT_LEAD = timedelta(minutes=15)
 MOMENT_DURATION = timedelta(minutes=15)
-"""Длительность напоминания и задачи со временем: видно в сетке дня, но не «занимает» день."""
+"""длительность напоминания и задачи со временем: видно в сетке дня, но не «занимает» день."""
 AT_START = timedelta(0)
 ALL_DAY_ALERT_OFFSET = timedelta(hours=9)
-"""Предупреждение задачи на весь день — в 09:00 её дня («утром» по Q31)."""
+"""предупреждение задачи на весь день — в 09:00 её дня («утром» по Q31)."""
 ONE_DAY = timedelta(days=1)
 REFRESH_INTERVAL = timedelta(minutes=15)
-"""Как часто клиенту перечитывать подписку (подсказка, клиенты могут реже)."""
+"""как часто клиенту перечитывать подписку (подсказка, клиенты могут реже)."""
 EXPORT_LIMIT = 5000
-"""Предел записей в файле: история из CSV и записи пользователя помещаются с запасом."""
+"""предел записей в файле: история из CSV и записи пользователя помещаются с запасом."""
 
 SUBSCRIPTION_REQUESTS_PER_WINDOW = 60
 SUBSCRIPTION_WINDOW_SECONDS = 60
@@ -71,7 +71,7 @@ Clock = Callable[[], datetime]
 
 
 class SubscriptionThrottle(Throttle):
-    """Не больше `SUBSCRIPTION_REQUESTS_PER_WINDOW` запросов подписки в минуту с одного IP.
+    """не больше `SUBSCRIPTION_REQUESTS_PER_WINDOW` запросов подписки в минуту с одного IP.
 
     Клиенты календарей перечитывают ссылку раз в 15 минут или реже; запас оставлен
     для сервисов вроде Google Календаря, которые забирают подписки многих людей
@@ -84,7 +84,7 @@ class SubscriptionThrottle(Throttle):
 
 
 class CalendarExport:
-    """Календарь профиля: для кнопки «Скачать .ics» и по секретной ссылке подписки."""
+    """календарь профиля: для кнопки «Скачать .ics» и по секретной ссылке подписки."""
 
     def __init__(
         self, storage: UnitOfWork, throttle: SubscriptionThrottle, clock: Clock = moscow_now
@@ -94,7 +94,7 @@ class CalendarExport:
         self._clock = clock
 
     async def for_profile(self, profile_id: UUID) -> bytes:
-        """Календарь профиля в формате iCalendar."""
+        """календарь профиля в формате iCalendar."""
         now = self._clock()
         criteria = EventFilter(
             profile_id=profile_id, period_start=start_of_day(now), status=EventStatus.OPEN
@@ -103,7 +103,7 @@ class CalendarExport:
         return render_calendar((EventCard.from_record(record) for record in records), now)
 
     async def for_subscription(self, token: str, requester: str) -> bytes:
-        """Календарь по токену ссылки подписки. Профиль здесь никогда не создаётся.
+        """календарь по токену ссылки подписки. Профиль здесь никогда не создаётся.
 
         Raises:
             TooManyCalendarRequestsError: С адреса `requester` слишком много запросов.
@@ -117,7 +117,7 @@ class CalendarExport:
 
 
 def render_calendar(cards: Iterable[EventCard], generated_at: datetime) -> bytes:
-    """Календарь iCalendar из записей; записи без даты пропускаются, время — по Москве."""
+    """календарь iCalendar из записей; записи без даты пропускаются, время — по Москве."""
     calendar = _empty_calendar(generated_at.date())
     stamp = generated_at.astimezone(UTC)
     for card in cards:
@@ -129,7 +129,7 @@ def render_calendar(cards: Iterable[EventCard], generated_at: datetime) -> bytes
 
 @dataclass(frozen=True, slots=True)
 class _Slot:
-    """Когда событие стоит в календаре и когда о нём предупредить (сдвиг от начала)."""
+    """когда событие стоит в календаре и когда о нём предупредить (сдвиг от начала)."""
 
     start: date | datetime
     end: date | datetime
@@ -178,7 +178,7 @@ def _slot(card: EventCard, starts_at: datetime) -> _Slot:
 
 
 def _is_deadline(card: EventCard, starts_at: datetime) -> bool:
-    """Задача со сроком «до конца дня»: время 23:59 — граница дня, а не момент."""
+    """задача со сроком «до конца дня»: время 23:59 — граница дня, а не момент."""
     return card.type is EventType.TASK and starts_at.time() == DEADLINE_TIME
 
 

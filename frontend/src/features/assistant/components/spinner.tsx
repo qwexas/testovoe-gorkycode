@@ -7,7 +7,7 @@ import { tty } from "@/components/ui/tty";
 
 const FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
-/** Брайлевский спиннер, как в терминале. При reduced motion — неподвижный кадр. */
+/** брайлевский спиннер, как в терминале. При reduced motion — неподвижный кадр. */
 export function Spinner() {
   const reduced = useReducedMotion() ?? false;
   const [frame, setFrame] = useState(0);

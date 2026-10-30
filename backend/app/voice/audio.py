@@ -1,4 +1,4 @@
-"""Декодирование записей и кодирование озвучки через PyAV — в памяти, без файлов (Q35).
+"""декодирование записей и кодирование озвучки через PyAV — в памяти, без файлов (Q35).
 
 PyAV несёт свои библиотеки FFmpeg, поэтому внешний `ffmpeg` и временные файлы не нужны.
 """
@@ -17,22 +17,22 @@ from app.core.errors import AudioTooLargeError, AudioUnsupportedError
 from app.voice.interfaces import MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS
 
 SPEECH_SAMPLE_RATE = 16_000
-"""Частота, на которой работают модели распознавания (GigaAM, Whisper)."""
+"""частота, на которой работают модели распознавания (GigaAM, Whisper)."""
 DURATION_TOLERANCE_SECONDS = 1.0
-"""Запас к пределу длительности: запись ровно на 60 с после кодека бывает чуть длиннее."""
+"""запас к пределу длительности: запись ровно на 60 с после кодека бывает чуть длиннее."""
 MAX_SPEECH_SAMPLES = int((MAX_AUDIO_SECONDS + DURATION_TOLERANCE_SECONDS) * SPEECH_SAMPLE_RATE)
 
 ACCEPTED_CONTAINERS = frozenset({"matroska,webm", "ogg", "mov,mp4,m4a,3gp,3g2,mj2", "wav", "mp3"})
-"""Контейнеры из контракта (webm, ogg, mp4, wav) и mp3 — как их называет FFmpeg."""
+"""контейнеры из контракта (webm, ogg, mp4, wav) и mp3 — как их называет FFmpeg."""
 
 INT16_SCALE = 32_768.0
 OGG_CONTENT_TYPE = "audio/ogg"
 OPUS_BIT_RATE = 32_000
-"""Достаточно для разборчивой речи в моно: 5 с озвучки — около 20 КБ."""
+"""достаточно для разборчивой речи в моно: 5 с озвучки — около 20 КБ."""
 
 
 def decode_speech(data: bytes) -> NDArray[np.float32]:
-    """Моно 16 кГц в диапазоне [-1, 1] из записи webm/opus, ogg, mp4/aac, wav или mp3.
+    """моно 16 кГц в диапазоне [-1, 1] из записи webm/opus, ogg, mp4/aac, wav или mp3.
 
     Raises:
         AudioTooLargeError: Больше `MAX_AUDIO_BYTES` или длиннее `MAX_AUDIO_SECONDS`.
@@ -57,7 +57,7 @@ def _speech_stream(container: InputContainer) -> AudioStream:
 
 
 def _mono_pcm(container: InputContainer, stream: AudioStream) -> Iterator[NDArray[np.int16]]:
-    """Отрезки моно 16 кГц; прерывается, как только запись длиннее предела."""
+    """отрезки моно 16 кГц; прерывается, как только запись длиннее предела."""
     resampler = av.AudioResampler(format="s16", layout="mono", rate=SPEECH_SAMPLE_RATE)
     total_samples = 0
     for frame in itertools.chain(container.decode(stream), [None]):

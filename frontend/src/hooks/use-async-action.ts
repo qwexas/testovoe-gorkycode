@@ -5,8 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import { type ApiError, apiErrorFromException } from "@/lib/api/errors";
 
 /**
- * Состояние одного асинхронного действия из UI (кнопка, форма в окне):
- * идёт ли запрос и чем он закончился. Возвращает true при успехе.
+ * храним ошибку и pending для формы, повторный запуск до конца запроса пропускаем
  */
 export function useAsyncAction<TArgs extends unknown[]>(
   action: (...args: TArgs) => Promise<void>,

@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { Button, type ButtonVariant } from "./ui/button";
 import { CheckIcon, CopyIcon } from "./ui/icons";
 
-/** Кнопка копирования; результат пишется рядом и озвучивается экранным диктором. */
+/** кнопка копирования; результат пишется рядом и озвучивается экранным диктором. */
 export function CopyButton({
   value,
   label,

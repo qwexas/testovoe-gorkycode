@@ -12,7 +12,7 @@ type DialogProps = {
   subscriptionUrl: string;
 };
 
-/** Ссылка-подписка webcal:// с секретным токеном (решение Q27). */
+/** ссылка-подписка webcal:// с секретным токеном (решение Q27). */
 export function CalendarSubscriptionDialog({
   open,
   onOpenChange,

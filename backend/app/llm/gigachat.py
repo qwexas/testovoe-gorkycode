@@ -1,4 +1,4 @@
-"""Клиент GigaChat по протоколу `LLMClient`: structured output, очередь, повторы.
+"""клиент GigaChat по протоколу `LLMClient`: structured output, очередь, повторы.
 
 - У физлиц один поток, поэтому запросы идут строго по одному (`asyncio.Semaphore(1)`).
 - 429, 5xx, таймаут, обрыв связи и ответ не по схеме повторяются (по умолчанию дважды,
@@ -33,34 +33,34 @@ logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 HEALTH_CACHE_SECONDS = 60.0
-"""Сколько помнить результат проверки живости (и последнего настоящего запроса)."""
+"""сколько помнить результат проверки живости (и последнего настоящего запроса)."""
 HEALTH_TIMEOUT_SECONDS = 5.0
 MILLISECONDS_IN_SECOND = 1000.0
 CODE_FENCE = "```"
 
 
 class MalformedResponseError(Exception):
-    """Ответ модели — не JSON-объект по схеме: битый JSON, обрезанный ответ, нет полей."""
+    """ответ модели — не JSON-объект по схеме: битый JSON, обрезанный ответ, нет полей."""
 
 
 class ChatTransport(Protocol):
-    """Один запрос к API модели. Реализация — `GigaChatTransport` (SDK GigaChat)."""
+    """один запрос к API модели. Реализация — `GigaChatTransport` (SDK GigaChat)."""
 
     async def complete(self, payload: Mapping[str, Any]) -> str:
-        """Текст ответа модели на запрос chat/completions."""
+        """текст ответа модели на запрос chat/completions."""
         ...
 
     async def ping(self) -> None:
-        """Дешёвый запрос для проверки живости."""
+        """дешёвый запрос для проверки живости."""
         ...
 
     async def aclose(self) -> None:
-        """Закрывает соединения."""
+        """закрывает соединения."""
         ...
 
 
 def build_ssl_context(root_ca_file: Path | None) -> ssl.SSLContext:
-    """Проверка TLS: certifi, системное хранилище и, если задан, корневой сертификат Минцифры.
+    """проверка TLS: certifi, системное хранилище и, если задан, корневой сертификат Минцифры.
 
     Отключать проверку нельзя: без сертификата Минцифры запросы к GigaChat не пройдут.
     """
@@ -72,7 +72,7 @@ def build_ssl_context(root_ca_file: Path | None) -> ssl.SSLContext:
 
 
 class GigaChatTransport:
-    """Запросы через официальный SDK `gigachat` (OAuth-токен он обновляет сам)."""
+    """запросы через официальный SDK `gigachat` (OAuth-токен он обновляет сам)."""
 
     def __init__(self, settings: GigaChatSettings) -> None:
         credentials = settings.credentials.get_secret_value() if settings.credentials else None
@@ -92,7 +92,7 @@ class GigaChatTransport:
         try:
             completion = await self._client.achat(dict(payload))
         except ValidationError as error:
-            # Изредка модель отдаёт пустое сообщение без роли ({"content": ""}), и SDK
+            # изредка модель отдаёт пустое сообщение без роли ({"content": ""}), и SDK
             # не может разобрать ответ. Это сбой генерации, а не запроса — повторяем.
             raise MalformedResponseError("SDK не разобрал ответ модели") from error
         if not completion.choices:
@@ -113,36 +113,36 @@ class GigaChatTransport:
 
 @dataclass(frozen=True, slots=True)
 class RetryPolicy:
-    """Повторы при временных сбоях."""
+    """повторы при временных сбоях."""
 
     pauses_seconds: tuple[float, ...] = (1.0, 2.0)
-    """Пауза перед каждым повтором; число повторов — длина кортежа."""
+    """пауза перед каждым повтором; число повторов — длина кортежа."""
     max_retry_after_seconds: float = 5.0
-    """Потолок для `Retry-After` из ответа 429: дольше пользователь ждать не станет."""
+    """потолок для `Retry-After` из ответа 429: дольше пользователь ждать не станет."""
     malformed_retry_temperature: float = 0.5
-    """Температура повтора после ответа не по схеме: при почти нулевой температуре модель
+    """температура повтора после ответа не по схеме: при почти нулевой температуре модель
     повторила бы тот же зацикленный ответ (например, бесконечное число в поле)."""
 
 
 @dataclass(frozen=True, slots=True)
 class CompletionOptions:
-    """Параметры запроса к модели."""
+    """параметры запроса к модели."""
 
     model: str
     fallback_model: str | None = None
-    """Модель для повтора после ответа не по схеме (пустого, битого, обрезанного)."""
+    """модель для повтора после ответа не по схеме (пустого, битого, обрезанного)."""
     temperature: float = 0.01
     request_timeout_seconds: float = 20.0
-    """Таймаут одной попытки."""
+    """таймаут одной попытки."""
     total_timeout_seconds: float = 45.0
-    """Всё вместе — очередь, попытки и паузы: ответ должен успеть до таймаута nginx (60 с)."""
+    """всё вместе — очередь, попытки и паузы: ответ должен успеть до таймаута nginx (60 с)."""
     max_output_tokens: int = 256
-    """Разбор занимает до ~100 токенов; больше — признак зацикливания, его режем раньше."""
+    """разбор занимает до ~100 токенов; больше — признак зацикливания, его режем раньше."""
     retry: RetryPolicy = field(default_factory=RetryPolicy)
 
     @classmethod
     def from_settings(cls, settings: GigaChatSettings) -> "CompletionOptions":
-        """Параметры запроса по настройкам `GIGACHAT_*`."""
+        """параметры запроса по настройкам `GIGACHAT_*`."""
         return cls(
             model=settings.model,
             fallback_model=settings.fallback_model,
@@ -174,20 +174,20 @@ class GigaChatClient:
 
     @classmethod
     def from_settings(cls, settings: GigaChatSettings) -> "GigaChatClient":
-        """Клиент на SDK GigaChat по настройкам `GIGACHAT_*`."""
+        """клиент на SDK GigaChat по настройкам `GIGACHAT_*`."""
         if not settings.is_configured:
             logger.warning("GIGACHAT_CREDENTIALS не задан: разбор реплик будет недоступен")
         return cls(GigaChatTransport(settings), CompletionOptions.from_settings(settings))
 
     @property
     def model(self) -> str:
-        """Имя модели, которой уходят запросы."""
+        """имя модели, которой уходят запросы."""
         return self._options.model
 
     async def complete_json(
         self, messages: Sequence[LLMMessage], json_schema: Mapping[str, Any]
     ) -> dict[str, Any]:
-        """Ответ модели по JSON-схеме (strict). Сбой после повторов — `LLMUnavailableError`."""
+        """ответ модели по JSON-схеме (strict). Сбой после повторов — `LLMUnavailableError`."""
         payload = self._payload(messages, json_schema)
         required = frozenset(json_schema.get("required", ()))
         try:
@@ -221,7 +221,7 @@ class GigaChatClient:
         raise LLMUnavailableError() from error
 
     async def check(self) -> ServiceStatus:
-        """Жива ли модель — для `/api/health`. Результат помнится `HEALTH_CACHE_SECONDS`.
+        """жива ли модель — для `/api/health`. Результат помнится `HEALTH_CACHE_SECONDS`.
 
         Пока идёт разбор реплики, второй запрос не отправляется (один поток):
         возвращается последний известный статус.
@@ -236,7 +236,7 @@ class GigaChatClient:
         return status
 
     async def aclose(self) -> None:
-        """Закрывает соединения с API."""
+        """закрывает соединения с API."""
         await self._transport.aclose()
 
     async def _ping(self) -> ServiceStatus:
@@ -313,7 +313,7 @@ def parse_json_object(content: str, required: frozenset[str]) -> dict[str, Any]:
 
 
 def is_retryable(error: Exception) -> bool:
-    """Временный ли сбой: 429, 5xx, таймаут, обрыв связи, ответ не по схеме."""
+    """временный ли сбой: 429, 5xx, таймаут, обрыв связи, ответ не по схеме."""
     if isinstance(error, TimeoutError | httpx.TransportError | MalformedResponseError):
         return True
     return isinstance(error, ResponseError) and error.status_code in RETRYABLE_STATUS_CODES
@@ -324,7 +324,7 @@ def _log_failure(model: str, attempt: int, error: Exception) -> None:
 
 
 def _describe(error: Exception) -> str:
-    """Тип ошибки и HTTP-статус — без тела ответа и заголовков."""
+    """тип ошибки и HTTP-статус — без тела ответа и заголовков."""
     if isinstance(error, ResponseError):
         return f"{type(error).__name__} (HTTP {error.status_code})"
     if isinstance(error, MalformedResponseError):

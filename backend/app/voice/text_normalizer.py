@@ -1,4 +1,4 @@
-"""Подготовка текста к озвучке Silero v4_ru.
+"""подготовка текста к озвучке Silero v4_ru.
 
 Silero читает только кириллицу и знаки препинания: цифры, латиница, кавычки и эмодзи
 пропадают молча («В 15:00 у вас 2 задачи» звучит как «В у вас задачи»). Поэтому ответ
@@ -40,11 +40,11 @@ from app.voice.russian_numerals import (
 )
 
 MAX_CHUNK_CHARS = 250
-"""Сколько символов Silero озвучивает за раз. Около 1000 модель падает, а память растёт быстрее
+"""сколько символов Silero озвучивает за раз. Около 1000 модель падает, а память растёт быстрее
 длины куска: пик RSS ~1,1 ГБ на 250 символов и ~2,6 ГБ на 500 (замер на 48 кГц)."""
 
 EN_DASH = "\u2013"
-"""Короткое тире — единственное тире в алфавите Silero, читается паузой."""
+"""короткое тире — единственное тире в алфавите Silero, читается паузой."""
 EM_DASH = "\u2014"
 MINUS_SIGN = "\u2212"
 ELLIPSIS = "\u2026"
@@ -62,7 +62,7 @@ CASE_AFTER_PREPOSITION: Final[Mapping[str, Case]] = MappingProxyType(
     }
 )
 _PREPOSITION = r"(?:(?P<prep>\b(?:" + "|".join(CASE_AFTER_PREPOSITION) + r"))\s+)?"
-"""Необязательный предлог прямо перед числом: от него зависит падеж."""
+"""необязательный предлог прямо перед числом: от него зависит падеж."""
 
 
 def _case_after(preposition: str | None) -> Case:
@@ -80,9 +80,9 @@ def _with_preposition(preposition: str | None, words: str) -> str:
 _SYMBOL_WORDS: Final[Mapping[str, str]] = MappingProxyType(
     {"+": " плюс ", "&": " и ", "№": " номер ", "\u00a0": " ", "\u202f": " "}
 )
-"""Символы, которые нужно произнести, и неразрывные пробелы."""
+"""символы, которые нужно произнести, и неразрывные пробелы."""
 _SILERO_SERVICE_SYMBOLS_PATTERN = re.compile(r"[_~|]")
-"""Символы, которые Silero понимает как разметку."""
+"""символы, которые Silero понимает как разметку."""
 
 
 def _replace_symbols(text: str) -> str:
@@ -203,7 +203,7 @@ _ORDINAL_SUFFIXES: Final[Mapping[str, _OrdinalForm]] = MappingProxyType(
         **dict.fromkeys(("ми", "ыми"), _OrdinalForm(Case.INSTRUMENTAL, plural=True)),
     }
 )
-"""Окончание после дефиса → форма порядкового: «3-й» — «третий», «в 90-х» — «девяностых»."""
+"""окончание после дефиса → форма порядкового: «3-й» — «третий», «в 90-х» — «девяностых»."""
 _ORDINAL_PATTERN = re.compile(
     r"(?<![\d.,])(?P<number>\d+)-(?P<suffix>"
     + "|".join(sorted(_ORDINAL_SUFFIXES, key=len, reverse=True))
@@ -233,7 +233,7 @@ UNITS: Final[Mapping[str, CountedNoun]] = MappingProxyType(
         "км": CountedNoun("километр", ("километр", "километра", "километров"), Gender.MASCULINE),
     }
 )
-"""Сокращения единиц после числа (ключи в нижнем регистре)."""
+"""сокращения единиц после числа (ключи в нижнем регистре)."""
 _UNIT_ALTERNATIVES = "|".join(re.escape(unit) for unit in sorted(UNITS, key=len, reverse=True))
 _NUMBER_PATTERN = re.compile(
     rf"{_PREPOSITION}(?<![\d.,])(?P<integer>\d+)(?:[.,](?P<fraction>\d+))?"
@@ -249,26 +249,26 @@ _CASE_OF_NOUN: Final[Mapping[str, Case]] = MappingProxyType(
         "loct": Case.PREPOSITIONAL,
     }
 )
-"""Падежи существительного, в которых с ним согласуется и число: «с 2 задачами» → «с двумя».
+"""падежи существительного, в которых с ним согласуется и число: «с 2 задачами» → «с двумя».
 
 Родительного нет: в «5 задач» число в именительном, хотя существительное в родительном."""
 _GENDERS: Final[Mapping[str, Gender]] = MappingProxyType(
     {"masc": Gender.MASCULINE, "femn": Gender.FEMININE, "neut": Gender.NEUTER}
 )
 ACCUSATIVE_VERBS = frozenset({"нашёл", "нашел"})
-"""Глаголы ответов, после которых число в винительном: «Нашёл 21 запись» → «двадцать одну»."""
+"""глаголы ответов, после которых число в винительном: «Нашёл 21 запись» → «двадцать одну»."""
 
 
 @dataclass(frozen=True, slots=True)
 class _NounContext:
-    """Что число узнаёт от существительного после себя: род и (не всегда) падеж."""
+    """что число узнаёт от существительного после себя: род и (не всегда) падеж."""
 
     gender: Gender = Gender.MASCULINE
     case: Case | None = None
 
 
 def _noun_after(text: str) -> _NounContext:
-    """Существительное сразу после числа или после одного прилагательного («2 новые задачи»)."""
+    """существительное сразу после числа или после одного прилагательного («2 новые задачи»)."""
     match = _NEXT_WORDS_PATTERN.match(text)
     if match is None:
         return _NounContext()
@@ -324,7 +324,7 @@ def _number_match_words(match: re.Match[str], text: str) -> str:
 _STRESSES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
     (re.compile(r"(?<![\w+])([Гг])(?=орьк)"), rf"\1{STRESS_MARK}"),
 )
-"""Ударения, которые нельзя оставить на волю Silero: «Горький» — имя ассистента."""
+"""ударения, которые нельзя оставить на волю Silero: «Горький» — имя ассистента."""
 
 _QUOTES_PATTERN = re.compile(r"[«»„“”\"'`\u2018\u2019]")
 _OPENING_BRACKETS_PATTERN = re.compile(r"\s*[(\[{]\s*")
@@ -369,12 +369,12 @@ _STEPS: Final[tuple[Callable[[str], str], ...]] = (
     _stress_words,
     _clean_punctuation,
 )
-"""Порядок важен: время и даты — раньше чисел, латиница («Q3») — раньше чисел,
+"""порядок важен: время и даты — раньше чисел, латиница («Q3») — раньше чисел,
 ударения — после транслитерации («Gorky» → «горький» → «г+орький»)."""
 
 
 def normalize_for_speech(text: str) -> str:
-    """Текст, который Silero прочтёт целиком: числа, даты и латиница — словами."""
+    """текст, который Silero прочтёт целиком: числа, даты и латиница — словами."""
     for step in _STEPS:
         text = step(text)
     return text
@@ -384,11 +384,11 @@ def normalize_for_speech(text: str) -> str:
 
 _SENTENCE_END_PATTERN = re.compile(rf"(?<=[.!?{ELLIPSIS}])\s+")
 _LETTER_PATTERN = re.compile(r"[а-яё]", re.IGNORECASE)
-"""Кусок без букв Silero не озвучивает, а падает."""
+"""кусок без букв Silero не озвучивает, а падает."""
 
 
 def speech_chunks(text: str, limit: int = MAX_CHUNK_CHARS) -> list[str]:
-    """Куски с буквами не длиннее `limit`: целые предложения, слишком длинное — по словам."""
+    """куски с буквами не длиннее `limit`: целые предложения, слишком длинное — по словам."""
     chunks: list[str] = []
     current = ""
     for piece in _pieces(text, limit):

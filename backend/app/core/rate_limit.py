@@ -1,4 +1,4 @@
-"""Ограничение частоты событий по ключу (IP, профиль) в памяти процесса."""
+"""ограничение частоты событий по ключу (IP, профиль) в памяти процесса."""
 
 import math
 import time
@@ -17,14 +17,14 @@ MAX_TRACKED_KEYS = 10_000
 
 @dataclass(frozen=True, slots=True)
 class RateLimitDecision:
-    """Итог проверки лимита: пропустить или подождать `retry_after_seconds`."""
+    """итог проверки лимита: пропустить или подождать `retry_after_seconds`."""
 
     allowed: bool
     retry_after_seconds: int = 0
 
 
 class SlidingWindowRateLimiter:
-    """Не больше `max_hits` событий за `window_seconds` на один ключ.
+    """не больше `max_hits` событий за `window_seconds` на один ключ.
 
     Отклонённые попытки не учитываются, поэтому блокировка не продлевается
     повторными запросами. Состояние живёт в памяти одного процесса — для
@@ -40,7 +40,7 @@ class SlidingWindowRateLimiter:
         self._hits: dict[str, deque[float]] = {}
 
     def hit(self, key: str) -> RateLimitDecision:
-        """Учитывает событие для `key`, если лимит ещё не исчерпан."""
+        """учитывает событие для `key`, если лимит ещё не исчерпан."""
         now = self._clock()
         self._forget_idle_keys(now)
         hits = self._recent_hits(key, now)
@@ -71,7 +71,7 @@ class SlidingWindowRateLimiter:
 
 
 class Throttle:
-    """Лимит событий на ключ (профиль, IP) с ошибкой для пользователя сверх лимита.
+    """лимит событий на ключ (профиль, IP) с ошибкой для пользователя сверх лимита.
 
     Подкласс задаёт `max_hits` за `window_seconds` и вид ошибки `rejection`.
     """
@@ -86,7 +86,7 @@ class Throttle:
         )
 
     def admit(self, key: str | UUID) -> None:
-        """Учитывает событие для `key`.
+        """учитывает событие для `key`.
 
         Raises:
             TooManyAttemptsError: Лимит исчерпан (конкретный вид — `rejection`).

@@ -3,7 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 /**
- * Совпадает ли медиазапрос. На сервере и при гидрации — false (мобильная раскладка
+ * совпадает ли медиазапрос. На сервере и при гидрации — false (мобильная раскладка
  * первой); внешний вид задаёт CSS, хук нужен только для ARIA-ролей и поведения.
  */
 export function useMediaQuery(query: string): boolean {

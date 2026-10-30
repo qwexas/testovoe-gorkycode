@@ -1,4 +1,4 @@
-"""Гибридное ранжирование: близость по смыслу + совпадение лемм + имена людей + тип.
+"""гибридное ранжирование: близость по смыслу + совпадение лемм + имена людей + тип.
 
 Эмбеддинги хорошо ловят синонимы («созвон» ↔ «звонок», «ТЗ» ↔ «техническое
 задание»), но считают имена взаимозаменяемыми: «встреча с Иваном» для них почти
@@ -20,7 +20,7 @@ from app.search.interfaces import RankedResult, SearchCandidate
 
 @dataclass(frozen=True, slots=True)
 class LemmaStatistics:
-    """Частоты лемм по корпусу записей — для веса редких слов (idf).
+    """частоты лемм по корпусу записей — для веса редких слов (idf).
 
     Можно передать частоты только для лемм запроса: ранжированию другие не нужны.
     Лемма, которой нет в статистике, но которая есть у кандидатов, считается
@@ -32,7 +32,7 @@ class LemmaStatistics:
 
     @classmethod
     def from_documents(cls, documents: Iterable[Sequence[str]]) -> "LemmaStatistics":
-        """Статистика по спискам лемм записей (одна запись — один список)."""
+        """статистика по спискам лемм записей (одна запись — один список)."""
         frequency: Counter[str] = Counter()
         document_count = 0
         for lemmas in documents:
@@ -43,7 +43,7 @@ class LemmaStatistics:
 
 @dataclass(frozen=True, slots=True)
 class RankingParams:
-    """Веса гибридной оценки и порог отсечения.
+    """веса гибридной оценки и порог отсечения.
 
     `score = (1 - lexical_weight) * similarity + lexical_weight * coverage
     ± name_weight + head_weight + type_weight`, где:
@@ -75,10 +75,10 @@ DEFAULT_RANKING_PARAMS = RankingParams()
 
 
 class ProperNounDetector(Protocol):
-    """Отличает имена людей среди лемм: «иван» — имя, «вектор» — нет."""
+    """отличает имена людей среди лемм: «иван» — имя, «вектор» — нет."""
 
     def is_proper_noun(self, lemma: str) -> bool:
-        """Является ли лемма именем, фамилией или отчеством."""
+        """является ли лемма именем, фамилией или отчеством."""
         ...
 
 
@@ -91,7 +91,7 @@ class _QueryProfile:
 
 
 class HybridRanker:
-    """Ранжирование по протоколу `Ranker` из `app.search.interfaces`."""
+    """ранжирование по протоколу `Ranker` из `app.search.interfaces`."""
 
     def __init__(
         self,
@@ -111,7 +111,7 @@ class HybridRanker:
         limit: int,
         preferred_type: EventType | None = None,
     ) -> list[RankedResult]:
-        """Лучшие записи по убыванию `score`; пустой список — «ничего похожего нет».
+        """лучшие записи по убыванию `score`; пустой список — «ничего похожего нет».
 
         Порог применяется к оценке без бонуса за тип: тип из разбора запроса меняет только
         порядок, но не делает похожей запись, которая на запрос не похожа. Иначе на «встречу
@@ -192,7 +192,7 @@ class HybridRanker:
 
 
 def _inverse_document_frequency(document_frequency: int, document_count: int) -> float:
-    """Сглаженный idf: редкое слово весит больше частого, вес всегда больше нуля."""
+    """сглаженный idf: редкое слово весит больше частого, вес всегда больше нуля."""
     return math.log((document_count + 1) / (document_frequency + 1)) + 1.0
 
 
@@ -201,7 +201,7 @@ def _names_head(query: _QueryProfile, record_lemmas: Sequence[str]) -> bool:
 
 
 def _coverage(query: _QueryProfile, record_lemmas: set[str]) -> float:
-    """Доля idf-веса лемм запроса, которые есть в записи; 0, если сравнивать не с чем.
+    """доля idf-веса лемм запроса, которые есть в записи; 0, если сравнивать не с чем.
 
     Леммы запроса, которых нет ни в одной записи («отпуск», опечатка «презинтация»),
     не учитываются: совпасть по ним нельзя, их смысл оценивает эмбеддинг.

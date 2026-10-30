@@ -1,10 +1,7 @@
-"""Распознавание русской речи GigaAM-v3 (SberDevices) через onnx-asr на CPU, int8.
+"""распознавание русской речи GigaAM-v3 (SberDevices) через onnx-asr на CPU, int8.
 
-GigaAM обучен на русской речи: на фразах ТЗ он точнее Whisper medium и в десятки раз
-быстрее на CPU сервера, а вариант e2e сразу пишет пунктуацию и время цифрами («в 15:00»).
-Модель принимает фрагменты до ~25 с: записи длиннее `DIRECT_SECONDS` режутся по паузам
-Silero VAD. Запись декодируется в памяти (`app.voice.audio`), модель грузится лениво —
-при первой фразе или в `warm_up()` — и работает в отдельном потоке.
+Записи длиннее `DIRECT_SECONDS` режутся по паузам Silero VAD:
+модель принимает фрагменты до ~25 с. Загрузка ленивая, распознавание — в отдельном потоке.
 """
 
 import asyncio
@@ -31,50 +28,50 @@ QUANTIZATION = "int8"
 VAD_MODEL = "silero"
 VAD_DIR = "silero-vad"
 DIRECT_SECONDS = 20.0
-"""Короче — целиком одним проходом; длиннее — фрагментами по паузам."""
+"""короче — целиком одним проходом; длиннее — фрагментами по паузам."""
 _SPEECH_PATTERN = re.compile(r"\w")
-"""На шуме модель иногда возвращает одну точку — это не речь."""
+"""на шуме модель иногда возвращает одну точку — это не речь."""
 
 
 class AsrSegment(Protocol):
-    """Фрагмент распознанной речи из onnx-asr с VAD."""
+    """фрагмент распознанной речи из onnx-asr с VAD."""
 
     @property
     def text(self) -> str:
-        """Текст фрагмента."""
+        """текст фрагмента."""
         ...
 
 
 class AsrModelLike(Protocol):
-    """То, что нужно от модели onnx-asr."""
+    """то, что нужно от модели onnx-asr."""
 
     def recognize(self, waveform: NDArray[np.float32], *, sample_rate: int) -> str:
-        """Текст записи."""
+        """текст записи."""
         ...
 
 
 class SegmentedAsrLike(Protocol):
-    """Модель onnx-asr с VAD: запись → фрагменты речи."""
+    """модель onnx-asr с VAD: запись → фрагменты речи."""
 
     def recognize(self, waveform: NDArray[np.float32], *, sample_rate: int) -> Iterable[AsrSegment]:
-        """Фрагменты речи по порядку."""
+        """фрагменты речи по порядку."""
         ...
 
 
 @dataclass(frozen=True, slots=True)
 class GigaAMModels:
-    """Модель целиком и та же модель с нарезкой по VAD (для длинных записей)."""
+    """модель целиком и та же модель с нарезкой по VAD (для длинных записей)."""
 
     whole: AsrModelLike
     segmented: Callable[[], SegmentedAsrLike]
-    """Грузит VAD при первом вызове."""
+    """грузит VAD при первом вызове."""
 
 
 ModelLoader = Callable[[SpeechToTextSettings], GigaAMModels]
 
 
 def load_gigaam_models(settings: SpeechToTextSettings) -> GigaAMModels:
-    """Загружает GigaAM (при необходимости скачивает в `cache_dir/<модель>`); импорт отложен.
+    """загружает GigaAM (при необходимости скачивает в `cache_dir/<модель>`); импорт отложен.
 
     VAD грузится только при первой длинной записи.
     """
@@ -105,7 +102,7 @@ def _model_dir(settings: SpeechToTextSettings, name: str) -> Path | None:
 
 
 class GigaAMSpeechToText:
-    """Реализация `SpeechToText` на GigaAM-v3.
+    """реализация `SpeechToText` на GigaAM-v3.
 
     Без аргументов настройки читаются из `STT_*` и корневого `.env`.
     """
@@ -122,7 +119,7 @@ class GigaAMSpeechToText:
         self._slots = asyncio.Semaphore(self._settings.max_concurrency)
 
     async def warm_up(self) -> None:
-        """Загружает модель заранее, если включён `STT_WARM_UP_ON_STARTUP`; ошибку — в лог."""
+        """загружает модель заранее, если включён `STT_WARM_UP_ON_STARTUP`; ошибку — в лог."""
         if not self._settings.warm_up_on_startup:
             return
         try:
@@ -131,7 +128,7 @@ class GigaAMSpeechToText:
             logger.exception("Модель распознавания речи не загрузилась при старте")
 
     async def transcribe(self, audio: AudioClip) -> str:
-        """Текст фразы; пустая строка, если речи нет (тишина или шум).
+        """текст фразы; пустая строка, если речи нет (тишина или шум).
 
         Raises:
             AudioTooLargeError: Запись больше 10 МБ или длиннее 60 с.
@@ -144,7 +141,7 @@ class GigaAMSpeechToText:
         return await self._in_slot(samples)
 
     async def _in_slot(self, samples: NDArray[np.float32]) -> str:
-        """Распознавание в слоте модели; слот освобождается, когда закончит поток.
+        """распознавание в слоте модели; слот освобождается, когда закончит поток.
 
         Если запрос отменён (срок хода, обрыв связи), поток всё равно дорабатывает —
         освобождать слот раньше нельзя, иначе на CPU окажется больше моделей, чем слотов.
@@ -157,7 +154,7 @@ class GigaAMSpeechToText:
     def _release_slot(self, work: "asyncio.Future[str]") -> None:
         self._slots.release()
         if not work.cancelled():
-            # Ошибку получает ожидающий запрос; после его отмены — пусть не пишет в лог
+            # ошибку получает ожидающий запрос; после его отмены — пусть не пишет в лог
             # «exception was never retrieved».
             work.exception()
 

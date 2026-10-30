@@ -1,12 +1,7 @@
-"""Вопросы о записях: список за период и поиск по смыслу.
+"""списки за период и поиск по смыслу
 
-Список: «Что у меня сегодня?», «Какие задачи на завтра?» — период из разбора, по
-умолчанию сегодня; «задачи» — это задачи и напоминания (`relevance.ASKED_TYPES`).
-Поиск: «Найди задачу про презентацию», «Когда у меня была встреча с Иваном?». Для «когда
-была / когда будет» кандидаты — все записи с оценкой рядом с лучшей (близкие названия
-почти равны), среди них — последняя прошедшая или ближайшая будущая. Поиск отдаёт все
-подходящие записи, а предел — только у показанного: иначе среди 60 одинаковых встреч
-ближайшая могла бы не дожить до выбора по времени.
+Для «когда была / будет» выбираем по времени среди близких по оценке записей.
+Лимит применяем уже к ответу: иначе ближайшая встреча может не попасть в кандидаты.
 """
 
 from collections.abc import Callable, Mapping, Sequence
@@ -38,19 +33,19 @@ TODAY_LABEL = "сегодня"
 
 
 def today_period(now: datetime) -> Period:
-    """Период по умолчанию для «что у меня?» — сегодняшний день по Москве."""
+    """период по умолчанию для «что у меня?» — сегодняшний день по Москве."""
     start = start_of_day(now)
     return Period(start=start, end=start + timedelta(days=1), label=TODAY_LABEL)
 
 
 class ListingFlow:
-    """Записи за период с текстовой сводкой."""
+    """записи за период с текстовой сводкой."""
 
     def __init__(self, reader: EventService) -> None:
         self._reader = reader
 
     async def run(self, turn: Turn, intent: Intent) -> Outcome:
-        """Сводка и записи за период из разбора (по умолчанию — сегодня)."""
+        """сводка и записи за период из разбора (по умолчанию — сегодня)."""
         period = intent.period or today_period(turn.now)
         today = today_period(turn.now)
 
@@ -82,7 +77,7 @@ class ListingFlow:
 
 @dataclass(frozen=True, slots=True)
 class _Answer:
-    """Главная запись выдачи и текст про неё."""
+    """главная запись выдачи и текст про неё."""
 
     chosen: EventCard
     text: str
@@ -90,7 +85,7 @@ class _Answer:
 
 @dataclass(frozen=True, slots=True)
 class _Found:
-    """Выдача поиска по убыванию оценки (равные — ближайшая будущая первой) и вопрос."""
+    """выдача поиска по убыванию оценки (равные — ближайшая будущая первой) и вопрос."""
 
     ranked: Sequence[ScoredCard]
     asked_type: EventType | None
@@ -100,7 +95,7 @@ class _Found:
         return self.ranked[0].card
 
     def contenders(self) -> list[EventCard]:
-        """Равноправные кандидаты ответа «когда»: оценка рядом с лучшей, тип — названный."""
+        """равноправные кандидаты ответа «когда»: оценка рядом с лучшей, тип — названный."""
         near = [item.card for item in near_best(self.ranked, WHEN_SCORE_MARGIN)]
         types = asked_types(self.asked_type)
         typed = [card for card in near if types is None or card.type in types]
@@ -108,13 +103,13 @@ class _Found:
 
 
 class SearchFlow:
-    """Поиск записей по смыслу с ответом на «когда было / когда будет»."""
+    """поиск записей по смыслу с ответом на «когда было / когда будет»."""
 
     def __init__(self, reader: EventService) -> None:
         self._reader = reader
 
     async def run(self, turn: Turn, intent: Intent) -> Outcome:
-        """Найденные записи; первой — та, о которой ответ."""
+        """найденные записи; первой — та, о которой ответ."""
         criteria = EventFilter(
             profile_id=turn.profile_id,
             period_start=None if intent.period is None else intent.period.start,
@@ -140,7 +135,7 @@ class SearchFlow:
 def _split_by_now(
     cards: Sequence[EventCard], now: datetime
 ) -> tuple[list[EventCard], list[EventCard]]:
-    """Записи с датой: прошедшие и будущие, каждые по возрастанию времени."""
+    """записи с датой: прошедшие и будущие, каждые по возрастанию времени."""
     dated = sorted(
         ((card.starts_at, card) for card in cards if card.starts_at is not None),
         key=itemgetter(0),
