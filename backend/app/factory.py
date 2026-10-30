@@ -134,14 +134,14 @@ class _UnavailableTextToSpeech:
 def _build_voice(settings: Settings) -> _VoiceServices:
     """Единственное место, где выбираются модели речи (`VOICE_BACKEND`).
 
-    Если модулей Whisper / Silero ещё нет или модель не создаётся, приложение
+    Если модулей распознавания / Silero ещё нет или модель не создаётся, приложение
     работает, а `/api/voice` и `/api/tts` отвечают 503 — так же, как при сбое модели;
     в `/api/health` такая модель — `fail`. При `disabled` проверки — `unknown`.
     """
     if settings.voice_backend is VoiceBackend.DISABLED:
         return _VoiceServices(_UnavailableSpeechToText(), _UnavailableTextToSpeech())
     speech_to_text: SpeechToText = _model_or_unavailable(
-        _whisper_speech_to_text, _UnavailableSpeechToText, "/api/voice"
+        _speech_to_text, _UnavailableSpeechToText, "/api/voice"
     )
     text_to_speech: TextToSpeech = _model_or_unavailable(
         _silero_text_to_speech, _UnavailableTextToSpeech, "/api/tts"
@@ -154,7 +154,7 @@ def _build_voice(settings: Settings) -> _VoiceServices:
 def _warm_up_in_background(*models: object) -> list[asyncio.Task[None]]:
     """Грузит модели речи в фоне сразу после старта, не задерживая готовность API.
 
-    Без прогрева Whisper и Silero грузятся на первой реплике (минуты при холодном кэше).
+    Без прогрева распознавание и Silero грузятся на первой реплике (минуты при холодном кэше).
     `warm_up()` есть у настоящих моделей и сам решает, включён ли прогрев (`*_WARM_UP_ON_STARTUP`),
     и никогда не бросает исключений; у заглушек его нет.
     """
@@ -177,12 +177,18 @@ def _model_or_unavailable[Model](
         return unavailable()
 
 
-def _whisper_speech_to_text() -> SpeechToText:
-    """faster-whisper; импорт внутри — модуль может ещё отсутствовать. Модель грузится лениво."""
-    from app.voice.whisper import WhisperSpeechToText  # type: ignore[import-not-found,unused-ignore]
+def _speech_to_text() -> SpeechToText:
+    """GigaAM или faster-whisper (`STT_ENGINE`); импорт внутри — модель грузится лениво."""
+    from app.voice.settings import SpeechToTextSettings
 
-    speech_to_text: SpeechToText = WhisperSpeechToText()
-    return speech_to_text
+    settings = SpeechToTextSettings()
+    if settings.engine == "whisper":
+        from app.voice.whisper import WhisperSpeechToText
+
+        return WhisperSpeechToText()
+    from app.voice.gigaam import GigaAMSpeechToText
+
+    return GigaAMSpeechToText()
 
 
 def _silero_text_to_speech() -> TextToSpeech:

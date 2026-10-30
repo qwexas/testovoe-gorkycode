@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Копирует на сервер только нужные веса из ./models (около 4,7 ГБ из 11 ГБ локального кэша):
-# эмбеддинги USER-bge-m3, Whisper large-v3-turbo / medium / small (замер Q20), Silero.
+# эмбеддинги USER-bge-m3, GigaAM-v3 и Silero VAD (распознавание), Whisper large-v3-turbo /
+# medium / small (запасное распознавание), Silero TTS.
 # Каталог моделей Hugging Face здесь хранит файлы в общем ./models/blobs через
 # относительные ссылки, поэтому копируются и сами каталоги моделей, и их блобы.
 set -euo pipefail
@@ -10,6 +11,8 @@ REMOTE_DIR="${DEPLOY_DIR:-gorkycode}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MODELS=(
   models--deepvk--USER-bge-m3
+  gigaam-v3-e2e-rnnt
+  silero-vad
   models--mobiuslabsgmbh--faster-whisper-large-v3-turbo
   models--Systran--faster-whisper-medium
   models--Systran--faster-whisper-small

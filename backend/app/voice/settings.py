@@ -8,6 +8,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config import ENV_FILE
 
+SpeechEngine = Literal["gigaam", "whisper"]
+"""Чем распознавать речь: GigaAM-v3 (onnx-asr) или faster-whisper."""
+DEFAULT_SPEECH_ENGINE: SpeechEngine = "gigaam"
+"""GigaAM-v3 обучен на русском: на фразах ТЗ WER 5,4 % при 0,18 с на фразу на CPU сервера
+и пишет время цифрами; Whisper medium — 5-6 с на фразу. Whisper оставлен запасным."""
+DEFAULT_GIGAAM_MODEL = "gigaam-v3-e2e-rnnt"
+"""Вариант e2e: пунктуация и числа цифрами («в 15:00»); на тишине и шуме — пустая строка."""
 DEFAULT_WHISPER_MODEL = "large-v3-turbo"
 """По замеру точнее medium и small; medium быстрее лишь на ~20 %."""
 DEFAULT_BEAM_SIZE = 5
@@ -23,16 +30,22 @@ SileroSampleRate = Literal[8000, 24000, 48000]
 
 
 class SpeechToTextSettings(BaseSettings):
-    """Распознавание речи faster-whisper на CPU (Q5, Q20).
+    """Распознавание речи на CPU: GigaAM-v3 (по умолчанию) или faster-whisper.
 
     `cache_dir` — каталог весов: локально `./models` репозитория (он в `.gitignore`),
-    в Docker — пусто, тогда веса лежат в `HF_HOME` (том `/models`).
+    в Docker — том `/models`. Пусто — кэш Hugging Face (`HF_HOME`).
     """
 
     model_config = SettingsConfigDict(
         env_prefix="STT_", env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore"
     )
 
+    engine: SpeechEngine = Field(
+        default=DEFAULT_SPEECH_ENGINE, description="Движок распознавания: `gigaam` или `whisper`"
+    )
+    gigaam_model: str = Field(
+        default=DEFAULT_GIGAAM_MODEL, description="Модель onnx-asr для движка `gigaam`"
+    )
     model: str = Field(
         default=DEFAULT_WHISPER_MODEL,
         description="Модель faster-whisper: `large-v3-turbo`, `medium`, `small` или путь к CT2",
@@ -43,7 +56,10 @@ class SpeechToTextSettings(BaseSettings):
     cpu_threads: int = Field(
         default=DEFAULT_STT_CPU_THREADS,
         ge=0,
-        description="Потоков CTranslate2 на одно распознавание; 0 — по умолчанию библиотеки (4)",
+        description=(
+            "Потоков на одно распознавание (CTranslate2 / ONNX Runtime); "
+            "0 — по умолчанию библиотеки"
+        ),
     )
     max_concurrency: int = Field(
         default=1,

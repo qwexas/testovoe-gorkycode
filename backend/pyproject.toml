@@ -13,6 +13,7 @@ dependencies = [
     "icalendar>=7.3.0",
     "num2words>=0.5.14",
     "numpy>=2.5.4",
+    "onnx-asr[hub]>=0.12",
     "pgvector>=0.5.1",
     "pydantic-settings>=2.16.1",
     "pymorphy3>=2.0.6",

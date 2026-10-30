@@ -104,7 +104,7 @@ class TestFactory:
     async def test_missing_modules_fall_back_with_warning(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        monkeypatch.setitem(sys.modules, "app.voice.whisper", None)
+        monkeypatch.setitem(sys.modules, "app.voice.gigaam", None)
         monkeypatch.setitem(sys.modules, "app.voice.silero", None)
 
         with caplog.at_level(logging.WARNING, logger="app.factory"):
@@ -119,8 +119,8 @@ class TestFactory:
     async def test_model_that_fails_to_build_falls_back(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        whisper = fake_module("app.voice.whisper", WhisperSpeechToText=BrokenModel)
-        monkeypatch.setitem(sys.modules, "app.voice.whisper", whisper)
+        gigaam = fake_module("app.voice.gigaam", GigaAMSpeechToText=BrokenModel)
+        monkeypatch.setitem(sys.modules, "app.voice.gigaam", gigaam)
         monkeypatch.setitem(sys.modules, "app.voice.silero", None)
 
         with caplog.at_level(logging.WARNING, logger="app.factory"):
@@ -132,8 +132,8 @@ class TestFactory:
     async def test_real_models_are_used_and_probed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setitem(
             sys.modules,
-            "app.voice.whisper",
-            fake_module("app.voice.whisper", WhisperSpeechToText=ReadySpeechToText),
+            "app.voice.gigaam",
+            fake_module("app.voice.gigaam", GigaAMSpeechToText=ReadySpeechToText),
         )
         monkeypatch.setitem(
             sys.modules,

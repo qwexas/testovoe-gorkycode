@@ -17,7 +17,7 @@ from app.core.errors import AudioTooLargeError, AudioUnsupportedError
 from app.voice.interfaces import MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS
 
 SPEECH_SAMPLE_RATE = 16_000
-"""Частота, на которой работает Whisper."""
+"""Частота, на которой работают модели распознавания (GigaAM, Whisper)."""
 DURATION_TOLERANCE_SECONDS = 1.0
 """Запас к пределу длительности: запись ровно на 60 с после кодека бывает чуть длиннее."""
 MAX_SPEECH_SAMPLES = int((MAX_AUDIO_SECONDS + DURATION_TOLERANCE_SECONDS) * SPEECH_SAMPLE_RATE)

@@ -37,7 +37,9 @@ class VoiceBackend(StrEnum):
     """Чем распознавать и озвучивать речь."""
 
     REAL = "real"
-    """Whisper и Silero из `app.voice`; если модели нет — `/api/voice` и `/api/tts` отвечают 503."""
+    """Распознавание (GigaAM или Whisper) и Silero из `app.voice`.
+
+    Если модели нет — `/api/voice` и `/api/tts` отвечают 503."""
     DISABLED = "disabled"
     """Без моделей речи: `/api/voice` и `/api/tts` отвечают 503 — для тестов и выгрузки OpenAPI."""
 
@@ -106,7 +108,7 @@ class Settings(BaseSettings):
     )
     voice_backend: VoiceBackend = Field(
         default=VoiceBackend.REAL,
-        description="`real` — Whisper и Silero; `disabled` — без моделей речи (тесты)",
+        description="`real` — модели распознавания и Silero; `disabled` — без моделей речи (тесты)",
     )
     load_history_on_startup: bool = Field(
         default=True,
